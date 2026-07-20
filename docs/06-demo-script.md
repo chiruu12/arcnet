@@ -15,7 +15,7 @@ Run S0 (clean task). Flip to SigNoz: the trace waterfall (`invoke_agent → chat
 ## Beat 2 — Attack & self-correct / Edgar (0:40–1:20)
 Run S1. The forward-facing agent scrapes a page with a hidden instruction.
 - Threat feed: `injection` on the **untrusted scraped source**; Unplug **filters it before the model**; the `send_email` exfil is **[BLOCKED]** (taint), span red in SigNoz.
-- Alert → webhook → a `steer` signal → the agent quarantines the content and **finishes the task safely, no human needed.**
+- The `steer` signal arrives via the **inline fast-path** (milliseconds — this is what makes "in seconds" true on camera); the SigNoz alert → webhook lands right behind it as the system of record. The agent quarantines the content and **finishes the task safely, no human needed.**
 
 > "The attack came in through an untrusted source. ArcNet caught it at the boundary, blocked the exfil, and steered the agent back on course — autonomously, in seconds."
 
@@ -32,9 +32,11 @@ Flip the incident with the **`human_view ⇄ agent_view`** toggle → the same i
 > "Every view in ArcNet has an agent-readable twin. Your coding agent doesn't read a screenshot — it reads structured incidents, pulls the live trace through SigNoz's own MCP server, and fixes the agent at the source."
 
 ## Beat 5 — Time Machine / the whoa (2:10–2:45)
-Open `time_machine`. Replay the Edgar session against a candidate model, tool outputs mocked from the trace. Side by side: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate refuses the injection where the baseline was exploited. (Baseline = whichever model the demo fleet runs, chosen Day 0 — gpt-4o-mini or haiku; candidate = a *different* model. The mock shows gpt-4o-mini vs claude-fable-5; swap the labels to match the Day-0 pick.) The verdict readout: `injection_resisted false→true`, `exfil_attempts 1→0`, cost/latency deltas, `exit_code=0`. Recommendation: route the forward-facing agent to the candidate.
+Open `time_machine`. Replay the Edgar session against a candidate model, tool outputs mocked from the trace. Side by side: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate refuses the injection where the baseline was exploited. (Baseline = whichever model the demo fleet runs, chosen Day 1 — gpt-4o-mini or haiku; candidate = a *different* model. The mock shows gpt-4o-mini vs claude-fable-5; swap the labels to match the Day-1 pick.) The verdict readout: `injection_resisted false→true`, `exfil_attempts 1→0`, cost/latency deltas, `exit_code=0`. Recommendation: route the forward-facing agent to the candidate.
 
-> "This is the part nobody else has. Take a real incident and replay it against a different model — same inputs, same tools, only the brain changes. Now you can prove a model or a prompt is safer before you ship it. Not vibes. Your own history."
+> "This is the part nobody else has. Earlier, the shield saved us — but the baseline model still *followed* the injection; ArcNet just contained it. Replay the same incident against a different model — same inputs, same tools, only the brain changes — and this one never falls for it at all. The shield saves you at runtime; the Time Machine proves the fix. Not vibes. Your own history."
+
+*(That preempts the obvious judge question — "didn't you already block it?" `[EXPLOITED]` = the model attempted the injected action, even though the shield contained it; diff semantics in `10-time-machine.md`.)*
 
 ## Close (2:45–3:00)
 SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
@@ -42,8 +44,8 @@ SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
 > "ArcNet. Your agents, watching themselves — and getting better."
 
 ## Recording notes
-- **Beat 4 & 5 are the hardest to control live** (real LLM + MCP + replay). Record **pre-captured backups** of both in Phase 5; the live take is a bonus.
-- Beat 5's baseline-vs-candidate gap must be **stable** — replay at temp 0, pick a scenario with a large behavioral gap, rehearse in Phase 4.
+- **Beat 4 & 5 are the hardest to control live** (real LLM + MCP + replay). Record **pre-captured backups** of both on Day 5 (Sat); the live take is a bonus.
+- Beat 5's baseline-vs-candidate gap must be **stable** — replay at temp 0, pick a scenario with a large behavioral gap, rehearse on Day 4 (Fri).
 - Every beat maps to a P0/P1 feature with a build slot in `03-plan.md`; nothing here is unscheduled.
 
 ## Judge-facing checklist (README mirrors this)
@@ -51,5 +53,5 @@ SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
 - [ ] Screenshot per beat in README
 - [ ] Criteria map (see `00-hackathon-brief.md`)
 - [ ] Video < 3 min, unlisted + linked in submission
-- [ ] Backup captures for Beats 4 & 5 recorded Phase 5
+- [ ] Backup captures for Beats 4 & 5 recorded Day 5 (Sat)
 - [ ] Rehearse full take **Sat Jul 25**; Sun Jul 26 = ship/submit only

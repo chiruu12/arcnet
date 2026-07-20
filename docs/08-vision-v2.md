@@ -15,6 +15,18 @@ observe ──▶ detect ──▶ self-correct ──▶ hand off ──▶ pro
                                         coding agent)  replay)
 ```
 
+## North star & success criteria
+
+**North star: win Track 1 by being the only entry that closes the loop — observe → detect → self-correct → hand off → prove — on a judge's own machine in two commands.**
+
+What "done and winning" looks like, concretely:
+1. **All six demo beats recorded** with backups; no beat depends on luck (choreography for S4 ordering, fast-path for Edgar's steer, 3-run majority for the replay verdict).
+2. **A judge reproduces it**: `docker compose up` + `./scripts/run-demo.sh` — nothing manual, `.env.example` complete.
+3. **Every judging criterion has a visible artifact** (map in `00-hackathon-brief.md`) — nothing scored on our say-so.
+4. **The two "nobody else has" claims stay defensible**: agent-view (machine-optimal twin of every datum) and the Time Machine (counterfactual replay with a precise, honest verdict — `10-time-machine.md`).
+
+**Tradeoff order when time runs short** (pre-decided so mid-build cuts are mechanical): demo-beat integrity > SigNoz depth > UI breadth > feature breadth. The cut list in `03-plan.md` implements this.
+
 ## Why this is the lovable version (landscape-grounded)
 
 - The whole field (LangSmith, Langfuse, Arize, Braintrust, AgentOps) admits it: *nobody closes the loop from production trace → failure → fix → proof → regression*, and their data model treats agents as "sequences of LLM calls," not goal-level sessions. That gap is the wedge.

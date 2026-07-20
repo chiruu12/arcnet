@@ -44,7 +44,7 @@ The security story is **provenance-first**, which is exactly Unplug's taint/trus
 - Homogeneous with observability: "source trust" and "injection exposure" sit next to cost and latency as health dimensions — one product, not a bolted-on scanner.
 
 ### 3. Self-correct — signals
-Alert → webhook → signal bus → Agno hook. Four kinds: `steer` (inject guidance, continue), `pause` (HITL approve/reject from the UI), `kill` (cancel a runaway), `note` (annotate telemetry only). The fleet defends itself in seconds.
+Two triggers, one bus: **inline** (guard block → signal, milliseconds) and **alert-driven** (SigNoz alert → webhook — the system of record; see `02` §3). Four kinds: `steer` (inject guidance, continue), `pause` (HITL approve/reject from the UI), `kill` (cancel a runaway), `note` (annotate telemetry only). The fleet defends itself in seconds.
 
 ### 4. Anomaly — Griffin
 Foundation-model (TabFM) anomaly detection on the metrics; reports only true outliers, silent otherwise. Catches health drift on new/short-history agents that seasonal thresholds miss. (Design: `07-griffin-anomaly.md`.)
@@ -58,7 +58,7 @@ Foundation-model (TabFM) anomaly detection on the metrics; reports only true out
 ### 6. Time Machine — counterfactual replay
 - Replay a **recorded session** against a **different model/prompt**, tool outputs mocked from the trace (replay-from-trace; not live).
 - Show the **behavioral diff** (resisted injection? looped less? cheaper? reached goal?) + a verdict + a recommendation.
-- Turns the trace store into a **replayable proof harness**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it's better. The answer to "should I switch models / change this prompt?".
+- Turns the trace store into a **replayable proof harness**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it's better. The answer to "should I switch models / change this prompt?". (Build spec — transcript, diff semantics, verdict schema: `10-time-machine.md`.)
 
 ## Men in Black — as undertone, not costume
 The frame stays (ArcNet = the shield around the fleet; agents are registered and monitored; a prompt-injected agent is a bug in a human suit). But execution is **product-grade**; MIB survives only as the wordmark, deadpan microcopy, and a whisper of aesthetic. Not a themed console. Frontend direction: `09-frontend.md`.
@@ -70,7 +70,7 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 **P0 — demo-critical**
 - F1 Instrumented fleet (SigNoz, Agno via openinference).
 - F2 Trust & guard telemetry (Unplug source-trust as `UnplugGuardrail` + tool hooks; `arcnet.guard.*`).
-- F3 Bug Suite scenarios (S0/S1/S2/S4/S5).
+- F3 Bug Suite scenarios (S0/S1/S2/S4/S5 — fixtures, assertions, camera notes in `11-scenarios.md`).
 - F4 SigNoz depth (dashboards, alerts incl. seasonal anomaly, webhook).
 - F5 Signals self-correct (`steer`/`kill`).
 - F6 Fleet Health view (agents + trust posture + forward-facing flag + threats + cost + Griffin).

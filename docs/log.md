@@ -13,3 +13,7 @@
 **Consistency pass (v2):** unified dashboard name (Threats & Trust), explained F8/F12 numbering gaps, normalized "HQ"→"the UI" in prose (`hq/` stays the dir), verified P0/P1/P2 tiers match across 01/03, Signal schema identical, every demo beat maps to a P0 feature.
 
 - **Next (Phase 0 in `03-plan.md`):** SigNoz Docker up, Agno hello trace, unplug smoke, replay feasibility spike, TabFM spike, service key + Query/metrics-list, submission form + deadline time.
+
+## Day 1 — Tue Jul 21 (gap review + spec hardening, then build)
+
+Full gap pass over the plan before coding. **Schedule re-anchored**: Mon went to concept, so build = Tue–Sat (Tue is a double day: foundations AM + shield core PM; TabFM spike and S2 moved to Wed). New specs: `10-time-machine.md` (recorded-transcript shape, tool-stub matching, precise diff semantics — `[EXPLOITED]` = model *attempted* the injected action, verdict schema, 12-incident corpus) and `11-scenarios.md` (per-scenario fixtures + telemetry assertions = the test suite; fleet clones L & O so a cut Agent K never leaves a fleet of one). Signals now have an **inline fast-path** (guard block → signal in ms; SigNoz alert = system of record) so "self-corrects in seconds" survives the alert-evaluation interval. Added **north star + success criteria + tradeoff order** to `08`, decision **gates G1–G5** to `03`, Beat-5 narration that preempts "didn't you already block it?". All Day-0/phase labels re-pointed to the new Day 1–6 calendar.

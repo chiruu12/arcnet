@@ -4,9 +4,9 @@
 
 - Consume **`unplug-ai==0.5.2` from PyPI** as a normal dependency — never vendor its code into this repo (hackathon "no prior work" rule: ArcNet is the build; unplug-ai is a published library we use, same as Agno).
 - The local `unplug-v1` checkout is a **diverged old branch (0.2.0, ~228 commits behind)** — do not code against it. Use the PyPI package; read upstream `origin/main` source only for reference.
-- **Day-0 smoke test is mandatory.** Precisely what's confirmed vs assumed:
+- **Day-1 smoke test is mandatory.** Precisely what's confirmed vs assumed:
   - **Verified against 0.5.2 source** (`origin/main`): the top-level exports `Guard, ScanResult, Finding, Action, Source` all exist, and `Guard` exposes `scan`, `scan_output`, `check_tool_call`, `add_canary`, `metrics`.
-  - **From the older 0.2.0 explore, treat as assumed until Day 0**: the exact *field* lists of `ScanResult`/`Finding`, the default action thresholds, and the `notify_taint_source`/`wrap_for_context`/`with_tiny` signatures. Confirm these against the installed package and fix this doc where it drifts.
+  - **From the older 0.2.0 explore, treat as assumed until Day 1**: the exact *field* lists of `ScanResult`/`Finding`, the default action thresholds, and the `notify_taint_source`/`wrap_for_context`/`with_tiny` signatures. Confirm these against the installed package and fix this doc where it drifts.
 
 ## Role in ArcNet: source-trust monitoring (the spine, not a bolt-on)
 
@@ -23,7 +23,7 @@ The Time Machine replays through the same `UnplugGuardrail`, so trust checks app
 
 A fast, CPU-only guard: regex scanner families + normalization + taint tracking, with optional ML and an optional bring-your-own LLM judge. Sub-ms to low-ms per scan — cheap enough to run at **every** checkpoint and emit as telemetry. No server or MCP needed; pure in-process. Its taint/trust model (`TrustLevel`, `TaintedText`, `Tagger`, `notify_taint_source`, `wrap_for_context`) is exactly what the source-trust spine needs.
 
-## Core contract (top-level names verified on 0.5.2; field details assumed — confirm Day 0)
+## Core contract (top-level names verified on 0.5.2; field details assumed — confirm Day 1)
 
 ```python
 from unplug import Guard, ScanResult, Finding, Action, Source
@@ -38,7 +38,7 @@ res = guard.check_tool_call(tool_name, arguments)
 `Finding`: `category` (scanner: `injection|destructive|leakage|harmful|financial|secrets|taint|judge|limits`), `subcategory` (rule id, e.g. `ignore_previous`, `sql_drop`), `stage`, `span_start/end`, `score`, `evidence`, `replacement`.
 Action thresholds (defaults): block ≥ 0.8, redact ≥ 0.5, review ≥ 0.3.
 
-Additional 0.5.2 surface worth using (method names verified on 0.5.2; args confirm Day 0):
+Additional 0.5.2 surface worth using (method names verified on 0.5.2; args confirm Day 1):
 - `guard.add_canary(prompt, label="system_prompt")` — **F9**: canary in system prompt → output scan catches exfiltration (method confirmed present on 0.5.2)
 - `guard.notify_taint_source(tool_name, origin=...)` + `guard.wrap_for_context(text, source=RETRIEVED)` — taint bookkeeping for fetched content (S1 Edgar)
 - `guard.metrics` (`MetricsCollector`) — per-scanner stats we can mirror into OTel gauges

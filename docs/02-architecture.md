@@ -64,8 +64,12 @@ Unplug is the **provenance/trust spine**. Every ingested datum is tagged with a 
 
 `ScanResult.action` drives behavior: `allow` → proceed; `redact` → substitute `redacted_text`; `block` → raise guardrail error (span status ERROR); `review` → proceed + flag. **Every result — including clean ones — becomes telemetry.** Each agent carries an `arcnet.exposure` attribute (`forward_facing` | `internal`) derived from whether it ingests third-party content; forward-facing agents are surfaced as higher injection-risk in the Fleet Health view.
 
-### 3. Reactive signals (seconds)
-SigNoz alert rule fires (threat count, cost burn, loop depth, p99 latency) → webhook POST `server/webhooks/signoz` → server maps to the canonical **`Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`** (this exact shape is the contract used everywhere — SDK, server, plan) → SSE. SDK signal client checks the per-session queue inside tool hooks (between steps):
+### 3. Reactive signals (two paths, one contract)
+Signals reach the bus two ways — both map to the canonical **`Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`** (this exact shape is the contract used everywhere — SDK, server, plan) → SSE:
+- **Inline fast-path (ms):** when the guard blocks (e.g. Edgar's exfil), the SDK POSTs `/api/signal` directly — the on-camera steer is snappy and honest.
+- **Alert-driven (system of record):** SigNoz alert rule fires (threat count, cost burn, loop depth, p99 latency) → webhook POST `server/webhooks/signoz`. Alert evaluation runs on an interval, so this path is tens-of-seconds; it's what you'd rely on at fleet scale, and the demo shows it landing right behind the fast-path.
+
+SDK signal client checks the per-session queue inside tool hooks (between steps):
 - `steer` → inject corrective guidance into the run's context, continue
 - `pause` → trigger Agno HITL pause; the UI shows approve/reject; resume on decision
 - `kill` → cancel the run
@@ -83,7 +87,7 @@ Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}`
 3. **Diff** the trajectories → `{resisted_injection, exfil_attempts, goal_reached, cost, latency, tokens}` for baseline vs candidate.
 4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — the current one plus the other 11 — and aggregate ("candidate resists 10/12").
 
-This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. It reuses the traces SigNoz already stores; no new datastore.
+This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. Sessions are **dual-written** (replay-ready span attributes → SigNoz + a row in the server's SQLite) so the loader always has a deterministic source. Full spec — transcript shape, tool-stub matching, diff semantics, verdict schema, corpus: **`10-time-machine.md`**.
 
 ## Components
 
@@ -95,9 +99,9 @@ This is **replay-from-trace, not live re-execution** — deterministic, cheap (o
 - Telemetry namespace `arcnet.*`: see `04-signoz-integration.md`.
 
 ### `agents/` — demo fleet + Bug Suite
-Agents J & K on **AgentOS** (single FastAPI app). Agent J: support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Agent K: minimal second fleet member so the board isn't lonely. Model: cheap + fast (gpt-4o-mini or haiku — decide day 1 by keys; cost telemetry needs real tokens).
+Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. Model: cheap + fast (gpt-4o-mini or haiku — decide day 1 by keys; cost telemetry needs real tokens).
 
-Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + script + expected detections:
+Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + runner script + **telemetry assertions** (full spec, fixtures, goal predicates, camera notes: **`11-scenarios.md`**):
 | # | Codename | Attack | Expected chain |
 |---|---|---|---|
 | S1 | **Edgar** | Indirect injection in fetched page → email exfil attempt | retrieved-scan flags → taint → tool pre-hook **block** → alert → signal `steer` → agent self-corrects |
@@ -110,7 +114,7 @@ Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + script + expe
 Seeds: unplug-ai's built-in labeled samples + hand-written indirect-injection page fixtures (llmail-inject style).
 
 ### `server/` — FastAPI
-Routes: `/webhooks/signoz`, `/signals/stream` (SSE per-session + firehose), `/api/fleet`, `/api/threats`, `/api/sources` (source-trust ledger), `/api/sessions/{id}`, `/api/agent-view/{view}/{id}` (machine-optimal twin of every view), `/export/case-file/{id}`, `/api/replay` (Time Machine), `/api/signal` (manual signal from the UI — pause/kill buttons), `/api/hitl/{run_id}` (approve/reject → AgentOS). State: SQLite. SigNoz access: Query Range API with service-account key (server-side only). Triggers scenario + replay runs by calling AgentOS.
+Routes: `/webhooks/signoz`, `/signals/stream` (SSE per-session + firehose), `/api/fleet`, `/api/threats`, `/api/sources` (source-trust ledger), `/api/sessions/{id}`, `/api/agent-view/{view}/{id}` (machine-optimal twin of every view), `/export/case-file/{id}`, `/api/replay` (Time Machine — spec in `10`), `/api/signal` (inline fast-path from the SDK + manual pause/kill from the UI), `/api/hitl/{run_id}` (approve/reject → AgentOS). State: SQLite (incl. the replay-ready `sessions` table). SigNoz access: Query Range API with service-account key (server-side only). Triggers scenario + replay runs by calling AgentOS. **No auth — localhost demo surface by design; say so in the README rather than shipping auth theater.**
 
 Also hosts **Griffin** (`server/griffin.py`, async worker): FM-powered metric anomaly detection — pulls metric history from the Query Range API every 60s, forecasts expected bands with Google TabFM (zero-shot regression + split-conformal residuals), and emits `arcnet.anomaly` telemetry only for true outliers, which rides the existing alert→webhook→signal path. Design: `07-griffin-anomaly.md`.
 
@@ -155,7 +159,7 @@ Enumerated so the "judge runs `docker compose up` + `run-demo.sh`" claim is real
 
 | Var | Purpose | Who needs it |
 |---|---|---|
-| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Demo agent model (gpt-4o-mini vs haiku — pick Day 0 by which key the dev has) | agents/, sdk/ |
+| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Demo agent model (gpt-4o-mini vs haiku — pick Day 1 by which key the dev has) | agents/, sdk/ |
 | `ARCNET_MODEL` | Which model id to use (drives `pricing.py` lookup) | agents/ |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP → SigNoz collector (self-host: `http://localhost:4318`) | sdk/ |
 | `SIGNOZ_API_KEY` | Service-account key for Query Range API (server-side only) | server/ |
@@ -175,6 +179,7 @@ The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code
 | `unplug-ai==0.5.2` API drift vs docs | Core contract verified; smoke-test day 1; pin |
 | Query Range API shape on self-host | Verify day 2 before building export on it |
 | Webhook payload lacks trace context | Encode session/agent identity into alert labels at provision time; server enriches via Query API |
+| Alert evaluation interval too slow for on-camera self-correct | Inline fast-path signal at block time (§3); alert stays the system of record; tune rule eval/`for:` windows Day 2 |
 | **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so we record what the harness needs (goal, tool I/O, model turns) as span attributes at trace time — don't rely on reconstructing from generic OTel spans. Verify the recorded-session round-trip Day 3 before building the diff UI. Fallback: the harness replays from ArcNet's own SQLite session store, not SigNoz. |
 | **Counterfactual result is nondeterministic (LLM sampling)** | Replay at temperature 0; run the candidate 3× and report the majority behavior if needed; the demo scenario is chosen so the behavioral gap is large and stable. |
 | Solo + 6 days | P0 first; pre-agreed cut list in `03-plan.md` |
