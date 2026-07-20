@@ -1,6 +1,6 @@
 # ArcNet — Build Plan v2 (phase-gated, sooner the better)
 
-Solo build toward one hard date: **submission Sun Jul 26** (confirm the exact time from the form in Phase 0). Work is organized as **milestone-gated phases, not calendar days** — a phase starts the moment the previous exit is green, never on a date. Finish early, start the next; every hour banked flows into Phase 5–6 polish and re-records, which is where "breathtaking" actually comes from. Ceiling pace: all six phases must fit before the deadline (~a phase a day with the last two protected). Concept: `08-vision-v2.md` · Product: `01-product.md` · Specs: `10-time-machine.md` (headline) + `11-scenarios.md` (Bug Suite).
+Solo build toward one hard date: **submission Sun Jul 26** (confirm the exact time from the form in Phase 0). Work is organized as **milestone-gated phases, not calendar days** — a phase starts the moment the previous exit is green, never on a date. Finish early, start the next; every hour banked flows into Phase 5–6 polish and re-records, which is where "breathtaking" actually comes from. Ceiling pace: all six phases must fit before the deadline (~a phase a day with the last two protected). Concept: `08-vision-v2.md` · Product: `01-product.md` · Specs: `10-time-machine.md` (headline) + `11-scenarios.md` (Bug Suite) + `12-data-api.md` (DB schema + API contract — code against it, don't improvise shapes).
 
 ## The bar (the judge test)
 
@@ -56,7 +56,7 @@ Everything below serves one sentence: **"one person built this during the event 
 - [ ] Dashboards ×3 imported via script: Fleet Ops, Threats & Trust, Cost & Tokens (≥1 ClickHouse-SQL panel) — authored against the **real OpenInference attribute names recorded in Phase 0**
 - [ ] Alert rules: threat>0, cost burn, tool-calls/session, p99 latency, error rate, `arcnet.anomaly>0` — **payloads in the current v5 `queries` format** (legacy `builderQueries` is rejected on modern SigNoz; crib from the Terraform-provider examples); record the eval interval + tune `for:` windows (on-camera steer rides the inline fast-path per `02` §3)
 - [ ] Native SigNoz seasonal anomaly alert on ≥1 metric — **screenshot-only artifact** (its eval windows are ≥5m by design; it can never fire live on camera; the pairing story is a configured-rule + pre-seeded-history visual)
-- [ ] Webhook channel → server skeleton (SQLite); alert labels carry `session_id`/`agent_id`
+- [ ] Webhook channel → server skeleton (SQLite, schema + routes per `12-data-api.md`); alert labels carry `session_id`/`agent_id`
 - [ ] Logs correlated by trace_id
 - [ ] SigNoz MCP server (`v0.8.0`) self-hosted + wired into Cursor/Claude Code; agent-skills plugin installed
 - [ ] **Integration seam check (end of phase):** one stub `hq/` page → `server/` → SigNoz end-to-end (CORS, SSE reconnect, ports) — surface the seam bugs before any UI polish depends on them
