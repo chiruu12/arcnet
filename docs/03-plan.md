@@ -17,7 +17,7 @@ Everything below serves one sentence: **"one person built this during the event 
 **Anything the demo shows is P0.** The v2 demo has six beats; each maps to a P0 feature. The cut list holds only what no beat needs.
 
 - **P0 — must land:** F1 instrumented fleet · F2 source-trust guard telemetry · F3 scenarios S0/S1/S2/S4/S5 · F4 SigNoz depth (dashboards, alerts, webhook) · F5 signals (steer/kill) · F6 Fleet Health view · F7 agent-view + Case File + MCP handoff · **F14 Time Machine (counterfactual replay)** · F13 Griffin core.
-- **P1 — strong, build if P0 done:** native seasonal anomaly alert · Griffin breadth · Sources & Trust view · HITL pause beat · Time Machine corpus replay · prompt-swap replay · F9 canaries.
+- **P1 — strong, build if P0 done:** native seasonal anomaly alert · Griffin breadth · Sources & Trust view · HITL pause beat · Time Machine corpus replay · prompt-swap replay · F9 canaries · **live-work agent on the fleet** (a real Agno agent doing genuine tasks under ArcNet — dogfood; makes the cold-open fleet honest) · context inspector (deferred by choice).
 - **P2 — cut freely:** F10 LLM judge · F11 second adapter · Agent K persona · S3 Serleena.
 
 **Honest scope note:** v2 is ambitious for a solo build — the Time Machine and a product-grade UI are both new since v1. The plan front-loads the two riskiest things (replay spike in Phase 0, TabFM spike in Phase 2) and the cut list protects the two hero views; everything else degrades to agent-view JSON or SigNoz deep-links.
@@ -121,6 +121,7 @@ Everything below serves one sentence: **"one person built this during the event 
 
 - Provision everything as code — judge runs `docker compose up` + `./scripts/run-demo.sh`.
 - Every scenario emits telemetry even when blocked.
+- **This repo outlives the hackathon**: demo scaffolding stays in `agents/`/`scripts/`; `sdk/`/`server/`/`hq/` never depend on scenario code (`02`).
 - **Check the submission form daily.**
 - Commit small, messages describe WHAT shipped.
 - End of each phase: 2-line note in `docs/log.md`.

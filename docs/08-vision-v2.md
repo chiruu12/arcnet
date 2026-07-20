@@ -98,7 +98,15 @@ Complete rebuild (the v1 mock is retired). New information architecture built ar
 - **Agent-view toggle** — everywhere: flip any panel to the machine-optimal format a coding agent consumes.
 - Aesthetic: decided in D3. MIB stays as a restrained, serious undertone (naming, deadpan copy), execution at product grade — not campy.
 
-## What we are explicitly NOT building
+## Beyond the hackathon (this is a long-term project)
+
+The hackathon ships **v1**, not the whole life of the repo. ArcNet continues after Jul 26 as a real tool we run ourselves — which changes how v1 is built, today:
+
+- **Live agents, not just scripted ones.** The fleet accepts any Agno agent via `arcnet.init()` + env — nothing scenario-specific in the onboarding path. During and after the event we run real working agents under ArcNet (genuine tasks, real traffic) and *use the product properly*: watch them in Fleet Health, act on signals, replay real sessions. The Bug Suite is the choreographed demo layer on top of a live system, not a puppet show.
+- **Product core stays clean** (enforced in `02-architecture.md`): `sdk/`/`server/`/`hq/` never depend on demo code; demo behavior is config + fixtures, never forked code paths. A judge reading the repo — or us in August — finds a product, not a prop.
+- **Post-v1 direction** (not scheduled, just aimed): context inspector (deferred P1), corpus growing from real sessions instead of seeds, second framework adapter (F11), replay breadth beyond the demo scenarios.
+
+## What we are explicitly NOT building (in v1)
 - No DSPy / GEPA integration, no autonomous prompt evolution engine.
 - No live re-execution for counterfactuals (replay-from-trace only).
-- No general eval platform — the replay harness is scoped to the demo scenarios.
+- No general eval platform — the v1 replay harness is scoped to the demo scenarios (breadth is post-v1).

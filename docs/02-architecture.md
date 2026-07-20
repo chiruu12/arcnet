@@ -134,6 +134,13 @@ The UI never **queries SigNoz's API** directly — all telemetry comes through t
 - **SigNoz MCP server** — self-hosted binary (darwin_arm64) or Docker; wired into Cursor/Claude Code config. Used two ways: **dev-time** (we build dashboards/alerts/queries with SigNoz agent skills + MCP while developing) and **demo-time** (the Case File beat).
 - `provision/` — idempotent setup: import Agno dashboard template + our 3 custom dashboards, alert rules, webhook channel. Prefer plain SigNoz APIs in the script; use MCP/agent-skills interactively to author the JSON.
 
+## Product core vs demo layer (this repo outlives the hackathon)
+
+ArcNet is a long-term project; the hackathon is its v1 milestone (`08-vision-v2.md`). Two rules keep that true while building fast:
+
+1. **`sdk/`, `server/`, `hq/` are the product core** — they never import from `agents/` or `scripts/`. Onboarding a live agent is `arcnet.init()` + env vars, nothing else; any Agno app qualifies, including the real working agents we run under ArcNet ourselves.
+2. **Demo behavior is config + fixtures, never forked code paths.** Griffin's demo cadence, S4 choreography timings, seeded data — all flags/fixtures in `agents/`/`scripts/`/`*.toml`. If a "demo hack" wants to live in the core, it becomes a real feature or it doesn't ship.
+
 ## Repo layout
 
 ```
