@@ -71,11 +71,11 @@ Everything below serves one sentence: **"one person built this during the event 
 ## Phase 4 — Time Machine (the headline)
 
 - [ ] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
-- [ ] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{resisted_injection, exfil_attempts, goal_reached, cost, latency}` → verdict + recommendation (3-run majority)
-- [ ] Verify the Edgar replay: baseline (exploited) vs candidate → candidate resists; **stable across 3 runs** (gate G4)
+- [ ] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{goal_reached, steps, tool_errors, cost, latency}` + security dims for threat sessions → verdict + recommendation (3-run majority)
+- [ ] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4)
 - [ ] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
 
-**Exit: `POST /api/replay` returns a real, stable Edgar counterfactual; agent-view JSON of it.**
+**Exit: `POST /api/replay` returns real, stable Worms + Edgar counterfactuals; agent-view JSON of them.**
 
 ## Phase 5 — UI + Case File + Record
 
@@ -102,7 +102,7 @@ Everything below serves one sentence: **"one person built this during the event 
 | G1 replay spike | Phase 0 | Mechanism unproven → transcripts become the SQLite-only design immediately; Time Machine scope narrows to single-scenario replay |
 | G2 TabFM | before Phase 3 starts | Latency/API rough → `tabpfn==8.1.0` same day, no revisit (`07`) |
 | G3 replay-loader source | Phase 3 exit | Query Range round-trip flaky → SQLite loader is the demo path; SigNoz stays proof store + deep-links (`10`) |
-| G4 Edgar replay stability | Phase 4 exit | 3 runs disagree → switch candidate model or scenario variant with a larger gap; if still unstable, demo uses the Phase 5 backup capture and the live take is dropped |
+| G4 hero-replay stability (Worms + Edgar) | Phase 4 exit | 3 runs disagree → switch candidate model or scenario variant with a larger gap; if only one replay is stable, it carries the beat live and the other uses the Phase 5 backup capture |
 | G5 MCP handoff | Phase 5 | MCP flaky in the live test → Case File instructions use the Query Range API via curl; beat keeps working |
 
 ## Cut list (pull in this order when a phase overruns — cut, don't slip the chain)

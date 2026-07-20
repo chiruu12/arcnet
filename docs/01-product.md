@@ -22,7 +22,7 @@ ArcNet is one loop, not a bag of features:
 2. **Detect** — two detectors. (a) *Trust:* Unplug tags every ingested datum with a trust level and scans the untrusted ones. (b) *Anomaly:* Griffin (foundation-model) flags metric outliers static thresholds miss.
 3. **Defend** — an untrusted source trying to steer an agent is blocked; a `steer` signal makes the agent quarantine it and self-correct; runaway loops get `kill`.
 4. **Hand off** — every incident and every panel has an **agent-view**: a goal-level, trust-annotated, structured format that a coding agent (Claude Code, Codex, Cursor) consumes to improve the observed agent. ArcNet is the substrate; the coding agents people already run are the "evolvers."
-5. **Prove** — the **Time Machine** replays a recorded incident against a different model or prompt (tool outputs mocked from the trace) and shows the behavioral diff: did it resist the injection? loop less? cost less? reach the goal? Proof on your own history, not vibes.
+5. **Prove** — the **Time Machine** replays a recorded incident against a different model or prompt (tool outputs mocked from the trace) and shows the behavioral diff: did it reach the goal? loop less? cost less? resist the attack? Proof on your own history, not vibes.
 
 ## What we are NOT building (scope guardrails)
 
@@ -57,8 +57,8 @@ Foundation-model (TabFM) anomaly detection on the metrics; reports only true out
 
 ### 6. Time Machine — counterfactual replay
 - Replay a **recorded session** against a **different model/prompt**, tool outputs mocked from the trace (replay-from-trace; not live).
-- Show the **behavioral diff** (resisted injection? looped less? cheaper? reached goal?) + a verdict + a recommendation.
-- Turns the trace store into a **replayable proof harness**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it's better. The answer to "should I switch models / change this prompt?". (Build spec — transcript, diff semantics, verdict schema: `10-time-machine.md`.)
+- Diff the **whole behavior**: goal completion, steps/loops, tool errors, cost, latency — plus injection resistance *when the session carried a threat*. **Security is one lens, not the product.**
+- The market case: **model/prompt upgrades are swap-and-pray today.** The Time Machine turns your own trace history into a **behavioral regression suite** — replay your worst real sessions (the loop that burned tokens, the task that failed, the page that turned the agent) against the candidate before you ship it. (Build spec — transcript, diff semantics, verdict schema: `10-time-machine.md`.)
 
 ## Men in Black — as undertone, not costume
 The frame stays (ArcNet = the shield around the fleet; agents are registered and monitored; a prompt-injected agent is a bug in a human suit). But execution is **product-grade**; MIB survives only as the wordmark, deadpan microcopy, and a whisper of aesthetic. Not a themed console. Frontend direction: `09-frontend.md`.
@@ -83,7 +83,8 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 - Griffin breadth (auto-discovery, top-N).
 - Sources & Trust view (per-agent source ledger, what Unplug filtered/blocked).
 - HITL `pause` beat.
-- Time Machine breadth (replay the corpus of 12 recorded incidents, aggregate "candidate resists 10/12").
+- Time Machine breadth (replay the corpus of 12 recorded incidents — loops, failures, leaks, injections — aggregate scorecard: "goals reached 10/12 vs 6/12 · steps −41% · cost −38% · both injections resisted").
+- Context inspector — step-by-step view of exactly what each agent ingested (source + trust level per step). **Deferred by choice: build when time allows; agent-view JSON covers the demo.**
 - F9 canaries.
 
 **P2 — cut freely**
@@ -94,5 +95,5 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 2. **Edgar** — forward-facing agent scrapes a page with a hidden injection → Unplug flags the untrusted source, filters it, blocks the exfil, `steer` → self-corrects.
 3. **Griffin** — token-rate outlier flagged before any static threshold (The Worms).
 4. **Agent-view** — flip the incident to its machine format; hand to Claude Code/Codex → it reads the trust-annotated Case File (+ pulls raw traces via SigNoz MCP) and proposes the fix.
-5. **Time Machine (the whoa)** — replay the Edgar session against a candidate model, side by side: the candidate resists where the baseline was exploited. Proof.
+5. **Time Machine (the whoa)** — replay the Worms loop against a candidate: it stops at step 5 and reports, −72% cost, where the baseline had to be killed. Then the Edgar replay: the candidate resists where the baseline was exploited. Your own history as a regression suite — proof.
 6. **Close** — SigNoz dashboards: every trace, dollar, and trust decision accounted for.

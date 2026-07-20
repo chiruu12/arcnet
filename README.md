@@ -8,7 +8,7 @@ ArcNet watches every agent in your fleet — its behavior, its cost, and **the t
 
 Then the two things nobody else has:
 - **Agent-view** — every datum has a machine-optimal twin, so the coding agents you already run (Claude Code, Codex, Cursor) can read the fleet's health and incidents in *their* format and improve the agents.
-- **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the trace) and *prove* it would behave better. Not vibes — your own history.
+- **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the trace) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray.
 
 See `docs/08-vision-v2.md` for the full concept and `docs/mock/arcnet-v3.html` for the UI.
 

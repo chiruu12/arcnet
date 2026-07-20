@@ -84,8 +84,8 @@ Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}`
 `POST /api/replay {session_id, candidate_model | candidate_prompt}`:
 1. **Load** the recorded session from SigNoz traces (Query Range API): the ordered steps — user goal, each tool call and its **recorded output**, each model turn.
 2. **Replay** the agent with tool outputs **mocked** from the trace (the replay harness intercepts Agno tool calls and returns the recorded result) so the *only* variable is the model/prompt. Runs against the candidate through the same `UnplugGuardrail` (so trust checks apply identically).
-3. **Diff** the trajectories → `{resisted_injection, exfil_attempts, goal_reached, cost, latency, tokens}` for baseline vs candidate.
-4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — the current one plus the other 11 — and aggregate ("candidate resists 10/12").
+3. **Diff** the trajectories → core dimensions `{goal_reached, steps, tool_errors, cost, latency, tokens}` for every replay, plus `{resisted_injection, exfil_attempts}` when the session carried a threat.
+4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — loops, failures, leaks, injections — and aggregate the scorecard ("goals reached 10/12 vs 6/12 · steps −41% · cost −38% · injections resisted 2/2").
 
 This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. Sessions are **dual-written** (replay-ready span attributes → SigNoz + a row in the server's SQLite) so the loader always has a deterministic source. Full spec — transcript shape, tool-stub matching, diff semantics, verdict schema, corpus: **`10-time-machine.md`**.
 

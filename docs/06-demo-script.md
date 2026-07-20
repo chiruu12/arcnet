@@ -32,11 +32,11 @@ Flip the incident with the **`human_view ⇄ agent_view`** toggle → the same i
 > "Every view in ArcNet has an agent-readable twin. Your coding agent doesn't read a screenshot — it reads structured incidents, pulls the live trace through SigNoz's own MCP server, and fixes the agent at the source."
 
 ## Beat 5 — Time Machine / the whoa (2:10–2:45)
-Open `time_machine`. Replay the Edgar session against a candidate model, tool outputs mocked from the trace. Side by side: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate refuses the injection where the baseline was exploited. (Baseline = whichever model the demo fleet runs, chosen in Phase 0 — gpt-4o-mini or haiku; candidate = a *different* model. The mock shows gpt-4o-mini vs claude-fable-5; swap the labels to match the Phase-0 pick.) The verdict readout: `injection_resisted false→true`, `exfil_attempts 1→0`, cost/latency deltas, `exit_code=0`. Recommendation: route the forward-facing agent to the candidate.
+Open `time_machine` on the **Worms loop from Beat 3** and `replay.run()` against the candidate — live. Side by side: **baseline [KILLED]** (looped 19 steps until ArcNet cancelled it) vs **candidate [OK]** (stops at step 5, flags the endless pagination, reports). Verdict readout: `goal_reached killed→partial`, `steps 19→5`, `cost −72%`, `exit_code=0`. Then flip to the **pre-run Edgar replay**: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate never follows the injection. Close the beat on the corpus scorecard: `goals_reached 10/12 vs 6/12 · steps −41% · cost −38% · injections resisted 2/2`. (Baseline = whichever model the demo fleet runs, chosen in Phase 0 — gpt-4o-mini or haiku; candidate = a *different* model. The mock shows gpt-4o-mini vs claude-fable-5; swap the labels to match the Phase-0 pick.)
 
-> "This is the part nobody else has. Earlier, the shield saved us — but the baseline model still *followed* the injection; ArcNet just contained it. Replay the same incident against a different model — same inputs, same tools, only the brain changes — and this one never falls for it at all. The shield saves you at runtime; the Time Machine proves the fix. Not vibes. Your own history."
+> "This is the part nobody else has. Your agents' worst sessions become a regression suite. The loop that burned tokens? Replay it against a candidate model — same inputs, same tools, only the brain changes — and it stops itself in five steps. The injection from earlier? The shield contained it at runtime, but the baseline still *followed* it — this model never falls for it at all. Run the whole history: ten of twelve goals reached, forty percent cheaper, every attack resisted. Prove the upgrade before you ship it. Not vibes. Your own history."
 
-*(That preempts the obvious judge question — "didn't you already block it?" `[EXPLOITED]` = the model attempted the injected action, even though the shield contained it; diff semantics in `10-time-machine.md`.)*
+*(Reliability first, security second — the beat sells "regression suite for agent behavior," not "injection survival." The Edgar line still preempts the judge question — "didn't you already block it?" `[EXPLOITED]` = the model attempted the injected action even though the shield contained it; diff semantics in `10-time-machine.md`. The corpus numbers on camera are whatever the real Phase-5 scorecard says — never invent them.)*
 
 ## Close (2:45–3:00)
 SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
@@ -45,7 +45,7 @@ SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
 
 ## Recording notes
 - **Beat 4 & 5 are the hardest to control live** (real LLM + MCP + replay). Record **pre-captured backups** of both in Phase 5; the live take is a bonus.
-- Beat 5's baseline-vs-candidate gap must be **stable** — replay at temp 0, pick a scenario with a large behavioral gap, rehearse in Phase 4.
+- Beat 5's baseline-vs-candidate gap must be **stable for both replays** (Worms live, Edgar pre-run) — replay at temp 0, pick variants with a large behavioral gap, rehearse in Phase 4.
 - Every beat maps to a P0/P1 feature with a build slot in `03-plan.md`; nothing here is unscheduled.
 
 ## Judge-facing checklist (README mirrors this)

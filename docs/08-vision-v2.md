@@ -33,6 +33,17 @@ What "done and winning" looks like, concretely:
 - Every observability tool is built for **humans to look at**; agent-querying is bolted on as raw-log access. ArcNet flips it: **the primary consumer of agent observability is the agent that will improve the fleet.** Dashboard = the human's window into an agent-to-agent loop.
 - Prior art proves the pieces are buildable: counterfactual **replay-from-trace** (Causal Agent Replay, 2026) and coding agents that already ingest traces to self-evolve. We ride those, we don't rebuild them.
 
+## The market pains this maps to (needed, not neat)
+
+Ranked by how universally teams running agents actually feel them:
+
+1. **Agents don't reliably finish tasks** — the #1 production blocker. Sessions fail silently; nobody can see *where* or prove a change helps. → observe + goal-level agent-view + replay.
+2. **Loops and cost blowouts** — every team has the "agent burned $400 over the weekend" story; budget alerts fire *after* the damage. → Griffin (catches drift in minutes) + `kill` signals + the loop replay.
+3. **Model/prompt upgrades are blind** — deprecations and price changes force migrations, and today the process is swap-and-pray. → the Time Machine as a **behavioral regression suite over your own traces**. This is the prove-pillar's core market case; injection resistance is *one dimension* of the scorecard, not the headline.
+4. **Untrusted content is the new attack surface** — forward-facing agents ingest the open web (OWASP LLM01). → Unplug source-trust. The visceral demo instance, deliberately not the whole story.
+
+One product sentence: **flight recorder + shield + wind tunnel** for agent fleets.
+
 ## Scope decisions (locked)
 
 - **Spine:** unified "self-improving fleet." Security/attacks are the visceral demo instance; self-improvement is the frame. (D1)
@@ -66,8 +77,8 @@ FM (TabFM) anomaly detection on the metrics; reports only true outliers. Covers 
 
 ### 6. Time-machine — counterfactual replay (NEW, the "whoa")
 - Take a **recorded session** (from traces) and **replay it against a different model or prompt**, with tool outputs mocked (replay-from-trace — feasible, deterministic, cheap; not live re-execution).
-- **Show the behavioral diff**: did model B resist the injection that exploited model A? Did it loop less? Cost less? Reach the goal?
-- This turns the trace store into a **replayable proof harness**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it behaves better. Quantified, on the user's own history — the answer to "should I switch models / change this prompt?"
+- **Show the full behavioral diff**: did model B reach the goal model A fumbled? Loop less? Cost less? Make fewer tool errors? And — when the session carried a threat — resist the injection that turned model A? **Security is one dimension of the scorecard, not the product.**
+- This turns the trace store into a **behavioral regression suite**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it behaves better. Quantified, on the user's own history — the answer to "should I switch models / change this prompt?" that today is answered by swap-and-pray.
 
 ## The demo, homogeneously (full script in `06-demo-script.md`)
 
@@ -75,7 +86,7 @@ FM (TabFM) anomaly detection on the metrics; reports only true outliers. Covers 
 2. **Attack (Edgar)**: forward-facing agent scrapes a page with a hidden injection → Unplug flags the **untrusted source**, filters it, blocks the exfil, `steer` signal → agent self-corrects. All in SigNoz.
 3. **Griffin**: a token-rate outlier flagged before any static threshold (The Worms).
 4. **Agent-view**: flip the incident to its machine format; hand it to Claude Code/Codex — it reads the trust-annotated Case File (+ pulls raw traces via SigNoz MCP) and proposes the fix.
-5. **Time-machine (the whoa)**: replay the Edgar session against a second model — side by side, model B resists the injection where model A was exploited. Proof, not vibes.
+5. **Time-machine (the whoa)**: replay the Worms loop against a second model — it stops itself and reports where model A had to be killed, at a fraction of the cost; then the Edgar replay — model B resists where model A was exploited. Your own history as a regression suite. Proof, not vibes.
 6. **Close**: SigNoz dashboards — every trace, dollar, and trust decision accounted for.
 
 ## Frontend
