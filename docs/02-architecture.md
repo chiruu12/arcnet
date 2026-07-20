@@ -59,12 +59,29 @@ Demo agents run on **Agno** (we know it well; it's also the cleanest integration
 Unplug is the **provenance/trust spine**. Every ingested datum is tagged with a trust level; the untrusted ones get scanned. Implemented the Agno way:
 - **input**: `BaseGuardrail` subclass — Agno guardrails are **input-only by signature** (`check(run_input)`) → `guard.scan(text, source=USER)`
 - **retrieved**: per-tool `@tool(post_hook=…)` on fetch/retrieval tools → `guard.scan(text, RETRIEVED)` + `wrap_for_context()` + `notify_taint_source()` — **scraped/fetched content filtered before it reaches the model**
-- **tool_call**: agent-level `tool_hooks=[…]` middleware (different signature — `(function_name, func, args)`, must call `func(**args)` to continue) → `guard.check_tool_call(name, args)` (taint → block untrusted content flowing to sensitive tools)
+- **tool_call**: agent-level `tool_hooks=[…]` middleware — Agno injects by **parameter name** (`function_name`/`name`, `func`/`function`, `args`/`arguments`, optional `agent`). Must call `func(**args)` to continue (or return a substitute value to short-circuit). → `guard.check_tool_call(name, args, taint_sources=[…])`
 - **output**: plain `post_hooks=[…]` function on `RunOutput` — **Agno has no output-guardrail class** → `guard.scan_output(text)` (secrets/PII → redact)
 
 Four structurally different Agno surfaces, one shared `Guard`. `arcnet/guardrail.py` builds all four callables with distinct names (`input_guardrail`, `retrieval_post_hook`, `tool_call_middleware`, `output_post_hook`) so the signature differences are design-time facts, not runtime surprises.
 
-`ScanResult.action` drives behavior: `allow` → proceed; `redact` → substitute `redacted_text`; `block` → raise guardrail error (span status ERROR); `review` → proceed + flag. **Every result — including clean ones — becomes telemetry.** Each agent carries an `arcnet.exposure` attribute (`forward_facing` | `internal`) derived from whether it ingests third-party content; forward-facing agents are surfaced as higher injection-risk in the Fleet Health view.
+`ScanResult.action` drives behavior: `allow` → proceed; `redact` → substitute `redacted_text`; `block` → raise guardrail error (span status ERROR); `review` → proceed + flag (or hold side-effect tools for HITL). **Every result — including clean ones — becomes telemetry.** Each agent carries an `arcnet.exposure` attribute (`forward_facing` | `internal`) derived from whether it ingests third-party content; forward-facing agents are surfaced as higher injection-risk in the Fleet Health view.
+
+### Agno 2.7.4 hook surface (Phase 0 verified)
+
+| Surface | Exact API |
+|---|---|
+| Input guardrail | `class UnplugGuardrail(BaseGuardrail): def check(self, run_input: RunInput \| TeamRunInput) -> None` (+ `async_check`) — **input-only** |
+| Agent hooks | `Agent(pre_hooks=[…], post_hooks=[…])` — each item is `Callable \| BaseGuardrail \| BaseEval` |
+| Per-tool hooks | `@tool(pre_hook=…, post_hook=…)` on `Function`; hooks may accept `agent`/`team`/`run_context`/`fc` by name |
+| Tool middleware | `Agent(tool_hooks=[fn])` — `fn` params by name: `name`/`function_name`, `func`/`function`, `args`/`arguments`, optional `agent`; call `func(**args)` to continue or **return a value** to substitute (replay stubs) |
+| Cancel / kill | `Agent.cancel_run(run_id: str) -> bool` / `Agent.acancel_run(run_id: str) -> bool` |
+| HITL | Built-in pause events (`RunPausedEvent`); confirmation flags on `Function` — wire UI approve/reject in Phase 3 |
+
+### Phase 0 Gate G1 (replay + steer) — PASSED 2026-07-21
+
+- **Replay stubs:** `tool_hooks` middleware returning canned outputs (no `func(**args)`) works; match by tool **function name** against recorded steps + step cursor. Confirmed on toy agent (`lookup`/`note`).
+- **Steer propagation:** writing `agent.session_state["arcnet_steer"] = …` inside tool call N is **visible at tool call N+1** on agno 2.7.4. Primary path = session_state steer.
+- **Substitution fallback:** `@tool(post_hook=…)` mutating `fc.result` also works (quarantine path) — keep as documented fallback (`02` §3) even though primary steer works.
 
 ### 3. Reactive signals (two paths, one contract)
 Signals reach the bus two ways — both map to the canonical **`Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`** (this exact shape is the contract used everywhere — SDK, server, plan) → SSE:
@@ -72,9 +89,9 @@ Signals reach the bus two ways — both map to the canonical **`Signal{session_i
 - **Alert-driven (system of record):** SigNoz alert rule fires (threat count, cost burn, loop depth, p99 latency) → webhook POST `server/webhooks/signoz`. Alert evaluation runs on an interval, so this path is tens-of-seconds; it's what you'd rely on at fleet scale, and the demo shows it landing right behind the fast-path.
 
 SDK signal client checks the per-session queue inside tool hooks (between steps):
-- `steer` → inject corrective guidance into the run's context, continue. **Verify the mechanism in the Phase-0 spike**: does state written inside tool call N reach the model at call N+1? Historically fragile in Agno. Fallback (documented mechanism, still carries S1): per-call output substitution in the retrieval post-hook
+- `steer` → write guidance into `agent.session_state` (Phase 0 confirmed: visible at next tool call on agno 2.7.4); continue. Fallback (still documented): per-call output substitution in the retrieval `post_hook` mutating `fc.result`
 - `pause` → trigger Agno HITL pause; the UI shows approve/reject; resume on decision
-- `kill` → cancel the run
+- `kill` → `Agent.cancel_run(run_id)`
 - `note` → annotate telemetry only
 
 Signals also stream to the UI's live feed.
@@ -89,7 +106,7 @@ Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}`
 3. **Diff** the trajectories → core dimensions `{goal_reached, steps, tool_errors, cost, latency, tokens}` for every replay, plus `{resisted_injection, exfil_attempts}` when the session carried a threat.
 4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — loops, failures, leaks, injections — and aggregate the scorecard ("goals reached 10/12 vs 6/12 · steps −41% · cost −38% · attacks resisted 5/5").
 
-This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. Transcripts are **SQLite-primary** (full tool outputs are too big for span attributes — collectors truncate, which would silently corrupt tool-stub matching); spans carry a summary twin (`arcnet.replay.digest`, step count, outcome flags, pointers) so SigNoz stays the proof/deep-link store. Full spec — transcript shape, tool-stub matching, diff semantics, verdict schema, corpus: **`10-time-machine.md`**.
+This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. Transcripts are **SQLite-primary** (full tool outputs must not depend on span attributes — collectors/backends *can* truncate, which would silently corrupt tool-stub matching). **Phase 0 oversized-fixture:** this self-hosted SigNoz/ClickHouse stored attributes through **256 KB** with no truncation observed; still treat that as a local observation, not a contract — keep SQLite-primary. Spans carry a summary twin (`arcnet.replay.digest`, step count, outcome flags, pointers) so SigNoz stays the proof/deep-link store. Full spec — transcript shape, tool-stub matching, diff semantics, verdict schema, corpus: **`10-time-machine.md`**.
 
 ## Components
 
@@ -101,7 +118,7 @@ This is **replay-from-trace, not live re-execution** — deterministic, cheap (o
 - Telemetry namespace `arcnet.*`: see `04-signoz-integration.md`.
 
 ### `agents/` — demo fleet + Bug Suite
-Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. Model: cheap + fast (gpt-4o-mini or haiku — decide in Phase 0 by keys; cost telemetry needs real tokens).
+Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. **Model pick (Phase 0):** baseline `gpt-4o-mini` (`ARCNET_MODEL`); candidate `gpt-4o` (`ARCNET_CANDIDATE_MODEL`) — both via `OPENAI_API_KEY` (present). `ANTHROPIC_API_KEY` not funded in this env → Haiku path deferred; pricing table has placeholders.
 
 Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + runner script + **telemetry assertions** (full spec, fixtures, goal predicates, camera notes: **`11-scenarios.md`**):
 | # | Codename | Attack | Expected chain |
@@ -191,7 +208,7 @@ The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code
 | Alert evaluation interval too slow for on-camera self-correct | Inline fast-path signal at block time (§3); alert stays the system of record; tune rule eval/`for:` windows in Phase 2 |
 | **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so the harness records the full transcript (goal, tool I/O, model turns) into SQLite at run time — never reconstructed from generic OTel spans (attribute size caps make that unreliable). Gate G3 (Phase-3 exit) manually replays the real S1+S4 transcripts before the diff API/UI is built. |
 | Instrumentor emits OpenInference semconv, not `gen_ai.*` | Confirmed from source — dashboards/alerts/Griffin are authored against the real keys (`04`); Phase 0 pulls one live trace and pastes the actual names into `04` before any dashboard JSON is written |
-| Steer via run-state write unverified on agno 2.7.4 | Phase-0 spike tests propagation (state written at call N visible at call N+1); fallback = per-call output substitution, a documented mechanism |
+| Steer via run-state write unverified on agno 2.7.4 | **Phase 0 G1 PASS:** `agent.session_state` write at tool N visible at N+1. Fallback = per-call `post_hook` substitution (also proven) remains documented |
 | SigNoz alert API rejects legacy payloads | Author alert payloads in the current v5 `queries` format (crib from the Terraform-provider examples), never from memory/tutorials |
 | **Counterfactual result is nondeterministic (LLM sampling)** | Replay at temperature 0; run the candidate 3× and report the majority behavior if needed; the demo scenario is chosen so the behavioral gap is large and stable. |
 | Solo + 6 days | P0 first; pre-agreed cut list in `03-plan.md` |

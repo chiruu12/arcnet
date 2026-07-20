@@ -32,7 +32,9 @@ We control the demo agents, so every session records a **replay-ready transcript
 }
 ```
 
-**Storage — SQLite-primary:** the full transcript (complete tool outputs included) lives in the server's SQLite `sessions` table (DDL in `12-data-api.md`), and the loader reads **only** from there. Spans get a *summary twin* (`arcnet.replay.digest`, step count, outcome flags, `trace_id` pointers) so SigNoz stays the proof/deep-link store — full tool outputs do NOT go into span attributes (collectors and backends truncate large attributes, which would silently corrupt tool-stub matching; Phase 0 measures the actual ceiling with an oversized fixture). **Gate G3 at Phase-3 exit** is the replay tripwire: a bare-bones manual model-swap replay of the real S1+S4 transcripts must show a clean behavioral gap before Phase 4 builds the API/UI on it.
+**Storage — SQLite-primary:** the full transcript (complete tool outputs included) lives in the server's SQLite `sessions` table (DDL in `12-data-api.md`), and the loader reads **only** from there. Spans get a *summary twin* (`arcnet.replay.digest`, step count, outcome flags, `trace_id` pointers) so SigNoz stays the proof/deep-link store — full tool outputs do NOT go into span attributes as a design rule (collectors and backends *can* truncate large attributes, which would silently corrupt tool-stub matching). **Phase 0 measurement (self-hosted v0.133.0):** attribute payloads through **256 KB** landed intact in ClickHouse — no truncation observed at that ceiling; still not a contract across deploys. **Gate G3 at Phase-3 exit** is the replay tripwire: a bare-bones manual model-swap replay of the real S1+S4 transcripts must show a clean behavioral gap before Phase 4 builds the API/UI on it.
+
+**Phase 0 G1 spike (toy agent, 2026-07-21):** replay stubs via `tool_hooks` returning canned outputs — PASS (match by tool function name + step cursor). Steer via `agent.session_state` — PASS (visible at next tool). Substitution via `@tool(post_hook=)` mutating `fc.result` — PASS (fallback retained).
 
 ## Replay harness (`sdk/arcnet/replay.py`)
 

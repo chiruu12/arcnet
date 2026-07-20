@@ -39,4 +39,30 @@ agent runs → OTel telemetry → SigNoz → alert fires → webhook → ArcNet 
 
 Built for the **Agents of SigNoz** hackathon (WeMakeDevs × SigNoz, July 20–26 2026), Track 1: AI & Agent Observability.
 
-Start with `docs/03-plan.md` for the build plan.
+**Phase 0 foundations are up:** repo scaffold, SigNoz `v0.133.0` via Foundry, hello Agno traces with real OpenInference attrs recorded in `docs/04`, unplug S1 taint proven, replay+steer G1 green. Start with `docs/03-plan.md` for the build plan.
+
+## Quick start (local)
+
+```bash
+# 1. Env
+cp .env.example .env   # fill OPENAI_API_KEY (and optional ANTHROPIC_API_KEY)
+
+# 2. Python workspace
+uv sync --all-packages
+
+# 3. SigNoz (pinned v0.133.0) — needs Docker Desktop ≥4 GiB
+#    Install foundryctl once: https://github.com/SigNoz/foundry/releases
+cd deploy && foundryctl cast -f casting.yaml && cd ..
+# UI: http://localhost:8080  · OTLP HTTP: localhost:4318
+
+# 4. One manual step (cannot be scripted headlessly):
+#    SigNoz UI → Settings → Service Accounts → New → Keys → Add Key
+#    Paste into .env as SIGNOZ_API_KEY=…
+#    (Query Range API uses header SIGNOZ-API-KEY)
+
+# 5. HQ shell
+cd hq && pnpm install && pnpm dev
+```
+
+Spikes used in Phase 0 live under `scripts/phase0_*.py` (hello trace, replay+steer, oversized fixture).
+

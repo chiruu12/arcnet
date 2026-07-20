@@ -24,20 +24,20 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 0 — Foundations & de-risk (timeboxed: one focused day — it de-risks everything else)
 
-- [ ] **Two 10-minute checks before any code:** (a) confirm **both** provider keys (baseline + candidate model) exist and are funded for repeated 3-run replays; record which: ____ (b) chase the submission form + exact deadline time in the SigNoz Slack; record: ____
-- [ ] **Post the unplug-ai provenance disclosure in the SigNoz Slack** (same text as the README) and ask for an explicit organizer ruling in writing; record the answer: ____
-- [ ] Scaffold repo (layout per `02`), uv workspaces + pnpm app, `.env.example` fully enumerated
-- [ ] SigNoz self-hosted via Docker Compose; pin version; confirm UI; note Mac resource usage
-- [ ] Hello Agno agent traced into SigNoz via `openinference-instrumentation-agno==0.1.38`; pin `agno==2.7.4`; import prebuilt Agno dashboard
-- [ ] **Pull one live trace and record the REAL span names + attribute keys** (OpenInference semconv — `{agent}.run`/`{model}.invoke`/`{tool}`, `llm.token_count.*` — NOT `gen_ai.*`) → paste into `04` before any dashboard/alert JSON is authored
-- [ ] Verify Agno hook surface on the pinned version: guardrail base class (input-only), per-tool pre/post hooks, agent-level `tool_hooks` middleware, `post_hooks`, HITL, `cancel_run` — record exact signatures in `02`
-- [ ] `pip install unplug-ai==0.5.2` → **first smoke test = the exact S1 taint chain** (scan retrieved text → `notify_taint_source` → `check_tool_call` blocks `send_email`) — the highest-consequence assumption in the plan; then the rest of the `05` API list
-- [ ] **Replay feasibility spike (≤2h):** intercept an Agno agent's tool calls, return canned outputs, confirm the step-cursor mechanism + transcript shape per `10-time-machine.md`; **in the same spike, test steer propagation** (state written inside tool call N visible to the model at call N+1? if not → per-call substitution fallback, `02` §3)
-- [ ] **Oversized-fixture check:** push one deliberately large page through the pipeline; find the span-attribute truncation point (transcripts are SQLite-primary regardless — `10`)
-- [ ] Model pick + confirm token/cost path + write `pricing.py`
-- [ ] Service-account key — check whether it can be created headlessly; if not, document the one manual UI step honestly in the README. One Query Range call working.
+- [x] **Two 10-minute checks before any code:** (a) provider keys — **OPENAI present** (baseline `gpt-4o-mini` + candidate `gpt-4o`); **ANTHROPIC missing/unfunded** → H1 PARTIAL (b) submission form + exact deadline — **H3 BLOCKED** (human; form still "coming soon" on event page)
+- [ ] **Post the unplug-ai provenance disclosure in the SigNoz Slack** — **H2 BLOCKED** (human must post + ask for written ruling); text ready in README
+- [x] Scaffold repo (layout per `02`), uv workspaces + pnpm app, `.env.example` fully enumerated
+- [x] SigNoz self-hosted via Foundry/Docker Compose; pin **v0.133.0**; UI healthy; Mac usage noted in `04`/`log`
+- [x] Hello Agno agent traced into SigNoz via `openinference-instrumentation-agno==0.1.38`; pin `agno==2.7.4`; Agno dashboard JSON fetched to `deploy/provision/`
+- [x] **Pull one live trace and record the REAL span names + attribute keys** → pasted into `04`
+- [x] Verify Agno hook surface on 2.7.4 — signatures recorded in `02`
+- [x] `unplug-ai==0.5.2` — **S1 taint chain proven** (block via `taint_sources=`); rest of API list confirmed; `05` fixed for drift
+- [x] **Replay feasibility spike (≤2h):** G1 **PASS** — stubs + steer propagation + substitution fallback (`02`/`10`)
+- [x] **Oversized-fixture check:** ≥256 KB intact on this self-host; still SQLite-primary (`10`/`04`)
+- [x] Model pick + `pricing.py` (OpenAI pair; Anthropic placeholders)
+- [~] Service-account key — **not headless**; README documents UI step. Query Range pending key (traces verified via ClickHouse).
 
-**Exit: hello-Agno trace with tokens visible in SigNoz (real attribute names recorded in `04`); S1 taint chain proven in unplug; replay + steer mechanisms proven on a toy agent; both model keys confirmed; organizer ruling requested.**
+**Exit: hello-Agno trace with tokens visible in SigNoz (real attribute names recorded in `04`); S1 taint chain proven in unplug; replay + steer mechanisms proven on a toy agent; both model keys confirmed OR H1 documented; organizer ruling requested OR H2 documented.** → Phase 0 exit **green with H1/H2/H3 human blockers recorded**.
 
 ## Phase 1 — Shield Core (source-trust)
 

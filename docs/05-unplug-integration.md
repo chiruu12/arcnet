@@ -4,9 +4,11 @@
 
 - Consume **`unplug-ai==0.5.2` from PyPI** as a normal dependency — never vendor its code into this repo (hackathon "no prior work" rule: ArcNet is the build; unplug-ai is a published library we use, same as Agno).
 - The local `unplug-v1` checkout is a **diverged old branch (0.2.0, ~228 commits behind)** — do not code against it. Use the PyPI package; read upstream `origin/main` source only for reference.
-- **Phase-0 smoke test is mandatory, and its FIRST test is the exact S1 taint chain** (scan retrieved text → `notify_taint_source` → `check_tool_call` blocks `send_email`) — it's the single highest-consequence untested assumption in the plan: the headline recording depends on it end-to-end, and there's no fallback that keeps "Unplug is the spine" true. Precisely what's confirmed vs assumed:
-  - **Verified against 0.5.2 source** (`origin/main`): the top-level exports `Guard, ScanResult, Finding, Action, Source` all exist, and `Guard` exposes `scan`, `scan_output`, `check_tool_call`, `add_canary`, `metrics`.
-  - **From the older 0.2.0 explore, treat as assumed until the Phase-0 smoke test**: the exact *field* lists of `ScanResult`/`Finding`, the default action thresholds, and the `notify_taint_source`/`wrap_for_context`/`with_tiny` signatures. Confirm these against the installed package and fix this doc where it drifts.
+- **Phase-0 smoke test PASSED (2026-07-21)** — first test = exact S1 taint chain. Confirmed against installed `unplug-ai==0.5.2`:
+  - Exports: `Guard, ScanResult, Finding, Action, Source, TaintedText, TrustLevel, GuardConfig` (+ `Action.ABSTAIN` exists — was missing from earlier docs).
+  - `scan` / `scan_output` / `check_tool_call` / `notify_taint_source` / `wrap_for_context` / `add_canary` / `with_tiny` / `metrics` all present with signatures recorded below.
+  - **S1 chain (the load-bearing path):** `scan(poisoned, RETRIEVED)` → `action=block` (injection findings) → `wrap_for_context` + `notify_taint_source("fetch_url", origin="retrieved")` → `check_tool_call("send_email", args, taint_sources=[TaintedText(...)])` → **`action=block`** (`retrieved_source_in_side_effect` score 0.85).
+  - **Doc-vs-reality drift (fixed here):** session-taint alone (`notify_taint_source` without passing `taint_sources=`) yields **`action=review`** at default `tools.tainted_side_effect_review_score=0.35`, not block. ArcNet must pass `taint_sources=[TaintedText(text=…, trust_level=TrustLevel.RETRIEVED, origin="fetch_url")]` into `check_tool_call` (or raise that score ≥ 0.8) for the Edgar exfil to hard-block.
 
 ## Role in ArcNet: source-trust monitoring (the spine, not a bolt-on)
 
@@ -23,26 +25,37 @@ The Time Machine replays through the same `UnplugGuardrail`, so trust checks app
 
 A fast, CPU-only guard: regex scanner families + normalization + taint tracking, with optional ML and an optional bring-your-own LLM judge. Sub-ms to low-ms per scan — cheap enough to run at **every** checkpoint and emit as telemetry. No server or MCP needed; pure in-process. Its taint/trust model (`TrustLevel`, `TaintedText`, `Tagger`, `notify_taint_source`, `wrap_for_context`) is exactly what the source-trust spine needs.
 
-## Core contract (top-level names verified on 0.5.2; field details assumed — confirm in Phase 0)
+## Core contract (Phase 0 confirmed on installed `unplug-ai==0.5.2`)
 
 ```python
-from unplug import Guard, ScanResult, Finding, Action, Source
+from unplug import Guard, GuardConfig, ScanResult, Finding, Action, Source, TaintedText, TrustLevel
 
 guard = Guard()                                  # config via GuardConfig if needed
 res: ScanResult = guard.scan(text, source=Source.USER)
 res = guard.scan_output(text)                    # secrets/PII on outputs → redacted_text
-res = guard.check_tool_call(tool_name, arguments)
+res = guard.check_tool_call(
+    tool_name, arguments,
+    taint_sources=[TaintedText(text=page, trust_level=TrustLevel.RETRIEVED, origin="fetch_url")],
+)
 ```
 
-`ScanResult`: `safe: bool`, `action: Action("allow"|"redact"|"block"|"review")`, `risk_score: float 0–1`, `findings: list[Finding]`, `redacted_text: str|None`, `latency_ms`, `stages_run`.
-`Finding`: `category` (scanner: `injection|destructive|leakage|harmful|financial|secrets|taint|judge|limits`), `subcategory` (rule id, e.g. `ignore_previous`, `sql_drop`), `stage`, `span_start/end`, `score`, `evidence`, `replacement`.
-Action thresholds (defaults): block ≥ 0.8, redact ≥ 0.5, review ≥ 0.3.
+**Signatures (installed):**
+- `scan(text: str, source: Source | str = USER) -> ScanResult`
+- `scan_output(text: str | TaintedText) -> ScanResult`
+- `check_tool_call(tool_name: str, arguments: dict, *, taint_sources: list[TaintedText] | None = None, approved: bool | None = None) -> ScanResult`
+- `notify_taint_source(tool_name: str, *, origin: str = "") -> None`
+- `wrap_for_context(text: str, source: Source | str = RETRIEVED) -> str`  # returns tagged string, not TaintedText
+- `add_canary(prompt: str, *, label: str = "system_prompt") -> str`
+- `with_tiny(*, auto_download: bool = True, require_ml: bool = False, **kwargs) -> Guard`
 
-Additional 0.5.2 surface worth using (method names verified on 0.5.2; args confirm in Phase 0):
-- `guard.add_canary(prompt, label="system_prompt")` — **F9**: canary in system prompt → output scan catches exfiltration (method confirmed present on 0.5.2)
-- `guard.notify_taint_source(tool_name, origin=...)` + `guard.wrap_for_context(text, source=RETRIEVED)` — taint bookkeeping for fetched content (S1 Edgar)
-- `guard.metrics` (`MetricsCollector`) — per-scanner stats we can mirror into OTel gauges
-- `ExecutionContext` / `ScanPolicy` / `with_tiny(...)` — explore in Phase 1; `with_tiny` looks like the bundled tiny-ML path, nice bonus if it works out of the box
+`ScanResult`: `safe`, `action`, `risk_score`, `findings`, `redacted_text`, `latency_ms`, `stages_run`, plus Phase-0 extras: `degraded`, `degraded_layers`, `approval` (populated on `review` for side-effect tools).
+`Finding`: `category`, `subcategory`, `stage`, `span_start`/`span_end`, `score`, `evidence`, `replacement`.
+`Action`: `allow` | `redact` | `abstain` | `block` | `review` (note **`abstain`** — not in earlier draft).
+`Source`: `user` | `retrieved` | `tool_output` | `system` (no separate `external` on Source; use `TrustLevel.EXTERNAL` on `TaintedText`).
+`TrustLevel`: `trusted` | `user` | `retrieved` | `tool_output` | `external` | `unknown`.
+Policy defaults: `block_threshold=0.8`, `redact_threshold=0.5`, `review_threshold=0.3`. Tool policy: `tainted_side_effect_review_score=0.35` (session-taint → review); pass `taint_sources` for side-effect tools to get score 0.85 → block.
+
+Additional surface confirmed: `guard.metrics` (`MetricsCollector`), `guard.add_canary`, `Guard.with_tiny(...)`.
 
 ## Checkpoint → ArcNet mapping (Agno integration points)
 
@@ -52,7 +65,7 @@ Packaged as **four checkpoint callables from one shared `Guard`** — Agno's fou
 |---|---|---|---|
 | User message enters | `BaseGuardrail` subclass (input-only by signature) | `scan(text, USER)` | block → guardrail error, refuse turn (S5) |
 | `fetch_url` / retrieval returns | per-tool `@tool(post_hook=…)` on retrieval tools | `scan(text, RETRIEVED)` + `wrap_for_context` + `notify_taint_source` | block → drop content, note to agent |
-| Tool about to execute | agent-level `tool_hooks=[…]` middleware (all tools; must call `func(**args)`) | `check_tool_call(name, args)` | block → cancel call, steer signal (S1/S3) |
+| Tool about to execute | agent-level `tool_hooks=[…]` middleware (all tools; must call `func(**args)`) | `check_tool_call(name, args, taint_sources=[…])` | block → cancel call, steer signal (S1/S3); session-taint alone is `review` — pass `TaintedText` for hard block |
 | Final answer leaves | `post_hooks=[…]` function on `RunOutput` (no guardrail class exists for output) | `scan_output(text)` | redact → ship `redacted_text` + neuralyzer event (S2) |
 
 Every call (clean or not) → one `arcnet.guard` span + metrics (see `04-signoz-integration.md`). Findings → span events + structured logs. `block` → span status ERROR.

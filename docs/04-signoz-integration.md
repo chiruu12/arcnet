@@ -4,18 +4,34 @@
 
 ## Deployment
 
-- [ ] Self-hosted via Docker Compose (`deploy/`), pinned SigNoz version (record it here: ____)
-- [ ] Service-account API key for Query Range API (server-side only, via env) — created via the SigNoz UI (Settings → Service Accounts); **check in Phase 0 whether it can be created headlessly**; if not, the README documents this one manual step honestly (everything else stays scripted)
+- [x] Self-hosted via Foundry → Docker Compose (`deploy/casting.yaml` + `deploy/docker-compose.yaml` → `pours/deployment/compose.yaml`), **pinned SigNoz `v0.133.0`** (Foundry `foundryctl` v0.2.15). Bring-up: `cd deploy && foundryctl cast -f casting.yaml`.
+- [ ] Service-account API key for Query Range API (server-side only, via env) — **cannot be created headlessly** (no public create-key API without an existing admin session; docs confirm Settings → Service Accounts UI). **Manual one-time step documented in README.** Phase 0 verified hello traces via ClickHouse directly; Query Range call waits on this key.
 - Fallback: SigNoz Cloud trial if the Mac struggles — everything below works on both.
+- **Mac resources (Phase 0):** Docker Desktop 10 CPUs / 7.65 GiB. Steady-state RSS ≈ ClickHouse 1.2 GiB + keeper 120 MiB + postgres 73 MiB + signoz 45 MiB + ingester 46 MiB (~1.5 GiB total). Comfortable on this machine; keep ≥4 GiB Docker memory.
 
 ## Signals we emit
 
 ### Traces (OTLP)
-Span hierarchy **as the pinned instrumentor actually emits it** — OpenInference semconv, NOT `gen_ai.*` (confirmed from `openinference-instrumentation-agno` source; Phase 0 pulls one live trace and pastes the exact keys here before any dashboard/alert JSON is authored):
+Span hierarchy **as the pinned instrumentor actually emits it** — OpenInference semconv, NOT `gen_ai.*`. **Phase 0 live trace (2026-07-21) recorded below — author all dashboards/alerts against these keys only:**
 
-- `{agent_name}.run` (root per run) → `{model_name}.invoke` (LLM calls) → `{tool_name}` (tool calls)
-- OpenInference attributes: `openinference.span.kind` (`AGENT`/`LLM`/`TOOL`), `llm.model_name`, `llm.token_count.prompt`, `llm.token_count.completion`, input/output values where content capture is enabled
-- **Do not write anything against `gen_ai.*` names** — they don't exist in this pipeline; SigNoz's own Agno dashboard template is built on the OpenInference keys too
+**Live span names (hello agent `name="hello_arcnet"`, model `OpenAIChat(gpt-4o-mini)`, tool `add`):**
+- `hello_arcnet.run` — root, `openinference.span.kind=AGENT`
+- `OpenAIChat.invoke` — LLM calls, `openinference.span.kind=LLM` (pattern = `{ModelClass}.invoke`, not the model id)
+- `add` — tool call, `openinference.span.kind=TOOL` (pattern = tool function name)
+
+**Live attribute keys on LLM spans (ClickHouse `attributes_string` / `attributes_number`):**
+- `openinference.span.kind` ∈ `AGENT` | `LLM` | `TOOL`
+- `llm.model_name` (e.g. `gpt-4o-mini`), `llm.provider` (e.g. `OpenAI`)
+- `llm.token_count.prompt`, `llm.token_count.completion` — stored as **numbers** in ClickHouse (`attributes_number`)
+- `llm.input_messages.{i}.message.role` / `.content` / `.tool_call_id` / nested `.tool_calls…`
+- `llm.output_messages.{i}.message.role` / `.content` / `.tool_calls…`
+- `llm.tools.{i}.tool.json_schema`
+- `input.value`, `input.mime_type`, `output.value`, `output.mime_type`
+- TOOL spans also: `tool.name`, `tool.description`, `tool.parameters`
+- AGENT spans also: `agno.tools` (tuple of tool names)
+- **Zero `gen_ai.*` keys observed** — do not author against them
+
+**Oversized-fixture (Phase 0):** SDK + this self-hosted collector/ClickHouse accepted attribute payloads through **256 KB** with no truncation observed (`stored_len` matched requested). Still keep transcripts **SQLite-primary** — backend ceilings vary by config/version; full tool outputs must not depend on span attrs.
 - **`arcnet.guard` spans** (child of whatever triggered the check) with:
   - `arcnet.guard.checkpoint` = `input | retrieved | tool_call | output`
   - `arcnet.guard.action` = `allow | redact | block | review`
@@ -50,7 +66,7 @@ Span hierarchy **as the pinned instrumentor actually emits it** — OpenInferenc
 - [ ] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers the ArcNet UI (Fleet Health, threat feed) and Case File evidence. (Time Machine transcripts are **SQLite-primary** — spans carry summaries + pointers, not full tool outputs; `10-time-machine.md`.) Basic call confirmed in Phase 0; validate full query shapes in Phase 2.
 - [ ] **Griffin metric discovery** — **default = a hardcoded allowlist of the `arcnet.*` counters we emit ourselves** (`arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `arcnet.tokens.total`): no documented metrics-listing endpoint exists on the Query Range API, and `gen_ai.*` metrics don't exist in this pipeline at all. Auto-discovery (metrics metadata API or MCP `signoz_list_metrics`) is a stretch goal, not the plan.
 - [ ] **Trace deep-links** from the ArcNet UI into SigNoz trace view (judges see native UI too)
-- [ ] **Agno dashboard template** imported (SigNoz ships one prebuilt — free depth points; our 3 custom dashboards sit alongside it)
+- [x] **Agno dashboard template** fetched into `deploy/provision/agno-dashboard.json` (from SigNoz/dashboards `agno/agno-dashboard.json`). Import via UI (Dashboards → Import) or Phase 2 `setup.py`; do not author custom panels until against the live keys above.
 
 ## SigNoz AI surface (docs/ai/*) — use all of it that works self-hosted
 
