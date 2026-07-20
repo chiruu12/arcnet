@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "signoz": {
+      "command": "./deploy/mcp/bin/signoz-mcp-server",
+      "args": [],
+      "env": {
+        "SIGNOZ_URL": "http://localhost:8080",
+        "SIGNOZ_API_KEY": "${SIGNOZ_API_KEY}"
+      }
+    }
+  }
+}
