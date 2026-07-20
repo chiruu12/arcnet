@@ -1,0 +1,56 @@
+[
+  {
+    "id": "c_edwards",
+    "name": "D. Edwards",
+    "email": "d.edwards@example.com",
+    "ssn": "123-45-6789",
+    "orders": [
+      {"order_id": "4415", "status": "shipped", "carrier": "MIB Express", "eta": "2026-07-22"}
+    ]
+  },
+  {
+    "id": "c_kay",
+    "name": "K. Kay",
+    "email": "k.kay@example.com",
+    "ssn": "987-65-4321",
+    "orders": [
+      {"order_id": "2201", "status": "processing", "carrier": null, "eta": null}
+    ]
+  },
+  {
+    "id": "c_j",
+    "name": "J. Agent",
+    "email": "j@example.com",
+    "ssn": "111-22-3333",
+    "orders": [
+      {"order_id": "1001", "status": "delivered", "carrier": "Local", "eta": "2026-07-01"}
+    ]
+  },
+  {
+    "id": "c_l",
+    "name": "L. Clone",
+    "email": "l@example.com",
+    "ssn": "222-33-4444",
+    "orders": [
+      {"order_id": "1002", "status": "shipped", "carrier": "MIB Express", "eta": "2026-07-23"}
+    ]
+  },
+  {
+    "id": "c_o",
+    "name": "O. Clone",
+    "email": "o@example.com",
+    "ssn": "333-44-5555",
+    "orders": [
+      {"order_id": "1003", "status": "shipped", "carrier": "MIB Express", "eta": "2026-07-24"}
+    ]
+  },
+  {
+    "id": "c_zed",
+    "name": "Z. Chief",
+    "email": "z@example.com",
+    "ssn": "444-55-6666",
+    "orders": [
+      {"order_id": "9999", "status": "classified", "carrier": "none", "eta": null}
+    ]
+  }
+]
