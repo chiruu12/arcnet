@@ -70,11 +70,11 @@ def init(
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
 
-    # Structured stdlib logs still carry context; OTLP log pipeline is Phase 2.
+    # Structured stdlib logs → OTLP with trace_id/span_id correlation (Phase 2).
     try:
         from opentelemetry._logs import set_logger_provider
         from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-        from opentelemetry.sdk._logs import LoggerProvider
+        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 
         logger_provider = LoggerProvider(resource=resource)
@@ -82,6 +82,10 @@ def init(
             BatchLogRecordProcessor(OTLPLogExporter(endpoint=f"{otlp}/v1/logs"))
         )
         set_logger_provider(logger_provider)
+        # Attach once so arcnet.* loggers (and root) carry trace context into SigNoz.
+        root = logging.getLogger()
+        if not any(isinstance(h, LoggingHandler) for h in root.handlers):
+            root.addHandler(LoggingHandler(level=logging.INFO, logger_provider=logger_provider))
     except Exception:  # noqa: BLE001
         logger.debug("OTLP log exporter unavailable; continuing with traces+metrics", exc_info=True)
 

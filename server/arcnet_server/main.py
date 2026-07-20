@@ -288,3 +288,204 @@ def list_sources(
     q += " ORDER BY created_at DESC LIMIT 200"
     rows = conn.execute(q, params).fetchall()
     return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+def _kind_from_labels(labels: dict[str, Any]) -> tuple[str, str]:
+    """Map alert labels → (signal kind, severity)."""
+    arcnet_kind = str(labels.get("arcnet_kind") or labels.get("severity") or "note").lower()
+    mapping = {
+        "threat": ("steer", "critical"),
+        "kill": ("kill", "critical"),
+        "cost_burn": ("kill", "critical"),
+        "griffin": ("note", "warn"),
+        "steer": ("steer", "critical"),
+        "pause": ("pause", "warn"),
+        "note": ("note", "info"),
+        "seasonal": ("note", "info"),
+    }
+    return mapping.get(arcnet_kind, ("note", "warn"))
+
+
+@app.post("/webhooks/signoz")
+async def signoz_webhook(request: Request):
+    """SigNoz alert webhook — dedupe + map labels → Signal (docs/12)."""
+    from fastapi.responses import Response
+
+    body = await request.json()
+    conn = get_conn()
+    ts = now_ms()
+    alerts = body.get("alerts") or [body]
+    overall = str(body.get("status") or "").lower()
+    window_ms = 5 * 60 * 1000
+
+    for alert in alerts:
+        if not isinstance(alert, dict):
+            continue
+        labels = dict(alert.get("labels") or {})
+        fingerprint = str(alert.get("fingerprint") or labels.get("alertname") or "unknown")
+        status = str(alert.get("status") or overall or "firing").lower()
+
+        earlier = conn.execute(
+            """SELECT 1 FROM webhook_events
+               WHERE fingerprint=? AND received_at >= ?
+               LIMIT 1""",
+            (fingerprint, ts - window_ms),
+        ).fetchone()
+
+        conn.execute(
+            "INSERT INTO webhook_events (fingerprint, status, payload, received_at) VALUES (?,?,?,?)",
+            (fingerprint, status, dumps(alert), ts),
+        )
+
+        if status in ("resolved", "ok"):
+            agent_id = labels.get("agent_id") or labels.get("arcnet.agent_id")
+            if agent_id:
+                conn.execute(
+                    """UPDATE signals SET status='expired'
+                       WHERE agent_id=? AND source='alert' AND status IN ('pending','delivered')
+                       AND created_at >= ?""",
+                    (agent_id, ts - window_ms),
+                )
+            conn.commit()
+            continue
+
+        if earlier is not None:
+            conn.commit()
+            continue
+
+        kind, severity = _kind_from_labels(labels)
+        session_id = labels.get("session_id") or labels.get("arcnet.session_id")
+        agent_id = labels.get("agent_id") or labels.get("arcnet.agent_id") or "unknown"
+        annotations = alert.get("annotations") or {}
+        reason = str(
+            annotations.get("summary")
+            or annotations.get("description")
+            or labels.get("alertname")
+            or "signoz alert"
+        )[:500]
+        signal_id = _new_id("sig_")
+        conn.execute(
+            """INSERT INTO signals
+               (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance, source, status, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                signal_id,
+                session_id,
+                agent_id,
+                kind,
+                severity,
+                reason,
+                None,
+                annotations.get("description"),
+                "alert",
+                "pending",
+                ts,
+            ),
+        )
+        conn.commit()
+    return Response(status_code=204)
+
+
+@app.get("/api/fleet")
+def fleet() -> list[dict[str, Any]]:
+    """Fleet Health aggregate (docs/12) — seam check target."""
+    conn = get_conn()
+    day_ago = now_ms() - 24 * 60 * 60 * 1000
+    agents = conn.execute("SELECT * FROM agents ORDER BY last_seen DESC").fetchall()
+    out: list[dict[str, Any]] = []
+    for row in agents:
+        a = row_to_dict(row)
+        assert a is not None
+        aid = a["agent_id"]
+        sessions_24h = conn.execute(
+            "SELECT COUNT(*) FROM sessions WHERE agent_id=? AND started_at>=?",
+            (aid, day_ago),
+        ).fetchone()[0]
+        threats_24h = conn.execute(
+            "SELECT COUNT(*) FROM threats WHERE agent_id=? AND created_at>=?",
+            (aid, day_ago),
+        ).fetchone()[0]
+        blocked_24h = conn.execute(
+            "SELECT COUNT(*) FROM threats WHERE agent_id=? AND action='block' AND created_at>=?",
+            (aid, day_ago),
+        ).fetchone()[0]
+        active_signals = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE agent_id=? AND status IN ('pending','delivered')",
+            (aid,),
+        ).fetchone()[0]
+        # cost from session usage JSON is best-effort
+        cost_rows = conn.execute(
+            "SELECT usage FROM sessions WHERE agent_id=? AND started_at>=?",
+            (aid, day_ago),
+        ).fetchall()
+        cost = 0.0
+        for (usage_raw,) in cost_rows:
+            if not usage_raw:
+                continue
+            try:
+                import json
+
+                u = json.loads(usage_raw) if isinstance(usage_raw, str) else usage_raw
+                cost += float((u or {}).get("cost_usd") or 0.0)
+            except Exception:  # noqa: BLE001
+                pass
+        out.append(
+            {
+                "agent_id": aid,
+                "name": a.get("name"),
+                "role": a.get("role"),
+                "exposure": a.get("exposure"),
+                "model": a.get("model"),
+                "last_seen": a.get("last_seen"),
+                "health": {
+                    "sessions_24h": sessions_24h,
+                    "threats_24h": threats_24h,
+                    "blocked_24h": blocked_24h,
+                    "cost_24h_usd": round(cost, 6),
+                    "anomalies_24h": 0,
+                    "active_signals": active_signals,
+                },
+            }
+        )
+    return out
+
+
+@app.get("/api/signoz/status")
+def signoz_status() -> dict[str, Any]:
+    """Seam probe: can we reach SigNoz UI? Query Range needs API key."""
+    import os
+
+    import httpx
+
+    url = os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
+    key = os.getenv("SIGNOZ_API_KEY", "").strip()
+    ui_ok = False
+    ui_status = None
+    try:
+        r = httpx.get(url, timeout=3.0, follow_redirects=True)
+        ui_ok = r.status_code < 500
+        ui_status = r.status_code
+    except Exception as exc:  # noqa: BLE001
+        ui_status = str(exc)
+    query_ok = None
+    query_note = "skipped: SIGNOZ_API_KEY empty"
+    if key:
+        try:
+            r = httpx.get(
+                f"{url}/api/v1/version",
+                headers={"SIGNOZ-API-KEY": key},
+                timeout=5.0,
+            )
+            query_ok = r.status_code < 400
+            query_note = f"version status={r.status_code}"
+        except Exception as exc:  # noqa: BLE001
+            query_ok = False
+            query_note = str(exc)
+    return {
+        "signoz_url": url,
+        "ui_reachable": ui_ok,
+        "ui_status": ui_status,
+        "api_key_present": bool(key),
+        "query_range_ok": query_ok,
+        "query_note": query_note,
+    }
