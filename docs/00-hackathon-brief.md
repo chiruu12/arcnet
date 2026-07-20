@@ -5,7 +5,7 @@ Source: https://www.wemakedevs.org/hackathons/signoz (fetched 2026-07-20)
 ## Facts
 
 - **Event**: Agents of SigNoz — WeMakeDevs × SigNoz
-- **Dates**: **July 20–26, 2026** — Mon Jul 20 through **Sun Jul 26** (verified weekdays). Event runs through the 26th, so treat **Sun Jul 26 as the deadline**; exact submission time is TBD from the form (confirm Day 1).
+- **Dates**: **July 20–26, 2026** — Mon Jul 20 through **Sun Jul 26** (verified weekdays). Event runs through the 26th, so treat **Sun Jul 26 as the deadline**; exact submission time is TBD from the form (confirm in Phase 0).
 - **Prize pool**: $20,000 total
 - **Our track**: **Track 01 — AI & Agent Observability** ("Trace, monitor, and debug AI-native systems")
 - **Track 1 prize**: MacBook Air per team member (cash equivalent available)
@@ -37,5 +37,5 @@ Source: https://www.wemakedevs.org/hackathons/signoz (fetched 2026-07-20)
 
 ## Support
 
-- SigNoz Slack community for real-time help (join day 1 — also where submission info lands).
+- SigNoz Slack community for real-time help (join in Phase 0 — also where submission info lands).
 - SigNoz docs: self-host install, **Agno monitoring guide** (https://signoz.io/docs/agno-monitoring/), Query Range API, webhook channel, AI/MCP-server + agent-skills.

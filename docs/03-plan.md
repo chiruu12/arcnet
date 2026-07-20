@@ -1,6 +1,16 @@
-# ArcNet — Build Plan v2 (re-anchored: build Tue Jul 21 – Sat Jul 25, ship Sun Jul 26)
+# ArcNet — Build Plan v2 (phase-gated, sooner the better)
 
-Solo build. **Mon Jul 20 went to concept + planning (v1→v2 pivot — worth it; see `docs/log.md`), so the build window is 5 days: Tue 21 · Wed 22 · Thu 23 · Fri 24 · Sat 25, with Sun Jul 26 = ship + submit** (confirm exact deadline time from the form Day 1). The compression is absorbed by making Tue a double day (foundations AM + shield core PM) and pushing two items to Wed (TabFM spike, S2). Concept: `08-vision-v2.md` · Product: `01-product.md` · Specs: `10-time-machine.md` (headline) + `11-scenarios.md` (Bug Suite).
+Solo build toward one hard date: **submission Sun Jul 26** (confirm the exact time from the form in Phase 0). Work is organized as **milestone-gated phases, not calendar days** — a phase starts the moment the previous exit is green, never on a date. Finish early, start the next; every hour banked flows into Phase 5–6 polish and re-records, which is where "breathtaking" actually comes from. Ceiling pace: all six phases must fit before the deadline (~a phase a day with the last two protected). Concept: `08-vision-v2.md` · Product: `01-product.md` · Specs: `10-time-machine.md` (headline) + `11-scenarios.md` (Bug Suite).
+
+## The bar (the judge test)
+
+Everything below serves one sentence: **"one person built this during the event — and it feels like a product."** Concretely:
+
+- **Every phase exits demoable** — at any exit you could screen-record something real that minute.
+- **The two hero views** (Fleet Health, Time Machine) get product polish: real data, zero empty states, zero debug text, the Unplug design language executed per `09-frontend.md`.
+- **Nothing on camera depends on luck**: one-command bring-up, deterministic choreography, backups for every hard beat, rehearsed script.
+- **Depth visible, not claimed**: dashboards/alerts provisioned as code, MCP live in the demo, precise verdicts with honest `inconclusive` paths.
+- North star + success criteria + tradeoff order: `08-vision-v2.md`.
 
 ## Priority tiers (the demo defines P0)
 
@@ -10,36 +20,38 @@ Solo build. **Mon Jul 20 went to concept + planning (v1→v2 pivot — worth it;
 - **P1 — strong, build if P0 done:** native seasonal anomaly alert · Griffin breadth · Sources & Trust view · HITL pause beat · Time Machine corpus replay · prompt-swap replay · F9 canaries.
 - **P2 — cut freely:** F10 LLM judge · F11 second adapter · Agent K persona · S3 Serleena.
 
-**Honest scope note:** v2 is ambitious for solo/5-build-days — the Time Machine and a product-grade UI rebuild are both new since v1. The plan front-loads the two riskiest new things (replay harness Tue, TabFM Wed) and the cut list protects the two hero UI views (Fleet Health + Time Machine); everything else degrades to agent-view JSON or SigNoz deep-links.
+**Honest scope note:** v2 is ambitious for a solo build — the Time Machine and a product-grade UI are both new since v1. The plan front-loads the two riskiest things (replay spike in Phase 0, TabFM spike in Phase 2) and the cut list protects the two hero views; everything else degrades to agent-view JSON or SigNoz deep-links.
 
-## Day 1 — Tue Jul 21 · Foundations (AM) + Shield Core (PM)
+## Phase 0 — Foundations & de-risk (timeboxed: half a day, no gold-plating)
 
-**AM — foundations & de-risk (timeboxed, ~5h):**
 - [ ] Scaffold repo (layout per `02`), uv workspaces + pnpm app, `.env.example` fully enumerated
 - [ ] SigNoz self-hosted via Docker Compose; pin version; confirm UI; note Mac resource usage
 - [ ] Join SigNoz Slack + register; **find submission form + exact deadline time; record:** ____
 - [ ] Hello Agno agent traced into SigNoz via `openinference-instrumentation-agno==0.1.38`; pin `agno==2.7.4`; import prebuilt Agno dashboard
 - [ ] Verify Agno hook surface on the pinned version: guardrail base class, tool pre/post hooks, HITL, `cancel_run` — record exact APIs in `02`
-- [ ] `pip install unplug-ai==0.5.2` → smoke test; verify the day-0 API list (`add_canary`, `notify_taint_source`, `wrap_for_context`, trust levels) per `05`
-- [ ] **Replay feasibility spike (≤2h):** intercept an Agno agent's tool calls, return canned outputs, confirm the step-cursor mechanism + recorded-transcript shape per `10-time-machine.md`. De-risks the F14 headline 3 days early.
+- [ ] `pip install unplug-ai==0.5.2` → smoke test; verify the API list (`add_canary`, `notify_taint_source`, `wrap_for_context`, trust levels) per `05`
+- [ ] **Replay feasibility spike (≤2h):** intercept an Agno agent's tool calls, return canned outputs, confirm the step-cursor mechanism + recorded-transcript shape per `10-time-machine.md`. De-risks the F14 headline before anything is built on it.
 - [ ] Model pick (gpt-4o-mini vs haiku by keys) + confirm token/cost path + write `pricing.py`
 - [ ] Service-account key; one Query Range call + confirm a metrics-listing path (Griffin discover)
 
-**PM — shield core (source-trust):**
+**Exit: hello-Agno trace with tokens visible in SigNoz; replay mechanism proven on a toy agent; demo model locked; unplug API confirmed.**
+
+## Phase 1 — Shield Core (source-trust)
+
 - [ ] `arcnet.init()` — OTel providers + `AgnoInstrumentor` + Guard + stub signal client
 - [ ] `UnplugGuardrail` + tool hooks: 4 checkpoints emitting `arcnet.guard` spans (with trust level), events per finding, metrics, logs; `block` → span ERROR; `arcnet.exposure` per agent
 - [ ] Agent J on AgentOS + 4 tools + seeded PII + fixture pages (`11-scenarios.md`); **record replay-ready transcripts** on every session (dual-write per `10`) so the Time Machine can reload them
 - [ ] Scenario runner (with per-scenario assertions per `11`) + S0 baseline + S5 jailbreak block
 - [ ] Custom metrics: `arcnet.threats.detected`, `arcnet.guard.latency`, token/cost rollups
 
-**Exit: Agno trace with tokens in SigNoz; replay mechanism proven on a toy agent; demo model locked; S5 → blocked span + metric; S0 → clean run; a recorded session round-trips through the replay loader.**
+**Exit: S5 → blocked span + metric; S0 → clean run; a recorded session round-trips through the replay loader.**
 
-## Day 2 — Wed Jul 22 · SigNoz Depth + MCP
+## Phase 2 — SigNoz Depth + MCP
 
-- [ ] S2 Neuralyzer (output redact) — carried from Day 1
-- [ ] **TabFM spike (≤2h):** install from git, backend choice, M-series latency; lock TabFM vs `tabpfn==8.1.0` before Griffin core tomorrow
+- [ ] S2 Neuralyzer (output redact)
+- [ ] **TabFM spike (≤2h, any slot in this phase — must close before Phase 3 starts):** install from git, backend choice, M-series latency; lock TabFM vs `tabpfn==8.1.0` (gate G2)
 - [ ] Dashboards ×3 imported via script: Fleet Ops, Threats & Trust, Cost & Tokens (≥1 ClickHouse-SQL panel)
-- [ ] Alert rules: threat>0, cost burn, tool-calls/session, p99 latency, error rate, `arcnet.anomaly>0`; **record the alert evaluation interval and tune eval/`for:` windows for demo latency** (the on-camera steer uses the inline fast-path per `02` §3 — the alert is the system of record)
+- [ ] Alert rules: threat>0, cost burn, tool-calls/session, p99 latency, error rate, `arcnet.anomaly>0`; **record the alert evaluation interval and tune eval/`for:` windows** (the on-camera steer uses the inline fast-path per `02` §3 — the alert is the system of record)
 - [ ] Native SigNoz seasonal anomaly alert on ≥1 metric (Griffin pairing story)
 - [ ] Webhook channel → server skeleton (SQLite); alert labels carry `session_id`/`agent_id`
 - [ ] Logs correlated by trace_id
@@ -47,37 +59,37 @@ Solo build. **Mon Jul 20 went to concept + planning (v1→v2 pivot — worth it;
 
 **Exit: S5 → alert fires → webhook lands attributable; S2 → redacted finding; Griffin model locked; MCP answering IDE queries.**
 
-## Day 3 — Thu Jul 23 · Signals + Griffin
+## Phase 3 — Signals + Griffin
 
 - [ ] Signal bus: `Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`; SSE; **inline fast-path** (`POST /api/signal` from the SDK at block time) + webhook-driven path
 - [ ] SDK signal client + Agno steer/kill (pause HITL scaffold)
 - [ ] S1 Edgar end-to-end (source-trust flags scraped page → block exfil → steer → self-correct); S4 Worms (kill) — rehearse the pair per `11`
 - [ ] Griffin core: worker on token-rate series, conformal judge, `arcnet.anomaly` + alert rule; `seed.py`; S4 "Griffin-first" choreography
 
-**Exit: S1 + S4 self-resolve on camera-speed; Griffin flags S4 before the static alert; replay-loader source locked (gate G3).**
+**Exit: S1 + S4 self-resolve at camera speed; Griffin flags S4 before the static alert; replay-loader source locked (gate G3).**
 
-## Day 4 — Fri Jul 24 · Time Machine (the headline)
+## Phase 4 — Time Machine (the headline)
 
 - [ ] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
 - [ ] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{resisted_injection, exfil_attempts, goal_reached, cost, latency}` → verdict + recommendation (3-run majority)
-- [ ] Verify the Edgar replay: baseline (exploited) vs candidate → candidate resists; **stable across 3 runs**
+- [ ] Verify the Edgar replay: baseline (exploited) vs candidate → candidate resists; **stable across 3 runs** (gate G4)
 - [ ] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
 
 **Exit: `POST /api/replay` returns a real, stable Edgar counterfactual; agent-view JSON of it.**
 
-## Day 5 — Sat Jul 25 · UI + Case File + Record
+## Phase 5 — UI + Case File + Record
 
 - [ ] Product-grade React app (direction: `09-frontend.md`; Unplug-matched aesthetic): shell + **Fleet Health** + **Time Machine** (the two hero views) + Signals + Case Files
 - [ ] **Global Human ⇄ Agent view toggle** wired to `/api/agent-view/*`
 - [ ] Case File exporter (`case-file.md`+`.json`, embedded trace_ids + MCP instructions); "hand to coding agent" flow
-- [ ] Live test: hand a Case File to Claude Code (SigNoz MCP connected) → it pulls traces + proposes the fix; **record a backup of this beat**
+- [ ] Live test: hand a Case File to Claude Code (SigNoz MCP connected) → it pulls traces + proposes the fix; **record a backup of this beat** (gate G5)
 - [ ] Seed rich history + **record the 12-incident replay corpus** (`11-scenarios.md`); (P1) corpus replay aggregate; (P1) Sources & Trust view
 - [ ] Neuralyzer redaction surfaced; `scripts/run-demo.sh`; polish empty/error states; README rewrite
 - [ ] **Record demo video draft** (<3 min) + per-beat backup captures
 
-**Exit: end-to-end demo recorded (with backups); the two hero views solid.**
+**Exit: end-to-end demo recorded (with backups); the two hero views product-polished. Any time left after this exit = polish loop: re-record weak beats, tighten the UI, add P1s.**
 
-## Day 6 — Sun Jul 26 · Ship
+## Phase 6 — Ship (the only calendar-bound phase: Sun Jul 26)
 
 - [ ] Final video per `06`; README final (setup, screenshots, criteria map, env)
 - [ ] Repo public, license, **submit hours before deadline**, social post
@@ -87,13 +99,13 @@ Solo build. **Mon Jul 20 went to concept + planning (v1→v2 pivot — worth it;
 
 | Gate | When | If red |
 |---|---|---|
-| G1 replay spike | Tue AM | Mechanism unproven → transcripts become the SQLite-only design immediately; Time Machine scope narrows to single-scenario replay |
-| G2 TabFM | Wed | Latency/API rough → `tabpfn==8.1.0` same-day, no revisit (`07`) |
-| G3 replay-loader source | Thu EOD | Query Range round-trip flaky → SQLite loader is the demo path; SigNoz stays proof store + deep-links (`10`) |
-| G4 Edgar replay stability | Fri EOD | 3 runs disagree → switch candidate model or scenario variant with a larger gap; if still unstable, demo uses Sat's backup capture and the live take is dropped |
-| G5 MCP handoff | Sat | MCP flaky in the live test → Case File instructions use the Query Range API via curl; beat keeps working |
+| G1 replay spike | Phase 0 | Mechanism unproven → transcripts become the SQLite-only design immediately; Time Machine scope narrows to single-scenario replay |
+| G2 TabFM | before Phase 3 starts | Latency/API rough → `tabpfn==8.1.0` same day, no revisit (`07`) |
+| G3 replay-loader source | Phase 3 exit | Query Range round-trip flaky → SQLite loader is the demo path; SigNoz stays proof store + deep-links (`10`) |
+| G4 Edgar replay stability | Phase 4 exit | 3 runs disagree → switch candidate model or scenario variant with a larger gap; if still unstable, demo uses the Phase 5 backup capture and the live take is dropped |
+| G5 MCP handoff | Phase 5 | MCP flaky in the live test → Case File instructions use the Query Range API via curl; beat keeps working |
 
-## Cut list (pull in this order when behind)
+## Cut list (pull in this order when a phase overruns — cut, don't slip the chain)
 
 1. F11 second adapter · F10 LLM judge
 2. HITL pause beat (dev path stays, not on camera)
@@ -111,4 +123,4 @@ Solo build. **Mon Jul 20 went to concept + planning (v1→v2 pivot — worth it;
 - Every scenario emits telemetry even when blocked.
 - **Check the submission form daily.**
 - Commit small, messages describe WHAT shipped.
-- End of day: 2-line note in `docs/log.md`.
+- End of each phase: 2-line note in `docs/log.md`.

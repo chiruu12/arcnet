@@ -44,7 +44,7 @@ flowchart LR
 
 Demo agents run on **Agno** (we know it well; it's also the cleanest integration surface):
 
-- **Instrumentation is first-class**: SigNoz has an official Agno guide using `openinference-instrumentation-agno`, and SigNoz ships a **prebuilt Agno dashboard template** — we import it day 1 and build our custom dashboards alongside it.
+- **Instrumentation is first-class**: SigNoz has an official Agno guide using `openinference-instrumentation-agno`, and SigNoz ships a **prebuilt Agno dashboard template** — we import it in Phase 0 and build our custom dashboards alongside it.
 - **Guardrail framework**: Agno supports pre/post hooks + a `BaseGuardrail` class. Unplug integrates as `UnplugGuardrail` — idiomatic Agno, not bolted-on middleware. (Post-hackathon this doubles as an OSS contribution candidate to Agno.)
 - **Tool hooks**: per-tool pre/post interception → `guard.check_tool_call()` + taint checks exactly where they belong.
 - **HITL built in**: paused runs surface approval requests over a live socket → our `pause` signal becomes a real approve/reject flow driven from the UI.
@@ -53,7 +53,7 @@ Demo agents run on **Agno** (we know it well; it's also the cleanest integration
 ## Data flows
 
 ### 1. Telemetry (always on)
-`AgnoInstrumentor().instrument()` + OTel SDK (traces/metrics/logs → OTLP → SigNoz). Agent runs emit agent/LLM/tool spans; we add `arcnet.guard` spans at checkpoints, threat counters, and finding logs. Token/cost metrics: derive OTel counters from Agno's per-run metrics (verify exact field names day 1) so the Cost dashboard has real numbers.
+`AgnoInstrumentor().instrument()` + OTel SDK (traces/metrics/logs → OTLP → SigNoz). Agent runs emit agent/LLM/tool spans; we add `arcnet.guard` spans at checkpoints, threat counters, and finding logs. Token/cost metrics: derive OTel counters from Agno's per-run metrics (verify exact field names in Phase 0) so the Cost dashboard has real numbers.
 
 ### 2. Inline defense — source-trust monitoring (ms)
 Unplug is the **provenance/trust spine**. Every ingested datum is tagged with a trust level; the untrusted ones get scanned. Implemented the Agno way:
@@ -99,7 +99,7 @@ This is **replay-from-trace, not live re-execution** — deterministic, cheap (o
 - Telemetry namespace `arcnet.*`: see `04-signoz-integration.md`.
 
 ### `agents/` — demo fleet + Bug Suite
-Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. Model: cheap + fast (gpt-4o-mini or haiku — decide day 1 by keys; cost telemetry needs real tokens).
+Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. Model: cheap + fast (gpt-4o-mini or haiku — decide in Phase 0 by keys; cost telemetry needs real tokens).
 
 Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + runner script + **telemetry assertions** (full spec, fixtures, goal predicates, camera notes: **`11-scenarios.md`**):
 | # | Codename | Attack | Expected chain |
@@ -151,7 +151,7 @@ arcnet/
 └── scripts/                     # run-demo.sh, seed.py, bring-up
 ```
 
-Python 3.12+, `uv` workspaces. Pinned deps (versions verified on PyPI 2026-07-20 — pin these, re-resolve day 1): `unplug-ai==0.5.2` (requires-python ≥3.11), `agno==2.7.4` (v2 line = AgentOS), `openinference-instrumentation-agno==0.1.38`, `opentelemetry-sdk` + OTLP exporters, `opentelemetry-instrumentation-httpx`, `opentelemetry-instrumentation-system-metrics`, model SDK (`openai` or `anthropic`), `fastapi`, `httpx`, `sse-starlette`; server extra: `tabfm` (git-pinned commit, no PyPI) with `tabpfn==8.1.0` as fallback. SigNoz MCP server: `signoz-mcp-server v0.8.0` (binary/Docker).
+Python 3.12+, `uv` workspaces. Pinned deps (versions verified on PyPI 2026-07-20 — pin these, re-resolve in Phase 0): `unplug-ai==0.5.2` (requires-python ≥3.11), `agno==2.7.4` (v2 line = AgentOS), `openinference-instrumentation-agno==0.1.38`, `opentelemetry-sdk` + OTLP exporters, `opentelemetry-instrumentation-httpx`, `opentelemetry-instrumentation-system-metrics`, model SDK (`openai` or `anthropic`), `fastapi`, `httpx`, `sse-starlette`; server extra: `tabfm` (git-pinned commit, no PyPI) with `tabpfn==8.1.0` as fallback. SigNoz MCP server: `signoz-mcp-server v0.8.0` (binary/Docker).
 
 ## Secrets & env surface
 
@@ -159,7 +159,7 @@ Enumerated so the "judge runs `docker compose up` + `run-demo.sh`" claim is real
 
 | Var | Purpose | Who needs it |
 |---|---|---|
-| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Demo agent model (gpt-4o-mini vs haiku — pick Day 1 by which key the dev has) | agents/, sdk/ |
+| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Demo agent model (gpt-4o-mini vs haiku — pick in Phase 0 by which key the dev has) | agents/, sdk/ |
 | `ARCNET_MODEL` | Which model id to use (drives `pricing.py` lookup) | agents/ |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP → SigNoz collector (self-host: `http://localhost:4318`) | sdk/ |
 | `SIGNOZ_API_KEY` | Service-account key for Query Range API (server-side only) | server/ |
@@ -173,14 +173,14 @@ The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code
 
 | Risk | Mitigation |
 |---|---|
-| SigNoz self-host heavy on the Mac (ClickHouse) | Pin versions, allocate Docker resources day 1; fallback = SigNoz Cloud (everything incl. MCP works there; would also unlock Noz) |
+| SigNoz self-host heavy on the Mac (ClickHouse) | Pin versions, allocate Docker resources in Phase 0; fallback = SigNoz Cloud (everything incl. MCP works there; would also unlock Noz) |
 | `openinference-instrumentation-agno` gaps with current Agno version | Official SigNoz guide exists → low risk; day-1 smoke test; fallback manual OTel wrappers in guard hooks |
-| Agno guardrail/HITL APIs drift (fast-moving framework) | Pin `agno` version day 1; we know the framework — verify hook signatures against the pinned version before building |
-| `unplug-ai==0.5.2` API drift vs docs | Core contract verified; smoke-test day 1; pin |
-| Query Range API shape on self-host | Verify day 2 before building export on it |
+| Agno guardrail/HITL APIs drift (fast-moving framework) | Pin `agno` version in Phase 0; we know the framework — verify hook signatures against the pinned version before building |
+| `unplug-ai==0.5.2` API drift vs docs | Core contract verified; Phase-0 smoke test; pin |
+| Query Range API shape on self-host | Verify in Phase 2 before building export on it |
 | Webhook payload lacks trace context | Encode session/agent identity into alert labels at provision time; server enriches via Query API |
-| Alert evaluation interval too slow for on-camera self-correct | Inline fast-path signal at block time (§3); alert stays the system of record; tune rule eval/`for:` windows Day 2 |
-| **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so we record what the harness needs (goal, tool I/O, model turns) as span attributes at trace time — don't rely on reconstructing from generic OTel spans. Verify the recorded-session round-trip Day 3 before building the diff UI. Fallback: the harness replays from ArcNet's own SQLite session store, not SigNoz. |
+| Alert evaluation interval too slow for on-camera self-correct | Inline fast-path signal at block time (§3); alert stays the system of record; tune rule eval/`for:` windows in Phase 2 |
+| **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so we record what the harness needs (goal, tool I/O, model turns) as span attributes at trace time — don't rely on reconstructing from generic OTel spans. Verify the recorded-session round-trip at Phase-3 exit (gate G3) before building the diff UI. Fallback: the harness replays from ArcNet's own SQLite session store, not SigNoz. |
 | **Counterfactual result is nondeterministic (LLM sampling)** | Replay at temperature 0; run the candidate 3× and report the majority behavior if needed; the demo scenario is chosen so the behavioral gap is large and stable. |
 | Solo + 6 days | P0 first; pre-agreed cut list in `03-plan.md` |
 ```
