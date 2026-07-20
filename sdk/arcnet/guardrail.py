@@ -194,8 +194,31 @@ def tool_call_middleware(
     return out
 
 
+def _span_redact(text: str, findings: list[Any]) -> str:
+    """Replace flagged spans with [REDACTED] (Neuralyzer). Unplug's sanitizer may leave PII intact."""
+    spans: list[tuple[int, int]] = []
+    for f in findings:
+        start = int(getattr(f, "span_start", 0) or 0)
+        end = int(getattr(f, "span_end", 0) or 0)
+        if end > start:
+            spans.append((start, end))
+    if not spans:
+        return text
+    spans.sort(key=lambda s: s[0])
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    out = text
+    for start, end in reversed(merged):
+        out = out[:start] + "[REDACTED]" + out[end:]
+    return out
+
+
 def output_post_hook(run_output: Any = None, **_: Any) -> None:
-    """Agent post_hooks — scan_output for PII/secrets (S2)."""
+    """Agent post_hooks — scan_output for PII/secrets (S2 Neuralyzer)."""
     rt = try_get_runtime()
     if rt is None or run_output is None:
         return
@@ -204,18 +227,37 @@ def output_post_hook(run_output: Any = None, **_: Any) -> None:
         return
     timer = LatencyTimer()
     result = rt.guard.scan_output(text)
-    action = result.action.value if hasattr(result.action, "value") else str(result.action)
+    raw_action = result.action.value if hasattr(result.action, "value") else str(result.action)
+    findings = list(result.findings or [])
+    latency_ms = result.latency_ms if result.latency_ms is not None else timer.ms()
+    is_leak = any((getattr(f, "category", "") or "") == "leakage" for f in findings)
+
+    # Neuralyzer: ship redacted text for leakage (even when unplug chooses block via coverage gate).
+    if findings and (raw_action in ("redact", "block", "review") or is_leak):
+        redacted = _span_redact(text, findings)
+        if "[REDACTED]" in redacted or redacted != text:
+            run_output.content = redacted
+            emit_guard_telemetry(
+                checkpoint="output",
+                action="redact",
+                risk_score=float(result.risk_score or 0.0),
+                findings=findings,
+                latency_ms=latency_ms,
+                trust_level="tool_output",
+            )
+            if rt.transcript is not None:
+                rt.transcript.record_model_turn(redacted)
+            return
+
     emit_guard_telemetry(
         checkpoint="output",
-        action=action,
+        action=raw_action,
         risk_score=float(result.risk_score or 0.0),
-        findings=list(result.findings or []),
-        latency_ms=result.latency_ms if result.latency_ms is not None else timer.ms(),
+        findings=findings,
+        latency_ms=latency_ms,
         trust_level="tool_output",
     )
-    if result.action == Action.REDACT and result.redacted_text:
-        run_output.content = result.redacted_text
-    elif result.action == Action.BLOCK:
+    if result.action == Action.BLOCK:
         raise OutputCheckError(
             "ArcNet blocked leaking output.",
             check_trigger=CheckTrigger.PII_DETECTED,

@@ -60,6 +60,22 @@ def lookup_customer(order_id: str) -> str:
 
 
 @tool
+def get_customer_profile(name: str) -> str:
+    """Return the full customer profile by name (includes sensitive fields — demo DB)."""
+    needle = name.strip().lower()
+    for c in load_customers():
+        if needle in str(c.get("name", "")).lower() or needle == str(c.get("id", "")).lower():
+            orders = ", ".join(
+                f"#{o['order_id']}={o['status']}" for o in (c.get("orders") or [])
+            )
+            return (
+                f"id={c['id']} name={c['name']} email={c['email']} "
+                f"ssn={c['ssn']} orders=[{orders}]"
+            )
+    return f"No customer found for name={name!r}"
+
+
+@tool
 def send_email(to: str, subject: str, body: str) -> str:
     """Send an email (side-effect tool — guarded against taint exfil)."""
     return f"EMAIL_SENT to={to} subject={subject} bytes={len(body)}"
@@ -79,4 +95,4 @@ def run_query(sql: str) -> str:
     return json.dumps({"rows": []})
 
 
-TOOLS = [fetch_url, lookup_customer, send_email, run_query]
+TOOLS = [fetch_url, lookup_customer, get_customer_profile, send_email, run_query]
