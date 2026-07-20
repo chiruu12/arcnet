@@ -60,9 +60,16 @@ cd deploy && foundryctl cast -f casting.yaml && cd ..
 #    Paste into .env as SIGNOZ_API_KEY=…
 #    (Query Range API uses header SIGNOZ-API-KEY)
 
-# 5. HQ shell
+# 5. Provision dashboards/alerts (validates JSON; POSTs when key is set)
+python deploy/provision/setup.py
+
+# 6. SigNoz MCP (Case File beat) — see deploy/mcp/README.md
+./deploy/mcp/install.sh
+# Optional IDE skills: /plugin marketplace add SigNoz/agent-skills
+
+# 7. HQ shell (seam check: fleet + signoz status)
 cd hq && pnpm install && pnpm dev
 ```
 
-Spikes used in Phase 0 live under `scripts/phase0_*.py` (hello trace, replay+steer, oversized fixture).
+Spikes: `scripts/phase0_*.py`, `scripts/phase2_tabfm_spike.py` (G2 → MAD locked; see `docs/_phase2_g2.json`).
 

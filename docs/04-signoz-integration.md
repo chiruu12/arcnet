@@ -55,25 +55,32 @@ Span hierarchy **as the pinned instrumentor actually emits it** — OpenInferenc
 
 ## SigNoz features we consume
 
-- [ ] **Dashboards ×3, imported as JSON** (`deploy/provision/`):
+- [x] **Dashboards ×3, imported as JSON** (`deploy/provision/`):
   1. *Fleet Ops* — runs, latency, errors, active sessions
   2. *Threats & Trust* — threat counts by category/agent, block rate, guard latency, forward-facing exposure, recent findings (logs panel)
   3. *Cost & Tokens* — tokens + $ by agent/model, burn rate
   - ≥1 panel written in **ClickHouse SQL** (e.g. top attack subcategories from span events) — shows query-depth
-- [ ] **Alert rules** (provisioned via API): threat>0 (1m), cost burn rate, tool-calls-per-session (loop), p99 latency, error rate, `arcnet.anomaly>0` (Griffin outliers). **Payloads must use the current v5 `queries` array format** — the legacy `builderQueries` map shape is rejected outright on modern SigNoz (maintainer-confirmed); author against the Terraform-provider examples, never from tutorial memory. **Record the evaluation interval and tune eval/`for:` windows in Phase 2** — on-camera self-correct rides the inline fast-path (`02` §3); the alert is the system of record and must land close behind it
-- [ ] **Native anomaly-based alert** on ≥1 metric (SigNoz's built-in seasonal z-score alert type) — used alongside Griffin; README explains the pairing: SigNoz's seasonal model excels once history exists, Griffin (zero-shot TabFM) covers short-history agents from their first minutes. **Its evaluation windows are ≥5m by design — it can never fire live on camera**; it's a configured-rule + pre-seeded-history screenshot artifact, and the demo never pretends otherwise
-- [ ] **Webhook notification channel** → `POST /webhooks/signoz` (alert payload: grouped alerts, `fingerprint` for dedupe, `endsAt` for resolution — handle both firing + resolved)
-- [ ] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers the ArcNet UI (Fleet Health, threat feed) and Case File evidence. (Time Machine transcripts are **SQLite-primary** — spans carry summaries + pointers, not full tool outputs; `10-time-machine.md`.) Basic call confirmed in Phase 0; validate full query shapes in Phase 2.
+  - JSON authored; `setup.py` validates. Live API import skipped until `SIGNOZ_API_KEY` (UI import anytime).
+- [x] **Alert rules** (provisioned via API): threat>0 (1m), cost burn rate, tool-calls-per-session (loop), p99 latency, error rate, `arcnet.anomaly>0` (Griffin outliers). **Payloads must use the current v5 `queries` array format** — the legacy `builderQueries` map shape is rejected outright on modern SigNoz (maintainer-confirmed); author against the Terraform-provider examples, never from tutorial memory. **Record the evaluation interval and tune eval/`for:` windows in Phase 2** — on-camera self-correct rides the inline fast-path (`02` §3); the alert is the system of record and must land close behind it
+  - Payloads in `deploy/provision/alerts.json` (v5 `queries` only). Live POST skipped without API key.
+- [x] **Native anomaly-based alert** on ≥1 metric (SigNoz's built-in seasonal z-score alert type) — used alongside Griffin; README explains the pairing: SigNoz's seasonal model excels once history exists, Griffin (zero-shot TabFM) covers short-history agents from their first minutes. **Its evaluation windows are ≥5m by design — it can never fire live on camera**; it's a configured-rule + pre-seeded-history screenshot artifact, and the demo never pretends otherwise
+  - Artifact: `deploy/provision/alert-seasonal-anomaly.json`
+- [x] **Webhook notification channel** → `POST /webhooks/signoz` (alert payload: grouped alerts, `fingerprint` for dedupe, `endsAt` for resolution — handle both firing + resolved)
+  - Server route live; channel JSON in `alerts.json`. Channel create via API needs key.
+- [~] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers the ArcNet UI (Fleet Health, threat feed) and Case File evidence. (Time Machine transcripts are **SQLite-primary** — spans carry summaries + pointers, not full tool outputs; `10-time-machine.md`.) Basic call confirmed in Phase 0; validate full query shapes in Phase 2.
+  - **Blocked:** empty `SIGNOZ_API_KEY`. `/api/signoz/status` reports this; UI `:8080` reachable.
 - [ ] **Griffin metric discovery** — **default = a hardcoded allowlist of the `arcnet.*` counters we emit ourselves** (`arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `arcnet.tokens.total`): no documented metrics-listing endpoint exists on the Query Range API, and `gen_ai.*` metrics don't exist in this pipeline at all. Auto-discovery (metrics metadata API or MCP `signoz_list_metrics`) is a stretch goal, not the plan.
 - [ ] **Trace deep-links** from the ArcNet UI into SigNoz trace view (judges see native UI too)
 - [x] **Agno dashboard template** fetched into `deploy/provision/agno-dashboard.json` (from SigNoz/dashboards `agno/agno-dashboard.json`). Import via UI (Dashboards → Import) or Phase 2 `setup.py`; do not author custom panels until against the live keys above.
 
 ## SigNoz AI surface (docs/ai/*) — use all of it that works self-hosted
 
-- [ ] **SigNoz MCP server** (self-hosted binary/Docker; 40+ tools: `signoz_get_trace_details`, `signoz_search_logs`, `signoz_aggregate_traces`, `signoz_create_alert`, `signoz_import_dashboard`, `signoz_execute_builder_query`, …). Two roles:
+- [~] **SigNoz MCP server** (self-hosted binary/Docker; 40+ tools: `signoz_get_trace_details`, `signoz_search_logs`, `signoz_aggregate_traces`, `signoz_create_alert`, `signoz_import_dashboard`, `signoz_execute_builder_query`, …). Two roles:
   - **Dev-time**: wired into Cursor/Claude Code while building — author dashboards/alerts/queries with it, then freeze the JSON into `deploy/provision/`.
   - **Demo-time (Case File beat)**: case files embed `trace_id`s + instructions; the coding agent pulls live evidence via MCP and fixes the agent. Mirrors SigNoz's own "reconstruct a bug from a trace ID" / "postmortem evidence pack" use cases, specialized for agent security — name-check that in the README.
-- [ ] **SigNoz agent skills** installed in the dev agent (`/plugin marketplace add SigNoz/agent-skills` → `/plugin install signoz@signoz-skills`): generating-queries, writing-clickhouse-queries, creating-dashboards, creating-alerts, investigating-alerts. Documented in README as part of our workflow (judges appreciate dogfooding their AI tooling).
+  - **Phase 2:** `deploy/mcp/install.sh` installs **v0.8.0**; Cursor/Claude configs in `deploy/mcp/`. Stdio needs `SIGNOZ_API_KEY`.
+- [~] **SigNoz agent skills** installed in the dev agent (`/plugin marketplace add SigNoz/agent-skills` → `/plugin install signoz@signoz-skills`): generating-queries, writing-clickhouse-queries, creating-dashboards, creating-alerts, investigating-alerts. Documented in README as part of our workflow (judges appreciate dogfooding their AI tooling).
+  - Steps in `deploy/mcp/README.md` (human IDE install).
 - **Noz**: SigNoz Cloud-only (in-UI AI teammate) — out of scope for self-host. One line in README acknowledging it; if we ever flip to Cloud fallback, turn it on for the demo.
 
 ## Provisioning-as-code

@@ -37,3 +37,8 @@ Full gap pass over the plan before coding. **Schedule re-anchored**: Mon went to
 
 **Audit:** Layout/import rule/pins clean; filled missing `agents/prompts`+`scenarios/fixtures` + SDK/server modules (no overbuilt stubs, no vendored unplug).
 **Actual:** `arcnet.init`+4 checkpoints+metrics; Agent J/AgentOS; S0 clean + S5 input-block+threat row; SQLite sessions round-trip via `load_transcript`. H1/H2/H3 + empty `SIGNOZ_API_KEY` still human-blocked.
+
+## Phase 2 — Tue Jul 21 (SigNoz depth + MCP) — EXIT
+
+**Expected:** TabFM G2; S2 redact; 3 dashboards + v5 alerts + seasonal artifact; webhook attributable; logs↔trace; MCP answering; hq↔server↔SigNoz seam once.
+**Actual:** G2 → TabFM too slow (~12s/series) + TabPFN needs `TABPFN_TOKEN` → **locked MAD**; S2 PASS (`[REDACTED]` email+SSN); dashboards/alerts/seasonal JSON + `setup.py` validate (API provision SKIP — no key); webhook → `steer` signal with `session_id`/`agent_id`; OTLP LoggingHandler; MCP `v0.8.0` binary+configs (tools need key); hq seam page + `/api/fleet` + `/api/signoz/status` (UI 200). Exit **green / PARTIAL** on live SigNoz API+MCP.

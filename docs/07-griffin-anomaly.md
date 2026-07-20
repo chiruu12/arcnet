@@ -10,10 +10,10 @@ SigNoz ships anomaly-based alerts (seasonal baseline + z-score). We **use one na
 
 ## Model
 
-- Primary: **Google TabFM** (`TabFMRegressor` from `github.com/google-research/tabfm`, Apache-2.0, weights auto-download from HF `google/tabfm-1.0.0-pytorch` — both verified live 2026-07-20). Sklearn-style `fit/predict`, CPU supported (JAX or PyTorch backend — pick in the spike; no PyPI package, so pin a git commit in `pyproject.toml` and pre-pull weights in the setup script so the "one-command bring-up" claim holds). Zero-shot regression on our time-featurized buckets. Brand-new Google release → strong Creativity/Innovation material, but treat as unproven: **spike on real M-series latency in Phase 2 before committing** (gate G2; budget: whole cycle < 15s for 12 series).
+- Primary: **Google TabFM** (`TabFMRegressor` from `github.com/google-research/tabfm` / PyPI `tabfm==1.0.0`, Apache-2.0 code; weights from HF `google/tabfm-1.0.0-pytorch`). Sklearn-style `fit/predict`, CPU supported (PyTorch backend locked in spike). **Phase-2 G2 result (2026-07-21):** install OK; weights ship as `model.safetensors` (loader expected `pytorch_model.bin` — convert once); load ~28s; fit+predict ~12–26s/series → **~150s for 12 series (>>15s budget) → FALLBACK**.
 - **Bands via split-conformal residuals** (TabFM outputs point predictions only, no quantiles): fit on history minus the last C=20 calibration points, predict the calibration tail, take `q95(|residual|)` → band = `forecast ± that`. Model-agnostic and calibrated by construction — any regressor can slot into Griffin.
-- Fallback A: **TabPFN** (the `tabpfn==8.1.0` PyPI package — its model line is marketed as "TabPFN-2.5"; same thing) — same regressor slot; its native predictive distribution can replace conformal bands if TabFM underperforms on CPU.
-- Fallback B (interface-preserving): robust z-score on rolling median/MAD — Griffin's I/O contract doesn't change, so this is a safe last-resort swap.
+- Fallback A: **TabPFN** (`tabpfn==8.1.0`) — install OK; weight download requires **`TABPFN_TOKEN`** (Prior Labs license, non-interactive) → **BLOCKED** without human token.
+- Fallback B / **LOCKED for Phase 3 (G2):** robust z-score on rolling median/MAD — Griffin's I/O contract doesn't change. Narration = **statistical baseline** (drop FM claim until TabPFN token or accept TabFM on 1 hardcoded series ~12s/cycle).
 
 ## The loop (every 60s, per series)
 

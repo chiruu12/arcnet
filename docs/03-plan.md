@@ -51,17 +51,17 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 2 — SigNoz Depth + MCP
 
-- [ ] **TabFM spike — FIRST item of the phase, 45–90 min walk-away** (zero public CPU benchmarks exist; most of the budget will be install friction): install from git, backend choice, M-series latency; fall to `tabpfn==8.1.0` fast (gate G2)
-- [ ] S2 Neuralyzer (output redact)
-- [ ] Dashboards ×3 imported via script: Fleet Ops, Threats & Trust, Cost & Tokens (≥1 ClickHouse-SQL panel) — authored against the **real OpenInference attribute names recorded in Phase 0**
-- [ ] Alert rules: threat>0, cost burn, tool-calls/session, p99 latency, error rate, `arcnet.anomaly>0` — **payloads in the current v5 `queries` format** (legacy `builderQueries` is rejected on modern SigNoz; crib from the Terraform-provider examples); record the eval interval + tune `for:` windows (on-camera steer rides the inline fast-path per `02` §3)
-- [ ] Native SigNoz seasonal anomaly alert on ≥1 metric — **screenshot-only artifact** (its eval windows are ≥5m by design; it can never fire live on camera; the pairing story is a configured-rule + pre-seeded-history visual)
-- [ ] Webhook channel → server skeleton (SQLite, schema + routes per `12-data-api.md`); alert labels carry `session_id`/`agent_id`
-- [ ] Logs correlated by trace_id
-- [ ] SigNoz MCP server (`v0.8.0`) self-hosted + wired into Cursor/Claude Code; agent-skills plugin installed
-- [ ] **Integration seam check (end of phase):** one stub `hq/` page → `server/` → SigNoz end-to-end (CORS, SSE reconnect, ports) — surface the seam bugs before any UI polish depends on them
+- [x] **TabFM spike — FIRST item of the phase, 45–90 min walk-away** (zero public CPU benchmarks exist; most of the budget will be install friction): install from git, backend choice, M-series latency; fall to `tabpfn==8.1.0` fast (gate G2)
+- [x] S2 Neuralyzer (output redact)
+- [x] Dashboards ×3 imported via script: Fleet Ops, Threats & Trust, Cost & Tokens (≥1 ClickHouse-SQL panel) — authored against the **real OpenInference attribute names recorded in Phase 0**
+- [x] Alert rules: threat>0, cost burn, tool-calls/session, p99 latency, error rate, `arcnet.anomaly>0` — **payloads in the current v5 `queries` format** (legacy `builderQueries` is rejected on modern SigNoz; crib from the Terraform-provider examples); record the eval interval + tune `for:` windows (on-camera steer rides the inline fast-path per `02` §3)
+- [x] Native SigNoz seasonal anomaly alert on ≥1 metric — **screenshot-only artifact** (its eval windows are ≥5m by design; it can never fire live on camera; the pairing story is a configured-rule + pre-seeded-history visual)
+- [x] Webhook channel → server skeleton (SQLite, schema + routes per `12-data-api.md`); alert labels carry `session_id`/`agent_id`
+- [x] Logs correlated by trace_id
+- [~] SigNoz MCP server (`v0.8.0`) self-hosted + wired into Cursor/Claude Code; agent-skills plugin installed — **binary + configs shipped; live MCP tools blocked on empty `SIGNOZ_API_KEY`**; agent-skills = human IDE step
+- [x] **Integration seam check (end of phase):** one stub `hq/` page → `server/` → SigNoz end-to-end (CORS, SSE reconnect, ports) — surface the seam bugs before any UI polish depends on them
 
-**Exit: S5 → alert fires → webhook lands attributable; S2 → redacted finding; Griffin model locked; MCP answering IDE queries; the UI↔server↔SigNoz seam works once.**
+**Exit: S5 → alert fires → webhook lands attributable; S2 → redacted finding; Griffin model locked; MCP answering IDE queries; the UI↔server↔SigNoz seam works once.** → Phase 2 exit **green with PARTIAL on live SigNoz API/MCP** (empty `SIGNOZ_API_KEY`; webhook path proven with synthetic alert payload).
 
 ## Phase 3 — Signals + Griffin
 
