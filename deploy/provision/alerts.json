@@ -1,0 +1,365 @@
+{
+  "meta": {
+    "eval_interval": "1m",
+    "notes": "v5 queries format only (never builderQueries). Inline fast-path handles on-camera steer; these alerts are system-of-record. Labels carry session_id/agent_id/arcnet_kind for webhook attribution.",
+    "for_windows": {
+      "threat_detected": "0s (fire immediately on >0 in 1m window)",
+      "cost_burn": "45s sustained (lets Griffin fire first on S4)",
+      "tool_calls_loop": "1m",
+      "p99_latency": "2m",
+      "error_rate": "1m",
+      "griffin_anomaly": "0s"
+    }
+  },
+  "webhook_channel": {
+    "name": "arcnet-webhook",
+    "type": "webhook",
+    "webhook_url": "http://host.docker.internal:8000/webhooks/signoz"
+  },
+  "alerts": [
+    {
+      "alert": "arcnet.threats.detected > 0",
+      "alert_type": "METRIC_BASED_ALERT",
+      "severity": "critical",
+      "rule_type": "threshold_rule",
+      "version": "v5",
+      "schema_version": "v2alpha1",
+      "description": "Unplug guard detected a threat (current: {{$value}}). Labels map to ArcNet session/agent.",
+      "summary": "ArcNet threat detected",
+      "labels": {
+        "arcnet_kind": "threat",
+        "team": "arcnet"
+      },
+      "condition": {
+        "compositeQuery": {
+          "queryType": "builder",
+          "panelType": "graph",
+          "queries": [
+            {
+              "type": "builder_query",
+              "spec": {
+                "name": "A",
+                "signal": "metrics",
+                "stepInterval": 60,
+                "aggregations": [
+                  {
+                    "metricName": "arcnet.threats.detected",
+                    "timeAggregation": "increase",
+                    "spaceAggregation": "sum"
+                  }
+                ],
+                "filter": { "expression": "" },
+                "groupBy": [
+                  { "name": "agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+                ],
+                "legend": "{{agent_id}}"
+              }
+            }
+          ]
+        },
+        "selectedQueryName": "A",
+        "thresholds": {
+          "kind": "basic",
+          "spec": [
+            {
+              "name": "critical",
+              "op": "above",
+              "matchType": "atleast_once",
+              "target": 0,
+              "channels": ["arcnet-webhook"]
+            }
+          ]
+        }
+      },
+      "evaluation": {
+        "kind": "rolling",
+        "spec": { "evalWindow": "1m", "frequency": "1m" }
+      }
+    },
+    {
+      "alert": "arcnet.cost.usd burn rate",
+      "alert_type": "METRIC_BASED_ALERT",
+      "severity": "warning",
+      "rule_type": "threshold_rule",
+      "version": "v5",
+      "schema_version": "v2alpha1",
+      "description": "Cost burn elevated (S4 Worms). for: ~45s so Griffin anomaly can fire first.",
+      "summary": "ArcNet cost burn",
+      "labels": {
+        "arcnet_kind": "cost_burn",
+        "team": "arcnet"
+      },
+      "condition": {
+        "compositeQuery": {
+          "queryType": "builder",
+          "panelType": "graph",
+          "queries": [
+            {
+              "type": "builder_query",
+              "spec": {
+                "name": "A",
+                "signal": "metrics",
+                "stepInterval": 60,
+                "aggregations": [
+                  {
+                    "metricName": "arcnet.cost.usd",
+                    "timeAggregation": "increase",
+                    "spaceAggregation": "sum"
+                  }
+                ],
+                "filter": { "expression": "" },
+                "groupBy": [
+                  { "name": "agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+                ],
+                "legend": "{{agent_id}}"
+              }
+            }
+          ]
+        },
+        "selectedQueryName": "A",
+        "thresholds": {
+          "kind": "basic",
+          "spec": [
+            {
+              "name": "warning",
+              "op": "above",
+              "matchType": "all_the_times",
+              "target": 0.05,
+              "channels": ["arcnet-webhook"]
+            }
+          ]
+        }
+      },
+      "evaluation": {
+        "kind": "rolling",
+        "spec": { "evalWindow": "2m", "frequency": "1m" }
+      }
+    },
+    {
+      "alert": "arcnet.tool.calls loop depth",
+      "alert_type": "METRIC_BASED_ALERT",
+      "severity": "critical",
+      "rule_type": "threshold_rule",
+      "version": "v5",
+      "schema_version": "v2alpha1",
+      "description": "Tool-call rate suggests a runaway loop.",
+      "summary": "ArcNet tool-call loop",
+      "labels": {
+        "arcnet_kind": "kill",
+        "team": "arcnet"
+      },
+      "condition": {
+        "compositeQuery": {
+          "queryType": "builder",
+          "panelType": "graph",
+          "queries": [
+            {
+              "type": "builder_query",
+              "spec": {
+                "name": "A",
+                "signal": "metrics",
+                "stepInterval": 60,
+                "aggregations": [
+                  {
+                    "metricName": "arcnet.tool.calls",
+                    "timeAggregation": "increase",
+                    "spaceAggregation": "sum"
+                  }
+                ],
+                "filter": { "expression": "" },
+                "groupBy": [
+                  { "name": "agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+                ],
+                "legend": "{{agent_id}}"
+              }
+            }
+          ]
+        },
+        "selectedQueryName": "A",
+        "thresholds": {
+          "kind": "basic",
+          "spec": [
+            {
+              "name": "critical",
+              "op": "above",
+              "matchType": "atleast_once",
+              "target": 20,
+              "channels": ["arcnet-webhook"]
+            }
+          ]
+        }
+      },
+      "evaluation": {
+        "kind": "rolling",
+        "spec": { "evalWindow": "1m", "frequency": "1m" }
+      }
+    },
+    {
+      "alert": "arcnet agent p99 latency",
+      "alert_type": "METRIC_BASED_ALERT",
+      "severity": "warning",
+      "rule_type": "threshold_rule",
+      "version": "v5",
+      "schema_version": "v2alpha1",
+      "description": "Agent run p99 latency high (trace duration_nano / 1e6 ≈ ms).",
+      "summary": "ArcNet p99 latency",
+      "labels": {
+        "arcnet_kind": "note",
+        "team": "arcnet"
+      },
+      "condition": {
+        "compositeQuery": {
+          "queryType": "builder",
+          "panelType": "graph",
+          "queries": [
+            {
+              "type": "builder_query",
+              "spec": {
+                "name": "A",
+                "signal": "traces",
+                "stepInterval": 60,
+                "aggregations": [{ "expression": "p99(duration_nano)" }],
+                "filter": {
+                  "expression": "openinference.span.kind = 'AGENT'"
+                },
+                "groupBy": [
+                  { "name": "arcnet.agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+                ],
+                "legend": "{{arcnet.agent_id}}"
+              }
+            }
+          ]
+        },
+        "selectedQueryName": "A",
+        "thresholds": {
+          "kind": "basic",
+          "spec": [
+            {
+              "name": "warning",
+              "op": "above",
+              "matchType": "all_the_times",
+              "target": 30000000000,
+              "channels": ["arcnet-webhook"]
+            }
+          ]
+        }
+      },
+      "evaluation": {
+        "kind": "rolling",
+        "spec": { "evalWindow": "2m", "frequency": "1m" }
+      }
+    },
+    {
+      "alert": "arcnet error rate",
+      "alert_type": "METRIC_BASED_ALERT",
+      "severity": "warning",
+      "rule_type": "threshold_rule",
+      "version": "v5",
+      "schema_version": "v2alpha1",
+      "description": "Error span rate elevated (includes guard blocks with ERROR status).",
+      "summary": "ArcNet error rate",
+      "labels": {
+        "arcnet_kind": "note",
+        "team": "arcnet"
+      },
+      "condition": {
+        "compositeQuery": {
+          "queryType": "builder",
+          "panelType": "graph",
+          "queries": [
+            {
+              "type": "builder_query",
+              "spec": {
+                "name": "A",
+                "signal": "traces",
+                "stepInterval": 60,
+                "aggregations": [{ "expression": "count()" }],
+                "filter": { "expression": "has_error = true" },
+                "groupBy": [
+                  { "name": "arcnet.agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+                ],
+                "legend": "{{arcnet.agent_id}}"
+              }
+            }
+          ]
+        },
+        "selectedQueryName": "A",
+        "thresholds": {
+          "kind": "basic",
+          "spec": [
+            {
+              "name": "warning",
+              "op": "above",
+              "matchType": "atleast_once",
+              "target": 3,
+              "channels": ["arcnet-webhook"]
+            }
+          ]
+        }
+      },
+      "evaluation": {
+        "kind": "rolling",
+        "spec": { "evalWindow": "1m", "frequency": "1m" }
+      }
+    },
+    {
+      "alert": "arcnet.anomaly > 0 (Griffin)",
+      "alert_type": "METRIC_BASED_ALERT",
+      "severity": "critical",
+      "rule_type": "threshold_rule",
+      "version": "v5",
+      "schema_version": "v2alpha1",
+      "description": "Griffin outlier metric fired.",
+      "summary": "Griffin anomaly",
+      "labels": {
+        "arcnet_kind": "griffin",
+        "team": "arcnet"
+      },
+      "condition": {
+        "compositeQuery": {
+          "queryType": "builder",
+          "panelType": "graph",
+          "queries": [
+            {
+              "type": "builder_query",
+              "spec": {
+                "name": "A",
+                "signal": "metrics",
+                "stepInterval": 60,
+                "aggregations": [
+                  {
+                    "metricName": "arcnet.anomaly",
+                    "timeAggregation": "increase",
+                    "spaceAggregation": "sum"
+                  }
+                ],
+                "filter": { "expression": "" },
+                "groupBy": [
+                  { "name": "agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+                ],
+                "legend": "{{agent_id}}"
+              }
+            }
+          ]
+        },
+        "selectedQueryName": "A",
+        "thresholds": {
+          "kind": "basic",
+          "spec": [
+            {
+              "name": "critical",
+              "op": "above",
+              "matchType": "atleast_once",
+              "target": 0,
+              "channels": ["arcnet-webhook"]
+            }
+          ]
+        }
+      },
+      "evaluation": {
+        "kind": "rolling",
+        "spec": { "evalWindow": "1m", "frequency": "1m" }
+      }
+    }
+  ]
+}

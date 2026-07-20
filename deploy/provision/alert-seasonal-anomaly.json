@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "purpose": "Screenshot-only artifact — SigNoz seasonal anomaly alerts use ≥5m eval windows and cannot fire live on camera. Pair visually with Griffin card (docs/04, docs/07).",
+    "never_demo_live": true
+  },
+  "alert": "arcnet.tokens.total seasonal anomaly (native SigNoz)",
+  "alert_type": "METRIC_BASED_ALERT",
+  "severity": "info",
+  "rule_type": "anomaly_rule",
+  "version": "v5",
+  "schema_version": "v2alpha1",
+  "description": "Native SigNoz seasonal z-score on arcnet.tokens.total. Needs days of history. Screenshot next to Griffin (zero-shot MAD/TabFM) for the pairing story.",
+  "summary": "SigNoz seasonal anomaly on token rate",
+  "labels": {
+    "arcnet_kind": "seasonal",
+    "team": "arcnet",
+    "artifact": "screenshot_only"
+  },
+  "condition": {
+    "compositeQuery": {
+      "queryType": "builder",
+      "panelType": "graph",
+      "queries": [
+        {
+          "type": "builder_query",
+          "spec": {
+            "name": "A",
+            "signal": "metrics",
+            "stepInterval": 60,
+            "aggregations": [
+              {
+                "metricName": "arcnet.tokens.total",
+                "timeAggregation": "rate",
+                "spaceAggregation": "sum"
+              }
+            ],
+            "filter": { "expression": "" },
+            "groupBy": [
+              { "name": "agent_id", "fieldContext": "attribute", "fieldDataType": "string" }
+            ],
+            "legend": "{{agent_id}}"
+          }
+        }
+      ]
+    },
+    "selectedQueryName": "A",
+    "alertOnAbsent": false,
+    "anomalyCondition": {
+      "algorithm": "standard",
+      "seasonality": "daily",
+      "band": "zscore",
+      "zScoreThreshold": 3
+    }
+  },
+  "evaluation": {
+    "kind": "rolling",
+    "spec": {
+      "evalWindow": "5m",
+      "frequency": "5m"
+    }
+  },
+  "readme_screenshot_slot": "Place this rule UI next to the Griffin card on Fleet Health — seasonal learns weeks; Griffin covers the first 15 minutes."
+}
