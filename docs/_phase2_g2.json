@@ -1,0 +1,26 @@
+{
+  "model": "mad",
+  "backend": "numpy",
+  "install_ok": true,
+  "load_s": 0.0,
+  "fit_predict_s": 0.0029,
+  "cycle_12_series_s": 0.0352,
+  "n_train": 39,
+  "n_pred": 1,
+  "gate_g2": "PASS",
+  "locked_for_phase3": "mad",
+  "notes": "TabFM pytorch: LOAD_OK 28.5s, single fit+predict ~26s, ~12s/series \u2192 ~150s/12-series (>>15s budget). Weights were safetensors; converted to pytorch_model.bin. tabpfn==8.1.0 installs but weight download needs TABPFN_TOKEN (Prior Labs license) \u2014 human blocker. LOCKED mad (rolling-median + conformal/MAD band) per docs/07 last-resort; Phase 3 narration = statistical baseline. Optional upgrade path: TABPFN_TOKEN or accept TabFM on 1 hardcoded series (~12s/cycle).",
+  "tabfm": {
+    "load_s": 28.53,
+    "fit_predict_s": 26.017,
+    "approx_per_series_s": 12.0,
+    "gate": "FALLBACK"
+  },
+  "tabpfn": {
+    "install_ok": true,
+    "version": "8.1.0",
+    "gate": "BLOCKED",
+    "reason": "TABPFN_TOKEN license"
+  },
+  "error": null
+}
