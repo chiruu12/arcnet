@@ -41,13 +41,13 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 1 — Shield Core (source-trust)
 
-- [ ] `arcnet.init()` — OTel providers + `AgnoInstrumentor` + Guard + stub signal client
-- [ ] `UnplugGuardrail` + tool hooks: 4 checkpoints emitting `arcnet.guard` spans (with trust level), events per finding, metrics, logs; `block` → span ERROR; `arcnet.exposure` per agent
-- [ ] Agent J on AgentOS + 4 tools + seeded PII + fixture pages (`11-scenarios.md`); **record replay-ready transcripts** on every session (SQLite-primary + span summaries per `10`) so the Time Machine can reload them
-- [ ] Scenario runner (with per-scenario assertions per `11`) + S0 baseline + S5 jailbreak block
-- [ ] Custom metrics: `arcnet.threats.detected`, `arcnet.guard.latency`, token/cost rollups
+- [x] `arcnet.init()` — OTel providers + `AgnoInstrumentor` + Guard + stub signal client
+- [x] `UnplugGuardrail` + tool hooks: 4 checkpoints emitting `arcnet.guard` spans (with trust level), events per finding, metrics, logs; `block` → span ERROR; `arcnet.exposure` per agent
+- [x] Agent J on AgentOS + 4 tools + seeded PII + fixture pages (`11-scenarios.md`); **record replay-ready transcripts** on every session (SQLite-primary + span summaries per `10`) so the Time Machine can reload them
+- [x] Scenario runner (with per-scenario assertions per `11`) + S0 baseline + S5 jailbreak block
+- [x] Custom metrics: `arcnet.threats.detected`, `arcnet.guard.latency`, token/cost rollups
 
-**Exit: S5 → blocked span + metric; S0 → clean run; a recorded session round-trips through the replay loader.**
+**Exit: S5 → blocked span + metric; S0 → clean run; a recorded session round-trips through the replay loader.** → **PASS** (2026-07-21).
 
 ## Phase 2 — SigNoz Depth + MCP
 

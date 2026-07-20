@@ -32,3 +32,8 @@ Full gap pass over the plan before coding. **Schedule re-anchored**: Mon went to
 
 **Expected:** hello-Agno→SigNoz with real attrs in 04; S1 taint proven; G1 replay+steer; both model keys; organizer ruling requested.
 **Actual:** scaffold + SigNoz `v0.133.0` (Foundry) up (~1.5 GiB RSS on 7.65 GiB Docker); hello trace landed (`hello_arcnet.run` / `OpenAIChat.invoke` / `add`, `llm.token_count.*`); S1 taint **block** via `taint_sources=` (session-only = `review` — 05 fixed); G1 **PASS** (stubs + session_state steer + post_hook substitution); models = gpt-4o-mini / gpt-4o on OpenAI key; Anthropic key missing; H2 Slack ruling + H3 submission form still **human-blocked**; service-account key = **manual UI step** (README). Ready for Phase 1.
+
+## Phase 1 — Tue Jul 21 (shield core) — EXIT
+
+**Audit:** Layout/import rule/pins clean; filled missing `agents/prompts`+`scenarios/fixtures` + SDK/server modules (no overbuilt stubs, no vendored unplug).
+**Actual:** `arcnet.init`+4 checkpoints+metrics; Agent J/AgentOS; S0 clean + S5 input-block+threat row; SQLite sessions round-trip via `load_transcript`. H1/H2/H3 + empty `SIGNOZ_API_KEY` still human-blocked.
