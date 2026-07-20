@@ -18,3 +18,4 @@ deploy/casting.yaml.lock
 htmlcov/
 docs/_phase0_*.jsonl
 docs/_phase0_*.json
+.pnpm-store/
