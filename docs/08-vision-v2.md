@@ -53,7 +53,7 @@ One product sentence: **flight recorder + shield + wind tunnel** for agent fleet
 ## The pillars, as one homogeneous system
 
 ### 1. Observe — SigNoz (unchanged substrate)
-Every agent traced: LLM calls, tool calls, tokens, cost, latency, errors. OTel GenAI semconv + `arcnet.*`. This is the Track-1 SigNoz core; everything else sits on it.
+Every agent traced: LLM calls, tool calls, tokens, cost, latency, errors. OpenInference semconv (the instrumentor's real output) + `arcnet.*`. This is the Track-1 SigNoz core; everything else sits on it.
 
 ### 2. Trust & Shield — Unplug as source-trust monitoring (sharpened)
 The security story is now **provenance-first**, which is exactly Unplug's taint/trust model:

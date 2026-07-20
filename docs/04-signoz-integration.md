@@ -5,16 +5,17 @@
 ## Deployment
 
 - [ ] Self-hosted via Docker Compose (`deploy/`), pinned SigNoz version (record it here: ____)
-- [ ] Service-account API key for Query Range API (server-side only, via env)
+- [ ] Service-account API key for Query Range API (server-side only, via env) — created via the SigNoz UI (Settings → Service Accounts); **check in Phase 0 whether it can be created headlessly**; if not, the README documents this one manual step honestly (everything else stays scripted)
 - Fallback: SigNoz Cloud trial if the Mac struggles — everything below works on both.
 
 ## Signals we emit
 
 ### Traces (OTLP)
-Span hierarchy per OTel GenAI semantic conventions, plus our namespace:
+Span hierarchy **as the pinned instrumentor actually emits it** — OpenInference semconv, NOT `gen_ai.*` (confirmed from `openinference-instrumentation-agno` source; Phase 0 pulls one live trace and pastes the exact keys here before any dashboard/alert JSON is authored):
 
-- `invoke_agent` (root per run) → `chat` (LLM calls) → `execute_tool` (tool calls)
-- GenAI attributes: `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.finish_reasons`, input/output messages where the instrumentor supports content capture
+- `{agent_name}.run` (root per run) → `{model_name}.invoke` (LLM calls) → `{tool_name}` (tool calls)
+- OpenInference attributes: `openinference.span.kind` (`AGENT`/`LLM`/`TOOL`), `llm.model_name`, `llm.token_count.prompt`, `llm.token_count.completion`, input/output values where content capture is enabled
+- **Do not write anything against `gen_ai.*` names** — they don't exist in this pipeline; SigNoz's own Agno dashboard template is built on the OpenInference keys too
 - **`arcnet.guard` spans** (child of whatever triggered the check) with:
   - `arcnet.guard.checkpoint` = `input | retrieved | tool_call | output`
   - `arcnet.guard.action` = `allow | redact | block | review`
@@ -25,7 +26,7 @@ Span hierarchy per OTel GenAI semantic conventions, plus our namespace:
 - Session identity on every span: `arcnet.session_id`, `arcnet.agent_id` (drives per-session alerts + Case File assembly)
 
 ### Metrics (OTLP)
-- `gen_ai.client.token.usage` / `gen_ai.client.operation.duration` (from instrumentor)
+- `arcnet.tokens.total` / `arcnet.llm.duration` — derived by **our SDK** from Agno's per-run metrics and emitted as real OTLP counters/histograms (the instrumentor itself emits token counts only as span attributes, not metrics — never assume `gen_ai.*` metrics exist)
 - `arcnet.threats.detected` (counter; attrs: category, action, agent_id)
 - `arcnet.guard.latency` (histogram — proves defense overhead is ms-level)
 - `arcnet.cost.usd` (counter derived from tokens × model price — **price constants live in `sdk/arcnet/pricing.py`**, a small hardcoded `{model: (input_$/1k, output_$/1k)}` table for the 1–2 demo models; verified/written in Phase 0)
@@ -43,11 +44,11 @@ Span hierarchy per OTel GenAI semantic conventions, plus our namespace:
   2. *Threats & Trust* — threat counts by category/agent, block rate, guard latency, forward-facing exposure, recent findings (logs panel)
   3. *Cost & Tokens* — tokens + $ by agent/model, burn rate
   - ≥1 panel written in **ClickHouse SQL** (e.g. top attack subcategories from span events) — shows query-depth
-- [ ] **Alert rules** (provisioned via API): threat>0 (1m), cost burn rate, tool-calls-per-session (loop), p99 latency, error rate, `arcnet.anomaly>0` (Griffin outliers). **Record the evaluation interval and tune eval/`for:` windows in Phase 2** — on-camera self-correct rides the inline fast-path (`02` §3); the alert is the system of record and must land close behind it
-- [ ] **Native anomaly-based alert** on ≥1 metric (SigNoz's built-in seasonal z-score alert type) — used alongside Griffin; README explains the pairing: SigNoz's seasonal model excels once history exists, Griffin (zero-shot TabFM) covers short-history agents from their first minutes
+- [ ] **Alert rules** (provisioned via API): threat>0 (1m), cost burn rate, tool-calls-per-session (loop), p99 latency, error rate, `arcnet.anomaly>0` (Griffin outliers). **Payloads must use the current v5 `queries` array format** — the legacy `builderQueries` map shape is rejected outright on modern SigNoz (maintainer-confirmed); author against the Terraform-provider examples, never from tutorial memory. **Record the evaluation interval and tune eval/`for:` windows in Phase 2** — on-camera self-correct rides the inline fast-path (`02` §3); the alert is the system of record and must land close behind it
+- [ ] **Native anomaly-based alert** on ≥1 metric (SigNoz's built-in seasonal z-score alert type) — used alongside Griffin; README explains the pairing: SigNoz's seasonal model excels once history exists, Griffin (zero-shot TabFM) covers short-history agents from their first minutes. **Its evaluation windows are ≥5m by design — it can never fire live on camera**; it's a configured-rule + pre-seeded-history screenshot artifact, and the demo never pretends otherwise
 - [ ] **Webhook notification channel** → `POST /webhooks/signoz` (alert payload: grouped alerts, `fingerprint` for dedupe, `endsAt` for resolution — handle both firing + resolved)
-- [ ] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers the ArcNet UI (Fleet Health, threat feed), Case File export, **and the Time Machine's recorded-session loader** (dual-written with SQLite; loader source locked at gate G3 — `10-time-machine.md`). Basic call confirmed in Phase 0; validate full query shapes in Phase 2.
-- [ ] **Metrics-listing endpoint** — Griffin's Discover step needs to enumerate available `arcnet.*`/`gen_ai.*` metrics. Confirm the endpoint (metrics metadata API or MCP `signoz_list_metrics`) in Phase 0; if none fits, fall back to a hardcoded metric allowlist (Griffin still works, just no auto-discovery).
+- [ ] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers the ArcNet UI (Fleet Health, threat feed) and Case File evidence. (Time Machine transcripts are **SQLite-primary** — spans carry summaries + pointers, not full tool outputs; `10-time-machine.md`.) Basic call confirmed in Phase 0; validate full query shapes in Phase 2.
+- [ ] **Griffin metric discovery** — **default = a hardcoded allowlist of the `arcnet.*` counters we emit ourselves** (`arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `arcnet.tokens.total`): no documented metrics-listing endpoint exists on the Query Range API, and `gen_ai.*` metrics don't exist in this pipeline at all. Auto-discovery (metrics metadata API or MCP `signoz_list_metrics`) is a stretch goal, not the plan.
 - [ ] **Trace deep-links** from the ArcNet UI into SigNoz trace view (judges see native UI too)
 - [ ] **Agno dashboard template** imported (SigNoz ships one prebuilt — free depth points; our 3 custom dashboards sit alongside it)
 

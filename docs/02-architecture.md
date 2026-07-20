@@ -57,10 +57,12 @@ Demo agents run on **Agno** (we know it well; it's also the cleanest integration
 
 ### 2. Inline defense — source-trust monitoring (ms)
 Unplug is the **provenance/trust spine**. Every ingested datum is tagged with a trust level; the untrusted ones get scanned. Implemented the Agno way:
-- **pre-hook / input guardrail** → `guard.scan(text, source=USER)`
-- **tool post-hook on fetch/retrieval tools** → `guard.scan(text, source=RETRIEVED)` + `wrap_for_context()` + `notify_taint_source()` — **scraped/fetched content filtered before it reaches the model**
-- **tool pre-hook (all tools)** → `guard.check_tool_call(name, args)` (taint propagation → block untrusted content flowing to sensitive tools)
-- **output guardrail / post-hook** → `guard.scan_output(text)` (secrets/PII → redact)
+- **input**: `BaseGuardrail` subclass — Agno guardrails are **input-only by signature** (`check(run_input)`) → `guard.scan(text, source=USER)`
+- **retrieved**: per-tool `@tool(post_hook=…)` on fetch/retrieval tools → `guard.scan(text, RETRIEVED)` + `wrap_for_context()` + `notify_taint_source()` — **scraped/fetched content filtered before it reaches the model**
+- **tool_call**: agent-level `tool_hooks=[…]` middleware (different signature — `(function_name, func, args)`, must call `func(**args)` to continue) → `guard.check_tool_call(name, args)` (taint → block untrusted content flowing to sensitive tools)
+- **output**: plain `post_hooks=[…]` function on `RunOutput` — **Agno has no output-guardrail class** → `guard.scan_output(text)` (secrets/PII → redact)
+
+Four structurally different Agno surfaces, one shared `Guard`. `arcnet/guardrail.py` builds all four callables with distinct names (`input_guardrail`, `retrieval_post_hook`, `tool_call_middleware`, `output_post_hook`) so the signature differences are design-time facts, not runtime surprises.
 
 `ScanResult.action` drives behavior: `allow` → proceed; `redact` → substitute `redacted_text`; `block` → raise guardrail error (span status ERROR); `review` → proceed + flag. **Every result — including clean ones — becomes telemetry.** Each agent carries an `arcnet.exposure` attribute (`forward_facing` | `internal`) derived from whether it ingests third-party content; forward-facing agents are surfaced as higher injection-risk in the Fleet Health view.
 
@@ -70,7 +72,7 @@ Signals reach the bus two ways — both map to the canonical **`Signal{session_i
 - **Alert-driven (system of record):** SigNoz alert rule fires (threat count, cost burn, loop depth, p99 latency) → webhook POST `server/webhooks/signoz`. Alert evaluation runs on an interval, so this path is tens-of-seconds; it's what you'd rely on at fleet scale, and the demo shows it landing right behind the fast-path.
 
 SDK signal client checks the per-session queue inside tool hooks (between steps):
-- `steer` → inject corrective guidance into the run's context, continue
+- `steer` → inject corrective guidance into the run's context, continue. **Verify the mechanism in the Phase-0 spike**: does state written inside tool call N reach the model at call N+1? Historically fragile in Agno. Fallback (documented mechanism, still carries S1): per-call output substitution in the retrieval post-hook
 - `pause` → trigger Agno HITL pause; the UI shows approve/reject; resume on decision
 - `kill` → cancel the run
 - `note` → annotate telemetry only
@@ -85,15 +87,15 @@ Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}`
 1. **Load** the recorded session from SigNoz traces (Query Range API): the ordered steps — user goal, each tool call and its **recorded output**, each model turn.
 2. **Replay** the agent with tool outputs **mocked** from the trace (the replay harness intercepts Agno tool calls and returns the recorded result) so the *only* variable is the model/prompt. Runs against the candidate through the same `UnplugGuardrail` (so trust checks apply identically).
 3. **Diff** the trajectories → core dimensions `{goal_reached, steps, tool_errors, cost, latency, tokens}` for every replay, plus `{resisted_injection, exfil_attempts}` when the session carried a threat.
-4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — loops, failures, leaks, injections — and aggregate the scorecard ("goals reached 10/12 vs 6/12 · steps −41% · cost −38% · injections resisted 2/2").
+4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — loops, failures, leaks, injections — and aggregate the scorecard ("goals reached 10/12 vs 6/12 · steps −41% · cost −38% · attacks resisted 5/5").
 
-This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. Sessions are **dual-written** (replay-ready span attributes → SigNoz + a row in the server's SQLite) so the loader always has a deterministic source. Full spec — transcript shape, tool-stub matching, diff semantics, verdict schema, corpus: **`10-time-machine.md`**.
+This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. Transcripts are **SQLite-primary** (full tool outputs are too big for span attributes — collectors truncate, which would silently corrupt tool-stub matching); spans carry a summary twin (`arcnet.replay.digest`, step count, outcome flags, pointers) so SigNoz stays the proof/deep-link store. Full spec — transcript shape, tool-stub matching, diff semantics, verdict schema, corpus: **`10-time-machine.md`**.
 
 ## Components
 
 ### `sdk/` — Python package `arcnet`
 - `arcnet.init(service_name, session_id, otlp_endpoint, guard_config)` — OTel providers (traces+metrics+logs), `AgnoInstrumentor`, Guard construction, signal subscription.
-- `arcnet/guardrail.py` — `UnplugGuardrail` (Agno guardrail) + tool hook factories; emits spans/metrics/logs; maps `Action` → control flow.
+- `arcnet/guardrail.py` — four checkpoint callables built from one shared `Guard` (input guardrail class, retrieval post-hook, tool-call middleware, output post-hook — four different Agno signatures, named distinctly); emits spans/metrics/logs; maps `Action` → control flow.
 - `arcnet/signals.py` — SSE client, per-session queue, `check_signals()` hook, HITL/cancel helpers.
 - `arcnet/replay.py` — replay harness: wraps an Agno agent so tool calls return recorded outputs (from a trace) instead of executing; used by the Time Machine.
 - Telemetry namespace `arcnet.*`: see `04-signoz-integration.md`.
@@ -187,7 +189,10 @@ The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code
 | Query Range API shape on self-host | Verify in Phase 2 before building export on it |
 | Webhook payload lacks trace context | Encode session/agent identity into alert labels at provision time; server enriches via Query API |
 | Alert evaluation interval too slow for on-camera self-correct | Inline fast-path signal at block time (§3); alert stays the system of record; tune rule eval/`for:` windows in Phase 2 |
-| **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so we record what the harness needs (goal, tool I/O, model turns) as span attributes at trace time — don't rely on reconstructing from generic OTel spans. Verify the recorded-session round-trip at Phase-3 exit (gate G3) before building the diff UI. Fallback: the harness replays from ArcNet's own SQLite session store, not SigNoz. |
+| **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so the harness records the full transcript (goal, tool I/O, model turns) into SQLite at run time — never reconstructed from generic OTel spans (attribute size caps make that unreliable). Gate G3 (Phase-3 exit) manually replays the real S1+S4 transcripts before the diff API/UI is built. |
+| Instrumentor emits OpenInference semconv, not `gen_ai.*` | Confirmed from source — dashboards/alerts/Griffin are authored against the real keys (`04`); Phase 0 pulls one live trace and pastes the actual names into `04` before any dashboard JSON is written |
+| Steer via run-state write unverified on agno 2.7.4 | Phase-0 spike tests propagation (state written at call N visible at call N+1); fallback = per-call output substitution, a documented mechanism |
+| SigNoz alert API rejects legacy payloads | Author alert payloads in the current v5 `queries` format (crib from the Terraform-provider examples), never from memory/tutorials |
 | **Counterfactual result is nondeterministic (LLM sampling)** | Replay at temperature 0; run the candidate 3× and report the majority behavior if needed; the demo scenario is chosen so the behavioral gap is large and stable. |
 | Solo + 6 days | P0 first; pre-agreed cut list in `03-plan.md` |
 ```

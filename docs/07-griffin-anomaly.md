@@ -19,14 +19,14 @@ SigNoz ships anomaly-based alerts (seasonal baseline + z-score). We **use one na
 
 ```mermaid
 flowchart LR
-    A["1 · Discover<br/>list arcnet.* + gen_ai.* metrics<br/>via Query Range API"] --> B["2 · Pull<br/>history at 1m resolution<br/>per (metric × agent)"]
+    A["1 · Discover<br/>hardcoded arcnet.* allowlist<br/>(auto-enumeration = P1 stretch)"] --> B["2 · Pull<br/>history at 1m resolution<br/>per (metric × agent)"]
     B --> C["3 · Forecast<br/>TabFMRegressor + time features<br/>→ point forecast + conformal band"]
     C --> D{"4 · Judge<br/>observed outside band<br/>AND above noise floor?"}
     D -- no --> E["silence<br/>(store forecast for UI sparkline)"]
     D -- yes --> F["5 · Report<br/>arcnet.anomaly metric + log → SigNoz<br/>→ alert rule → webhook → signal bus"]
 ```
 
-1. **Discover** — query SigNoz for available metrics ("what all metrics do we have"), filtered by allowlist patterns: `arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `gen_ai.client.token.usage`, `gen_ai.client.operation.duration`, error rate — expanded per `agent_id` dimension. Cap at top-N series (default 12) to bound the cycle.
+1. **Discover** — **default = a hardcoded allowlist of the `arcnet.*` counters we emit ourselves**: `arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `arcnet.tokens.total`, error rate — expanded per `agent_id` dimension, capped at top-N series (default 12). (No documented metrics-listing endpoint exists, and `gen_ai.*` metrics don't exist in this pipeline — see `04`. Auto-enumeration is the P1 stretch, not the plan.)
 2. **Pull** — last `H` (default 6h, or whatever exists) at 1m buckets via Query Range API.
 3. **Forecast** — features per bucket: running index, minute-of-hour, rolling mean/std (5m, 15m), lag values. Train rows = history minus calibration tail, calibrate residuals on the tail, predict current bucket → point forecast + conformal band (see Model section).
 4. **Judge** — outlier iff `observed` outside the conformal band **and** `|observed − forecast| > noise_floor(metric)` (absolute floor prevents flat-series false positives) **and** series is warm (≥ 30 points; else status `warming`). Cooldown: same series can't re-fire within 5m (fingerprint dedupe, alertmanager-style).
@@ -57,9 +57,9 @@ Needs ~30 points/series. **`scripts/seed.py` is built in Phase 3** — alongside
 
 ## Build plan (phase-gated; see 03-plan.md)
 
-- **Phase 2** — timeboxed TabFM CPU spike: install from git, pick JAX vs PyTorch backend, measure fit+predict latency on M-series, **lock TabFM-vs-TabPFN before Phase 3 starts** (gate G2 in `03-plan.md`).
+- **Phase 2 (FIRST item, 45–90 min walk-away)** — TabFM CPU spike: install from git, pick JAX vs PyTorch backend, measure fit+predict latency on M-series. Zero public CPU benchmarks exist for this model — expect most of the budget to be install friction, and **fall to `tabpfn==8.1.0` fast** (gate G2 in `03-plan.md`); lock the choice before Phase 3 starts.
 - **Phase 3** — Griffin core: worker skeleton, one hardcoded series (token rate), conformal judge + `arcnet.anomaly` emission, alert rule, `scripts/seed.py`, S4 choreography. *Exit: run S4 on seeded data → Griffin fires before the static alert.*
-- **Phase 4** — Griffin card with forecast band in the UI (P0). **Phase 5** — metric auto-discovery, top-N series (P1).
+- **Phase 5** — Griffin card with forecast band in the UI (P0, rides the UI phase; shell scaffolded in Phase 3's parallel track); metric auto-discovery, top-N series (P1).
 - **Cut ladder** (Griffin degrades, never blocks): multi-metric breadth → auto-discovery (hardcode 3 series) → TabFM→TabPFN→MAD fallback. Griffin core stays — it's a headline differentiator.
 
 ## Narration honesty (so the pitch survives a fallback)

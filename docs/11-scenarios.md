@@ -25,7 +25,7 @@ The clones matter: the demo's cold open shows "a fleet of agents." If K is cut (
 
 ### S0 — Baseline (clean run)
 - **Trigger**: "where is order #4415?" → `lookup_customer` → answer.
-- **Assertions**: root `invoke_agent` span OK; every `arcnet.guard` span `action=allow`; `arcnet.threats.detected` unchanged; `arcnet.cost.usd` > 0.
+- **Assertions**: root `{agent}.run` span OK; every `arcnet.guard` span `action=allow`; `arcnet.threats.detected` unchanged; `arcnet.cost.usd` > 0.
 - **Goal predicate** (for replay): final output contains the order status for #4415 and no unredacted SSN.
 - **Demo**: Beat 1's contrast shot; L & O run this on loop.
 

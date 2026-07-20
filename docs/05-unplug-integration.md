@@ -4,7 +4,7 @@
 
 - Consume **`unplug-ai==0.5.2` from PyPI** as a normal dependency — never vendor its code into this repo (hackathon "no prior work" rule: ArcNet is the build; unplug-ai is a published library we use, same as Agno).
 - The local `unplug-v1` checkout is a **diverged old branch (0.2.0, ~228 commits behind)** — do not code against it. Use the PyPI package; read upstream `origin/main` source only for reference.
-- **Phase-0 smoke test is mandatory.** Precisely what's confirmed vs assumed:
+- **Phase-0 smoke test is mandatory, and its FIRST test is the exact S1 taint chain** (scan retrieved text → `notify_taint_source` → `check_tool_call` blocks `send_email`) — it's the single highest-consequence untested assumption in the plan: the headline recording depends on it end-to-end, and there's no fallback that keeps "Unplug is the spine" true. Precisely what's confirmed vs assumed:
   - **Verified against 0.5.2 source** (`origin/main`): the top-level exports `Guard, ScanResult, Finding, Action, Source` all exist, and `Guard` exposes `scan`, `scan_output`, `check_tool_call`, `add_canary`, `metrics`.
   - **From the older 0.2.0 explore, treat as assumed until the Phase-0 smoke test**: the exact *field* lists of `ScanResult`/`Finding`, the default action thresholds, and the `notify_taint_source`/`wrap_for_context`/`with_tiny` signatures. Confirm these against the installed package and fix this doc where it drifts.
 
@@ -46,14 +46,14 @@ Additional 0.5.2 surface worth using (method names verified on 0.5.2; args confi
 
 ## Checkpoint → ArcNet mapping (Agno integration points)
 
-Packaged as **`UnplugGuardrail`** (Agno `BaseGuardrail`) + tool hook factories — idiomatic Agno, and a future OSS-contribution candidate to Agno itself. Note: Agno ships its own basic guardrails (PII / prompt-injection) — position Unplug as the deeper layer (12-stage normalizer catches obfuscated attacks — leetspeak/homoglyph/base64; taint tracking; canaries) and say so in the README comparison table.
+Packaged as **four checkpoint callables from one shared `Guard`** — Agno's four surfaces have four *different* signatures (input `BaseGuardrail` subclass is input-only by design; per-tool `post_hook`; agent-level `tool_hooks` middleware; plain `post_hooks` output function — there is no output-guardrail class). Named distinctly in `arcnet/guardrail.py` so the mismatch is a design-time fact (`02`). Still idiomatic Agno, and a future OSS-contribution candidate to Agno itself. Note: Agno ships its own basic guardrails (PII / prompt-injection) — position Unplug as the deeper layer (12-stage normalizer catches obfuscated attacks — leetspeak/homoglyph/base64; taint tracking; canaries) and say so in the README comparison table.
 
 | Agent moment | Agno hook | unplug call | On non-allow |
 |---|---|---|---|
-| User message enters | input guardrail / pre-hook | `scan(text, USER)` | block → guardrail error, refuse turn (S5) |
-| `fetch_url` / retrieval returns | tool **post**-hook on retrieval tools | `scan(text, RETRIEVED)` + `wrap_for_context` + `notify_taint_source` | block → drop content, note to agent |
-| Tool about to execute | tool **pre**-hook (all tools) | `check_tool_call(name, args)` | block → cancel call, steer signal (S1/S3) |
-| Final answer leaves | output guardrail / post-hook | `scan_output(text)` | redact → ship `redacted_text` + neuralyzer event (S2) |
+| User message enters | `BaseGuardrail` subclass (input-only by signature) | `scan(text, USER)` | block → guardrail error, refuse turn (S5) |
+| `fetch_url` / retrieval returns | per-tool `@tool(post_hook=…)` on retrieval tools | `scan(text, RETRIEVED)` + `wrap_for_context` + `notify_taint_source` | block → drop content, note to agent |
+| Tool about to execute | agent-level `tool_hooks=[…]` middleware (all tools; must call `func(**args)`) | `check_tool_call(name, args)` | block → cancel call, steer signal (S1/S3) |
+| Final answer leaves | `post_hooks=[…]` function on `RunOutput` (no guardrail class exists for output) | `scan_output(text)` | redact → ship `redacted_text` + neuralyzer event (S2) |
 
 Every call (clean or not) → one `arcnet.guard` span + metrics (see `04-signoz-integration.md`). Findings → span events + structured logs. `block` → span status ERROR.
 

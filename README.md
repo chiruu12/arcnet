@@ -6,11 +6,15 @@
 
 ArcNet watches every agent in your fleet — its behavior, its cost, and **the trust of everything it ingests**. Attacks come in through untrusted sources (scraped pages, tool outputs), so [unplug-ai](https://pypi.org/project/unplug-ai/) tags every source's trust level, filters the untrusted ones before they reach the model, and flags forward-facing agents as higher-risk. When something slips through, ArcNet traces it (OpenTelemetry → SigNoz), alerts on it, and **signals the agent to self-correct** ([Agno](https://www.agno.com) guardrails + run cancellation).
 
-Then the two things nobody else has:
+Then the two pillars nobody else builds at the **agent-session** level:
 - **Agent-view** — every datum has a machine-optimal twin, so the coding agents you already run (Claude Code, Codex, Cursor) can read the fleet's health and incidents in *their* format and improve the agents.
-- **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the trace) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray.
+- **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the trace) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray. (LangSmith and Braintrust replay a *call* or a dataset example against a new model; ArcNet replays the **whole recorded agent session** — goal, tools, and trust checks live.)
 
 See `docs/08-vision-v2.md` for the full concept and `docs/mock/arcnet-v3.html` for the UI.
+
+## Provenance disclosure
+
+[unplug-ai](https://pypi.org/project/unplug-ai/) is a separate open-source library (Apache-2.0) by the same author, published before this event and consumed here as infrastructure — like Agno or FastAPI, with one honest difference: we wrote it too. Nothing from unplug-ai's implementation is part of what's being judged. Everything judged — the fleet observability, signals, agent-view, Time Machine, and the SigNoz integration — is written during the event, on top of it.
 
 ## The loop
 

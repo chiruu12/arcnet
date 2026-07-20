@@ -33,7 +33,7 @@ ArcNet is one loop, not a bag of features:
 ## The pillars (one homogeneous system)
 
 ### 1. Observe — SigNoz (the substrate)
-Track-1 core. OTel GenAI semantic conventions + our `arcnet.*` namespace. Everything else sits on the traces/metrics/logs SigNoz already holds — including the Time Machine, which replays *from* those traces.
+Track-1 core. OpenInference semconv (what the Agno instrumentor actually emits) + our `arcnet.*` namespace. Everything else sits on the traces/metrics/logs SigNoz already holds — including the Time Machine, which replays *from* those traces.
 
 ### 2. Trust & Shield — Unplug as source-trust monitoring
 The security story is **provenance-first**, which is exactly Unplug's taint/trust model:
@@ -71,7 +71,7 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 - F1 Instrumented fleet (SigNoz, Agno via openinference).
 - F2 Trust & guard telemetry (Unplug source-trust as `UnplugGuardrail` + tool hooks; `arcnet.guard.*`).
 - F3 Bug Suite scenarios (S0/S1/S2/S4/S5 — fixtures, assertions, camera notes in `11-scenarios.md`).
-- F4 SigNoz depth (dashboards, alerts incl. seasonal anomaly, webhook).
+- F4 SigNoz depth (dashboards, alerts, webhook).
 - F5 Signals self-correct (`steer`/`kill`).
 - F6 Fleet Health view (agents + trust posture + forward-facing flag + threats + cost + Griffin).
 - F7 Agent-view + Case File + SigNoz MCP handoff.
@@ -83,7 +83,9 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 - Griffin breadth (auto-discovery, top-N).
 - Sources & Trust view (per-agent source ledger, what Unplug filtered/blocked).
 - HITL `pause` beat.
-- Time Machine breadth (replay the corpus of 12 recorded incidents — loops, failures, leaks, injections — aggregate scorecard: "goals reached 10/12 vs 6/12 · steps −41% · cost −38% · both injections resisted").
+- Prompt-swap replay (replay the coding agent's proposed fix — closes trace→fix→proof live).
+- Live-work agent on the fleet (a real Agno agent doing genuine tasks under ArcNet — dogfood).
+- Time Machine breadth (replay the corpus of 12 recorded incidents — loops, failures, leaks, injections — aggregate scorecard: "goals reached 10/12 vs 6/12 · steps −41% · cost −38% · attacks resisted 5/5").
 - Context inspector — step-by-step view of exactly what each agent ingested (source + trust level per step). **Deferred by choice: build when time allows; agent-view JSON covers the demo.**
 - F9 canaries.
 
@@ -95,5 +97,5 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 2. **Edgar** — forward-facing agent scrapes a page with a hidden injection → Unplug flags the untrusted source, filters it, blocks the exfil, `steer` → self-corrects.
 3. **Griffin** — token-rate outlier flagged before any static threshold (The Worms).
 4. **Agent-view** — flip the incident to its machine format; hand to Claude Code/Codex → it reads the trust-annotated Case File (+ pulls raw traces via SigNoz MCP) and proposes the fix.
-5. **Time Machine (the whoa)** — replay the Worms loop against a candidate: it stops at step 5 and reports, −72% cost, where the baseline had to be killed. Then the Edgar replay: the candidate resists where the baseline was exploited. Your own history as a regression suite — proof.
+5. **Time Machine (the whoa)** — replay the Worms loop against a candidate: it stops at step 5 and reports, −82% cost, where the baseline had to be killed. Then the Edgar replay: the candidate resists where the baseline was exploited. Your own history as a regression suite — proof.
 6. **Close** — SigNoz dashboards: every trace, dollar, and trust decision accounted for.
