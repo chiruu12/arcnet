@@ -1,6 +1,6 @@
 # ArcNet — Product (v2)
 
-Definitive spec for what ArcNet *is* and *does*. Decision rationale + landscape are in `08-vision-v2.md`; this is the product itself.
+The **product spec** — the features, the loop, the demo. The concept, locked scope decisions, and landscape live in `08-vision-v2.md`; if a *scope/concept* question conflicts, `08` wins, and for *feature/spec* detail, this doc wins.
 
 ## One-liner
 
@@ -44,7 +44,7 @@ The security story is **provenance-first**, which is exactly Unplug's taint/trus
 - Homogeneous with observability: "source trust" and "injection exposure" sit next to cost and latency as health dimensions — one product, not a bolted-on scanner.
 
 ### 3. Self-correct — signals
-Alert → webhook → signal bus → Agno hook. `steer` (inject guidance, continue), `pause` (HITL approve/reject from the UI), `kill` (cancel a runaway). The fleet defends itself in seconds.
+Alert → webhook → signal bus → Agno hook. Four kinds: `steer` (inject guidance, continue), `pause` (HITL approve/reject from the UI), `kill` (cancel a runaway), `note` (annotate telemetry only). The fleet defends itself in seconds.
 
 ### 4. Anomaly — Griffin
 Foundation-model (TabFM) anomaly detection on the metrics; reports only true outliers, silent otherwise. Catches health drift on new/short-history agents that seasonal thresholds miss. (Design: `07-griffin-anomaly.md`.)
@@ -83,7 +83,7 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 - Griffin breadth (auto-discovery, top-N).
 - Sources & Trust view (per-agent source ledger, what Unplug filtered/blocked).
 - HITL `pause` beat.
-- Time Machine breadth (replay a corpus of incidents, aggregate "model B resists N/12").
+- Time Machine breadth (replay the corpus of 12 recorded incidents, aggregate "candidate resists 10/12").
 - F9 canaries.
 
 **P2 — cut freely**

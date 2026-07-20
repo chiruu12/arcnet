@@ -32,7 +32,7 @@ Flip the incident with the **`human_view ⇄ agent_view`** toggle → the same i
 > "Every view in ArcNet has an agent-readable twin. Your coding agent doesn't read a screenshot — it reads structured incidents, pulls the live trace through SigNoz's own MCP server, and fixes the agent at the source."
 
 ## Beat 5 — Time Machine / the whoa (2:10–2:45)
-Open `time_machine`. Replay the Edgar session against a candidate model, tool outputs mocked from the trace. Side by side: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate refuses the injection where the baseline was exploited. The verdict readout: `injection_resisted false→true`, `exfil_attempts 1→0`, cost/latency deltas, `exit_code=0`. Recommendation: route the forward-facing agent to the candidate.
+Open `time_machine`. Replay the Edgar session against a candidate model, tool outputs mocked from the trace. Side by side: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate refuses the injection where the baseline was exploited. (Baseline = whichever model the demo fleet runs, chosen Day 0 — gpt-4o-mini or haiku; candidate = a *different* model. The mock shows gpt-4o-mini vs claude-fable-5; swap the labels to match the Day-0 pick.) The verdict readout: `injection_resisted false→true`, `exfil_attempts 1→0`, cost/latency deltas, `exit_code=0`. Recommendation: route the forward-facing agent to the candidate.
 
 > "This is the part nobody else has. Take a real incident and replay it against a different model — same inputs, same tools, only the brain changes. Now you can prove a model or a prompt is safer before you ship it. Not vibes. Your own history."
 

@@ -12,7 +12,7 @@ SigNoz ships anomaly-based alerts (seasonal baseline + z-score). We **use one na
 
 - Primary: **Google TabFM** (`TabFMRegressor` from `github.com/google-research/tabfm`, Apache-2.0, weights auto-download from HF `google/tabfm-1.0.0-pytorch` — both verified live 2026-07-20). Sklearn-style `fit/predict`, CPU supported (JAX or PyTorch backend — pick in the spike; no PyPI package, so pin a git commit in `pyproject.toml` and pre-pull weights in the setup script so the "one-command bring-up" claim holds). Zero-shot regression on our time-featurized buckets. Brand-new Google release → strong Creativity/Innovation material, but treat as unproven: **spike on real M-series latency Day 0 before committing** (budget: whole cycle < 15s for 12 series).
 - **Bands via split-conformal residuals** (TabFM outputs point predictions only, no quantiles): fit on history minus the last C=20 calibration points, predict the calibration tail, take `q95(|residual|)` → band = `forecast ± that`. Model-agnostic and calibrated by construction — any regressor can slot into Griffin.
-- Fallback A: **TabPFN** (`tabpfn` on PyPI, TabPFN-2.5) — same regressor slot; its native predictive distribution can replace conformal bands if TabFM underperforms on CPU.
+- Fallback A: **TabPFN** (the `tabpfn==8.1.0` PyPI package — its model line is marketed as "TabPFN-2.5"; same thing) — same regressor slot; its native predictive distribution can replace conformal bands if TabFM underperforms on CPU.
 - Fallback B (interface-preserving): robust z-score on rolling median/MAD — Griffin's I/O contract doesn't change, so this is a safe last-resort swap.
 
 ## The loop (every 60s, per series)

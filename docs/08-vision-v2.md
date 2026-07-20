@@ -1,6 +1,6 @@
 # ArcNet — Product Vision v2 (homogeneous concept)
 
-Supersedes the framing in `01-product.md` where they conflict. This is the source of truth for what ArcNet *is*. Output of an office-hours session + landscape research (2026).
+The **vision & decision record**: why we're building this, the locked scope decisions, and the landscape. `01-product.md` is the product spec (the features). If a *scope/concept* question conflicts, this doc wins; for *feature/spec* detail, `01` wins. Output of an office-hours session + landscape research (2026).
 
 ## One thesis
 
@@ -57,7 +57,7 @@ FM (TabFM) anomaly detection on the metrics; reports only true outliers. Covers 
 - **Show the behavioral diff**: did model B resist the injection that exploited model A? Did it loop less? Cost less? Reach the goal?
 - This turns the trace store into a **replayable proof harness**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it behaves better. Quantified, on the user's own history — the answer to "should I switch models / change this prompt?"
 
-## The demo, homogeneously (replaces beats in `06`, to be rewritten)
+## The demo, homogeneously (full script in `06-demo-script.md`)
 
 1. **Fleet health**: agents traced in SigNoz; one is **forward-facing** (flagged higher-risk). Trust posture visible next to cost/latency.
 2. **Attack (Edgar)**: forward-facing agent scrapes a page with a hidden injection → Unplug flags the **untrusted source**, filters it, blocks the exfil, `steer` signal → agent self-corrects. All in SigNoz.

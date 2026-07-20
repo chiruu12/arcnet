@@ -81,7 +81,7 @@ Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}`
 1. **Load** the recorded session from SigNoz traces (Query Range API): the ordered steps — user goal, each tool call and its **recorded output**, each model turn.
 2. **Replay** the agent with tool outputs **mocked** from the trace (the replay harness intercepts Agno tool calls and returns the recorded result) so the *only* variable is the model/prompt. Runs against the candidate through the same `UnplugGuardrail` (so trust checks apply identically).
 3. **Diff** the trajectories → `{resisted_injection, exfil_attempts, goal_reached, cost, latency, tokens}` for baseline vs candidate.
-4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over a corpus of recorded incidents ("candidate resists 10/12").
+4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over the corpus of 12 recorded incidents — the current one plus the other 11 — and aggregate ("candidate resists 10/12").
 
 This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. It reuses the traces SigNoz already stores; no new datastore.
 
