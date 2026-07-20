@@ -40,15 +40,15 @@ Span hierarchy per OTel GenAI semantic conventions, plus our namespace:
 
 - [ ] **Dashboards ×3, imported as JSON** (`deploy/provision/`):
   1. *Fleet Ops* — runs, latency, errors, active sessions
-  2. *Threats & Security* — threat counts by category/agent, block rate, guard latency, recent findings (logs panel)
+  2. *Threats & Trust* — threat counts by category/agent, block rate, guard latency, forward-facing exposure, recent findings (logs panel)
   3. *Cost & Tokens* — tokens + $ by agent/model, burn rate
   - ≥1 panel written in **ClickHouse SQL** (e.g. top attack subcategories from span events) — shows query-depth
 - [ ] **Alert rules** (provisioned via API): threat>0 (1m), cost burn rate, tool-calls-per-session (loop), p99 latency, error rate, `arcnet.anomaly>0` (Griffin outliers)
 - [ ] **Native anomaly-based alert** on ≥1 metric (SigNoz's built-in seasonal z-score alert type) — used alongside Griffin; README explains the pairing: SigNoz's seasonal model excels once history exists, Griffin (zero-shot TabFM) covers short-history agents from their first minutes
 - [ ] **Webhook notification channel** → `POST /webhooks/signoz` (alert payload: grouped alerts, `fingerprint` for dedupe, `endsAt` for resolution — handle both firing + resolved)
-- [ ] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers HQ threat feed/session detail + Case File export. Basic call confirmed Day 0; validate full query shapes Day 2.
+- [ ] **Query Range API** (`POST /api/v*/query_range`, key auth) — powers the ArcNet UI (Fleet Health, threat feed), Case File export, **and the Time Machine's recorded-session loader**. Basic call confirmed Day 0; validate full query shapes Day 2.
 - [ ] **Metrics-listing endpoint** — Griffin's Discover step needs to enumerate available `arcnet.*`/`gen_ai.*` metrics. Confirm the endpoint (metrics metadata API or MCP `signoz_list_metrics`) Day 0; if none fits, fall back to a hardcoded metric allowlist (Griffin still works, just no auto-discovery).
-- [ ] **Trace deep-links** from HQ into SigNoz trace view (judges see native UI too)
+- [ ] **Trace deep-links** from the ArcNet UI into SigNoz trace view (judges see native UI too)
 - [ ] **Agno dashboard template** imported (SigNoz ships one prebuilt — free depth points; our 3 custom dashboards sit alongside it)
 
 ## SigNoz AI surface (docs/ai/*) — use all of it that works self-hosted

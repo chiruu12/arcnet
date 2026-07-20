@@ -29,7 +29,7 @@ agent runs → OTel telemetry → SigNoz → alert fires → webhook → ArcNet 
 | `server/` | Signal bus, SigNoz query proxy, Case File exporter | FastAPI |
 | `hq/` | ArcNet UI — Fleet Health · Time Machine · Sources & Trust | React + Vite + Tailwind |
 | `deploy/` | Self-hosted SigNoz + MCP server + provisioned dashboards & alerts | Docker Compose |
-| `docs/` | Brief, product, architecture, plan, SigNoz + Unplug integration, Griffin, demo script, HQ mock | — |
+| `docs/` | Brief, product, architecture, plan, SigNoz + Unplug integration, Griffin, demo script, vision-v2, frontend + UI prompts, mocks | — |
 
 ## Status
 

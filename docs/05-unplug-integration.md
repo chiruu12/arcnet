@@ -59,7 +59,7 @@ Every call (clean or not) → one `arcnet.guard` span + metrics (see `04-signoz-
 
 **Trust-model gotcha (by design, don't misread as a miss):** `leakage` only fires on non-user sources / outputs; `harmful` only on `tool_output`/`retrieved`/`external`. Plain `scan(text)` on user input detects injection/destructive only. Scenario assertions must pass the right `Source`.
 
-**False-positive gotcha:** the `base64_payload` injection pattern is broad (any long base64-ish run) — keep JWTs/long tokens out of fixture content, or expect `review` flags (which is itself a fine demo beat: triage in HQ).
+**False-positive gotcha:** the `base64_payload` injection pattern is broad (any long base64-ish run) — keep JWTs/long tokens out of fixture content, or expect `review` flags (which is itself a fine beat: triage in the UI).
 
 ## Attack fixtures
 

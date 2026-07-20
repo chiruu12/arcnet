@@ -47,8 +47,8 @@ Demo agents run on **Agno** (we know it well; it's also the cleanest integration
 - **Instrumentation is first-class**: SigNoz has an official Agno guide using `openinference-instrumentation-agno`, and SigNoz ships a **prebuilt Agno dashboard template** — we import it day 1 and build our custom dashboards alongside it.
 - **Guardrail framework**: Agno supports pre/post hooks + a `BaseGuardrail` class. Unplug integrates as `UnplugGuardrail` — idiomatic Agno, not bolted-on middleware. (Post-hackathon this doubles as an OSS contribution candidate to Agno.)
 - **Tool hooks**: per-tool pre/post interception → `guard.check_tool_call()` + taint checks exactly where they belong.
-- **HITL built in**: paused runs surface approval requests over a live socket → our `pause` signal becomes a real approve/reject flow driven from HQ.
-- **Run cancellation** → `kill` signal. **AgentOS** (Agno's FastAPI runtime) serves the fleet → HQ triggers scenario runs over HTTP, sessions/state come free.
+- **HITL built in**: paused runs surface approval requests over a live socket → our `pause` signal becomes a real approve/reject flow driven from the UI.
+- **Run cancellation** → `kill` signal. **AgentOS** (Agno's FastAPI runtime) serves the fleet → the UI triggers scenario runs over HTTP, sessions/state come free.
 
 ## Data flows
 
@@ -67,11 +67,11 @@ Unplug is the **provenance/trust spine**. Every ingested datum is tagged with a 
 ### 3. Reactive signals (seconds)
 SigNoz alert rule fires (threat count, cost burn, loop depth, p99 latency) → webhook POST `server/webhooks/signoz` → server maps to the canonical **`Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`** (this exact shape is the contract used everywhere — SDK, server, plan) → SSE. SDK signal client checks the per-session queue inside tool hooks (between steps):
 - `steer` → inject corrective guidance into the run's context, continue
-- `pause` → trigger Agno HITL pause; HQ shows approve/reject; resume on decision
+- `pause` → trigger Agno HITL pause; the UI shows approve/reject; resume on decision
 - `kill` → cancel the run
 - `note` → annotate telemetry only
 
-Signals also stream to HQ's live feed.
+Signals also stream to the UI's live feed.
 
 ### 4. Agent-view + hand-off (the machine-optimal twin)
 Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}` returns a goal-level, trust-annotated, structured JSON — not raw logs. For an incident it carries: root cause (where + trust level + finding), the recorded outcome, recommended actions, and a `signoz:` trace pointer. The **Case File** is the packaged bundle of the same (`case-file.md` + `case-file.json` + embedded `trace_id`s + fix-prompt preamble). A coding agent (Claude Code / Codex / Cursor) reads the agent-view/Case File, pulls raw evidence itself via the **SigNoz MCP server** (`signoz_get_trace_details`, `signoz_search_logs`), and patches the observed agent. Mirrors SigNoz's own "reconstruct a bug from a trace ID" / "postmortem evidence pack" MCP use cases, specialized for agent trust.
@@ -81,7 +81,7 @@ Every ArcNet view has a paired **agent-view**: `GET /api/agent-view/{view}/{id}`
 1. **Load** the recorded session from SigNoz traces (Query Range API): the ordered steps — user goal, each tool call and its **recorded output**, each model turn.
 2. **Replay** the agent with tool outputs **mocked** from the trace (the replay harness intercepts Agno tool calls and returns the recorded result) so the *only* variable is the model/prompt. Runs against the candidate through the same `UnplugGuardrail` (so trust checks apply identically).
 3. **Diff** the trajectories → `{resisted_injection, exfil_attempts, goal_reached, cost, latency, tokens}` for baseline vs candidate.
-4. **Verdict + recommendation** → surfaced in the HQ Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over a corpus of recorded incidents ("candidate resists 10/12").
+4. **Verdict + recommendation** → surfaced in the Time Machine view and available as agent-view JSON for a coding agent to act on. Optionally loop over a corpus of recorded incidents ("candidate resists 10/12").
 
 This is **replay-from-trace, not live re-execution** — deterministic, cheap (one model call per step, no real tools), and demoable. It reuses the traces SigNoz already stores; no new datastore.
 
@@ -101,7 +101,7 @@ Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + script + expe
 | # | Codename | Attack | Expected chain |
 |---|---|---|---|
 | S1 | **Edgar** | Indirect injection in fetched page → email exfil attempt | retrieved-scan flags → taint → tool pre-hook **block** → alert → signal `steer` → agent self-corrects |
-| S2 | **Neuralyzer** | Output contains PII/secret from DB | output guardrail → **redact** → HQ flash |
+| S2 | **Neuralyzer** | Output contains PII/secret from DB | output guardrail → **redact** → UI flash |
 | S3 | **Serleena** | Injected destructive tool call (`DROP TABLE`) | tool pre-hook **block** |
 | S4 | **The Worms** | Runaway loop / token burn | SigNoz metric alert → signal `kill` (cancel run) |
 | S5 | **Frank** | Direct jailbreak/DAN in user input | input guardrail **block** (fast path) |
@@ -110,7 +110,7 @@ Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + script + expe
 Seeds: unplug-ai's built-in labeled samples + hand-written indirect-injection page fixtures (llmail-inject style).
 
 ### `server/` — FastAPI
-Routes: `/webhooks/signoz`, `/signals/stream` (SSE per-session + firehose), `/api/fleet`, `/api/threats`, `/api/sources` (source-trust ledger), `/api/sessions/{id}`, `/api/agent-view/{view}/{id}` (machine-optimal twin of every view), `/export/case-file/{id}`, `/api/replay` (Time Machine), `/api/signal` (manual signal from HQ — pause/kill buttons), `/api/hitl/{run_id}` (approve/reject → AgentOS). State: SQLite. SigNoz access: Query Range API with service-account key (server-side only). Triggers scenario + replay runs by calling AgentOS.
+Routes: `/webhooks/signoz`, `/signals/stream` (SSE per-session + firehose), `/api/fleet`, `/api/threats`, `/api/sources` (source-trust ledger), `/api/sessions/{id}`, `/api/agent-view/{view}/{id}` (machine-optimal twin of every view), `/export/case-file/{id}`, `/api/replay` (Time Machine), `/api/signal` (manual signal from the UI — pause/kill buttons), `/api/hitl/{run_id}` (approve/reject → AgentOS). State: SQLite. SigNoz access: Query Range API with service-account key (server-side only). Triggers scenario + replay runs by calling AgentOS.
 
 Also hosts **Griffin** (`server/griffin.py`, async worker): FM-powered metric anomaly detection — pulls metric history from the Query Range API every 60s, forecasts expected bands with Google TabFM (zero-shot regression + split-conformal residuals), and emits `arcnet.anomaly` telemetry only for true outliers, which rides the existing alert→webhook→signal path. Design: `07-griffin-anomaly.md`.
 
@@ -123,7 +123,7 @@ Views (IA per v2):
 - **Case Files** — preview + download + "hand to coding agent" instructions.
 - **Global Human ⇄ Agent view toggle** — every view flips to its agent-view JSON (the machine-optimal twin).
 
-HQ never **queries SigNoz's API** directly — all telemetry comes through the arcnet-server proxy so the service-account key stays server-side. The only exception is deep-link hyperlinks that *open the SigNoz UI in a new tab* (no API call, no key).
+The UI never **queries SigNoz's API** directly — all telemetry comes through the arcnet-server proxy so the service-account key stays server-side. The only exception is deep-link hyperlinks that *open the SigNoz UI in a new tab* (no API call, no key).
 
 ### `deploy/`
 - `docker-compose.yaml` — SigNoz self-host, pinned version.

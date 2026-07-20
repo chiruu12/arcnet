@@ -22,7 +22,7 @@ flowchart LR
     A["1 · Discover<br/>list arcnet.* + gen_ai.* metrics<br/>via Query Range API"] --> B["2 · Pull<br/>history at 1m resolution<br/>per (metric × agent)"]
     B --> C["3 · Forecast<br/>TabFMRegressor + time features<br/>→ point forecast + conformal band"]
     C --> D{"4 · Judge<br/>observed outside band<br/>AND above noise floor?"}
-    D -- no --> E["silence<br/>(store forecast for HQ sparkline)"]
+    D -- no --> E["silence<br/>(store forecast for UI sparkline)"]
     D -- yes --> F["5 · Report<br/>arcnet.anomaly metric + log → SigNoz<br/>→ alert rule → webhook → signal bus"]
 ```
 
@@ -32,15 +32,15 @@ flowchart LR
 4. **Judge** — outlier iff `observed` outside the conformal band **and** `|observed − forecast| > noise_floor(metric)` (absolute floor prevents flat-series false positives) **and** series is warm (≥ 30 points; else status `warming`). Cooldown: same series can't re-fire within 5m (fingerprint dedupe, alertmanager-style).
 5. **Report** — one path, through SigNoz (anomalies are telemetry, not a side channel):
    - emit `arcnet.anomaly` metric (attrs: metric, agent_id, direction, severity = band-distance) + structured log with forecast/observed/quantiles
-   - a standard SigNoz alert rule on `arcnet.anomaly > 0` → webhook → signal bus → HQ **Griffin card** (sparkline + shaded forecast band + red observed dot) and a `note`/`steer` signal to the affected agent
-   - no outlier → nothing reported; forecasts cached so HQ can still render the band live
+   - a standard SigNoz alert rule on `arcnet.anomaly > 0` → webhook → signal bus → the UI's **Griffin card** (sparkline + shaded forecast band + red observed dot) and a `note`/`steer` signal to the affected agent
+   - no outlier → nothing reported; forecasts cached so the UI can still render the band live
 
 ## Integration points (already-built rails it rides on)
 
 - **In**: SigNoz Query Range API (same client the server already has).
 - **Out**: OTLP (same exporter the SDK already configures) + the existing alert→webhook→signal pipeline. Griffin adds zero new alerting machinery.
 - **Runtime**: async worker task inside `server/` (`server/griffin.py`); config in `griffin.toml` (cadence, H, band, noise floors, allowlist, top-N).
-- **HQ**: Griffin panel on Fleet Board + anomaly cards in Threat Feed.
+- **UI**: Griffin card on Fleet Health + anomaly cards in the threat feed.
 - **Demo**: S4 *The Worms* — Griffin flags the token-rate outlier **before** the static cost-burn threshold trips (show both firing, Griffin first). Optionally a latency-drift micro-scenario nothing else can catch.
 
 ### S4 choreography — guaranteeing "Griffin first" (don't leave it to chance)
@@ -53,13 +53,13 @@ Document the exact timings in the scenario fixture; rehearse it in Phase 3, not 
 
 ## Cold start & seeding
 
-Needs ~30 points/series. **`scripts/seed.py` is built in Phase 3** (Thu) — same day as Griffin core — so Griffin is testable on warm data the day it's written (not Phase 5, which was the original bug: the tuning day came before the tool that produces tunable data existed). Demo bring-up runs seed first so Griffin is warm; HQ shows `warming` status honestly until then.
+Needs ~30 points/series. **`scripts/seed.py` is built in Phase 3** (Thu) — same day as Griffin core — so Griffin is testable on warm data the day it's written (not Phase 5, which was the original bug: the tuning day came before the tool that produces tunable data existed). Demo bring-up runs seed first so Griffin is warm; the UI shows `warming` status honestly until then.
 
 ## Build plan (fits existing phases; see 03-plan.md)
 
 - **Phase 0 (Mon Jul 20)** — timeboxed TabFM CPU spike: install from git, pick JAX vs PyTorch backend, measure fit+predict latency on M-series, **lock TabFM-vs-TabPFN before Griffin core is written.**
 - **Phase 3 (Thu Jul 23)** — Griffin core: worker skeleton, one hardcoded series (token rate), conformal judge + `arcnet.anomaly` emission, alert rule, `scripts/seed.py`, S4 choreography. *Exit: run S4 on seeded data → Griffin fires before the static alert.*
-- **Phase 4 (Fri Jul 24)** — HQ Griffin card with forecast band (P0). **Phase 5** — metric auto-discovery, top-N series (P1).
+- **Phase 4 (Fri Jul 24)** — Griffin card with forecast band in the UI (P0). **Phase 5** — metric auto-discovery, top-N series (P1).
 - **Cut ladder** (Griffin degrades, never blocks): multi-metric breadth → auto-discovery (hardcode 3 series) → TabFM→TabPFN→MAD fallback. Griffin core stays — it's a headline differentiator.
 
 ## Narration honesty (so the pitch survives a fallback)

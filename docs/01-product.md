@@ -65,7 +65,7 @@ The frame stays (ArcNet = the shield around the fleet; agents are registered and
 
 ## Features, re-tiered for v2
 
-Every P0 item carries a demo beat (`06-demo-script.md`).
+Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable build-order labels, not priority order. Numbering skips **F8** (redaction/Neuralyzer — now delivered by the output guardrail inside F2 + scenario S2, not a standalone feature) and **F12** (standalone SigNoz-MCP — folded into F7).
 
 **P0 — demo-critical**
 - F1 Instrumented fleet (SigNoz, Agno via openinference).
