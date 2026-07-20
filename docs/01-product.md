@@ -1,69 +1,98 @@
-# ArcNet — Product
+# ArcNet — Product (v2)
+
+Definitive spec for what ArcNet *is* and *does*. Decision rationale + landscape are in `08-vision-v2.md`; this is the product itself.
 
 ## One-liner
 
-**ArcNet is the defense shield for AI agent fleets**: full observability into what your agents are doing (SigNoz), real-time detection of what's going wrong (unplug-ai), active signals that let the agent's own loop pause and self-correct, and exportable Case Files that let your coding agent fix the root cause.
+**ArcNet is the control plane for a self-improving agent fleet.** It watches every agent's behavior, cost, and the *trust of everything it ingests* (on SigNoz), stops attacks in real time (Unplug), makes all of it legible to the coding agents that improve the fleet (the agent-view), and lets you prove a different model or prompt would behave better before you ship it (the Time Machine).
 
-## Why this matters
+## What it actually does — the loop
 
-Everyone traces agents. Almost nobody **closes the loop**. Today's agent observability answers "what happened?"; ArcNet also answers "what do we do about it — *right now, automatically*?" and "how do we make sure it never happens again?".
+ArcNet is one loop, not a bag of features:
 
-Three loops, increasing time horizon:
+```
+   OBSERVE          DETECT               DEFEND            HAND OFF              PROVE
+   every agent  →   trust breach +   →   block + steer  →  agent-view /      →   Time Machine
+   on SigNoz        anomaly (Griffin)    (self-correct)    Case File →           counterfactual
+                                                           coding agent          replay
+        └──────────────────────────── the coding agent applies a fix ───────────────────┘
+```
 
-1. **Inline (ms)** — guard middleware scans inputs/outputs/tool-calls; blocks or redacts before damage. Telemetry emitted either way.
-2. **Reactive (seconds)** — SigNoz alert rules watch fleet-level patterns (threat spikes, cost burn, loop depth, latency); alerts hit our webhook; ArcNet converts them to **signals**; the agent framework's own hooks (Agno guardrails, HITL pause/approve, run cancellation) pause/steer/kill the run.
-3. **Corrective (minutes)** — one click exports the incident as a **Case File**: trace tree + findings + timeline + suggested-fix prompt, formatted for a coding agent. The coding agent (Cursor/Claude Code) connects to the **SigNoz MCP server**, pulls the live trace evidence itself, and patches the agent's prompt/tools. The observability platform becomes an input to development.
+1. **Observe** — every agent traced into SigNoz: model calls, tool calls, tokens, cost, latency, errors.
+2. **Detect** — two detectors. (a) *Trust:* Unplug tags every ingested datum with a trust level and scans the untrusted ones. (b) *Anomaly:* Griffin (foundation-model) flags metric outliers static thresholds miss.
+3. **Defend** — an untrusted source trying to steer an agent is blocked; a `steer` signal makes the agent quarantine it and self-correct; runaway loops get `kill`.
+4. **Hand off** — every incident and every panel has an **agent-view**: a goal-level, trust-annotated, structured format that a coding agent (Claude Code, Codex, Cursor) consumes to improve the observed agent. ArcNet is the substrate; the coding agents people already run are the "evolvers."
+5. **Prove** — the **Time Machine** replays a recorded incident against a different model or prompt (tool outputs mocked from the trace) and shows the behavioral diff: did it resist the injection? loop less? cost less? reach the goal? Proof on your own history, not vibes.
 
-## Men in Black theme
+## What we are NOT building (scope guardrails)
 
-The MIB conceit is load-bearing, not paint. MIB is *literally* an agency that monitors a registry of aliens living among us and neutralizes threats without civilians noticing.
+- **No DSPy, no GEPA, no autonomous evolver.** ArcNet *shows* how agents behave and how alternatives would behave. Humans + their existing coding agents do the improving.
+- **No live re-execution** for counterfactuals — replay-from-trace with mocked tools only (deterministic, cheap, demoable).
+- **Not a general eval platform** — the replay harness is scoped to the demo scenarios.
 
-| MIB | ArcNet |
-|---|---|
-| The ArcNet shield (MIB 3 — deployed on Apollo 11 to stop the Boglodite invasion) | The platform itself: a shield you deploy around your fleet |
-| MIB HQ observation wall | `hq/` dashboard — live fleet board |
-| Registered aliens living on Earth | Your agents, registered + continuously monitored |
-| Edgar — a bug in a human suit | A prompt-injected agent: looks normal, acts hostile. Our attack suite = **the Bug Suite** |
-| The Neuralyzer | Redaction: PII/secrets flash-wiped from outputs (with the flash animation) |
-| Case files | Exportable incident bundles |
-| Griffin — sees all possible futures, notices when reality deviates | FM-powered anomaly detection: forecasts each metric's expected band, reports only true outliers |
-| Agents J & K | The demo agents |
-| "Protecting the Earth from the scum of the universe" | "Protecting your stack from the scum of the universe" |
+## The pillars (one homogeneous system)
 
-Visual language (for `hq/`): black/white monochrome, sharp suits aesthetic — white type on near-black, one accent (alert red), clean sans + mono for telemetry, subtle scanline/CRT texture on the fleet board, neuralyzer white-flash micro-animation on redaction events. The deck is dark-only by design ("sunglasses on") — the shades control is deadpan set-dressing, not a real light mode. Keep it restrained — MIB is deadpan, not campy. **Reference implementation: `docs/mock/hq.html`.**
+### 1. Observe — SigNoz (the substrate)
+Track-1 core. OTel GenAI semantic conventions + our `arcnet.*` namespace. Everything else sits on the traces/metrics/logs SigNoz already holds — including the Time Machine, which replays *from* those traces.
 
-## Features (scored scope)
+### 2. Trust & Shield — Unplug as source-trust monitoring
+The security story is **provenance-first**, which is exactly Unplug's taint/trust model:
+- Every datum an agent ingests gets a **trust level**: `user` · `retrieved`/`scraped` · `tool_output` · `external` · `system`.
+- Unplug scans the **untrusted** sources — where injection actually enters. **Scraped/fetched web content is filtered before it reaches the model.**
+- **Forward-facing agents** (public/user-facing, browsing, ingesting third-party content) are flagged as **higher injection-risk surfaces** — a first-class attribute in the fleet view, not an afterthought.
+- Taint **propagates**: untrusted content flowing toward a sensitive tool (email, DB, payment) blocks that tool call (the Edgar exfil chain).
+- Homogeneous with observability: "source trust" and "injection exposure" sit next to cost and latency as health dimensions — one product, not a bolted-on scanner.
 
-Feature IDs are stable labels (assigned in build order, not priority order); the tier is what matters. Every P0 item carries a demo beat — see the cut list in `03-plan.md`. (F12 was a standalone SigNoz-MCP feature, now folded into F7 — numbering skips it.)
+### 3. Self-correct — signals
+Alert → webhook → signal bus → Agno hook. `steer` (inject guidance, continue), `pause` (HITL approve/reject from the UI), `kill` (cancel a runaway). The fleet defends itself in seconds.
 
-**P0 — demo-critical, must land**
-- F1. **Instrumented fleet**: Agno demo agents (on AgentOS) fully traced to self-hosted SigNoz (LLM calls, tool calls, tokens, cost, errors) via `openinference-instrumentation-agno`; prebuilt Agno dashboard template imported.
-- F2. **Guard telemetry**: every unplug-ai scan emitted as spans/events/metrics — threats are first-class telemetry (`arcnet.guard.*`). Implemented as an idiomatic Agno guardrail (`UnplugGuardrail`) + tool hooks.
-- F3. **The Bug Suite**: scripted attack scenarios (baseline, indirect injection/exfil, PII leak, destructive tool call, jailbreak, runaway loop) runnable on demand.
-- F4. **SigNoz depth**: provisioned dashboards + alert rules (incl. native seasonal anomaly) + webhook channel (see `04-signoz-integration.md`).
-- F5. **Signals**: SigNoz alert → webhook → signal bus → Agno hooks (`steer` / `kill`) → agent self-corrects. The headline moment.
-- F6. **HQ dashboard**: MIB observation deck — fleet board, live threat feed, Griffin card, signals log.
-- F7. **Case File export + SigNoz MCP handoff**: incident bundle (traces via Query API + findings + timeline + fix-prompt + embedded trace_ids) as markdown/JSON; the coding agent pulls live evidence via the SigNoz MCP server and fixes the agent. (MCP server also used dev-time with SigNoz agent skills.)
-- F8. **Neuralyzer**: redaction events surfaced in HQ with the flash; before/after view.
-- F13. **Griffin core**: foundation-model anomaly detection on agent metrics (Google TabFM, zero-shot + conformal bands) — reports only true outliers, silent on normal data. Full design: `07-griffin-anomaly.md`.
+### 4. Anomaly — Griffin
+Foundation-model (TabFM) anomaly detection on the metrics; reports only true outliers, silent otherwise. Catches health drift on new/short-history agents that seasonal thresholds miss. (Design: `07-griffin-anomaly.md`.)
 
-**P1 — strong, build if P0 done**
-- Native SigNoz seasonal anomaly alert (the pairing story: seasonal needs history, Griffin covers new agents from minute one).
-- Griffin breadth: metric auto-discovery + top-N series.
-- F9. **Canary tokens**: register a system-prompt canary (`guard.add_canary`, verify Day 0); prove system-prompt exfiltration detection.
-- HITL pause beat: the `pause` signal → Agno HITL approve/reject from HQ (the flow is built; this makes it a demo beat).
-- HQ Session Detail: full timeline drill-down (else deep-links into SigNoz UI).
+### 5. Agent-view — the machine-optimal twin
+**Every datum ArcNet shows has an agent-optimal representation**, served for a coding agent to consume:
+- Not raw logs — a **goal-level, trust-annotated, structured** view: what the agent was trying to do, where trust broke, what the anomaly was, the recommended fix, and a pointer to pull raw spans via the **SigNoz MCP server**.
+- Served as an **ArcNet agent API** (JSON per view) and the **Case File** bundle; the SigNoz MCP underneath gives the coding agent raw trace evidence.
+- The point: a Claude Code / Codex / Cursor session reads the fleet's health and incidents in *its* best format, then improves the observed agent. This is the "self-improving fleet" made real without us building an evolver.
 
-**P2 — stretch, cut freely**
-- F10. LLM judge for borderline verdicts (unplug `CallableJudge` + cheap model).
-- F11. Second framework adapter (OpenAI Agents SDK) proving the SDK is framework-agnostic.
-- Agent K (second fleet member; J alone is a complete story).
+### 6. Time Machine — counterfactual replay
+- Replay a **recorded session** against a **different model/prompt**, tool outputs mocked from the trace (replay-from-trace; not live).
+- Show the **behavioral diff** (resisted injection? looped less? cheaper? reached goal?) + a verdict + a recommendation.
+- Turns the trace store into a **replayable proof harness**: propose a fix (agent-view/Case File → coding agent) → **replay to prove** it's better. The answer to "should I switch models / change this prompt?".
 
-## Demo story (short version — full script in 06)
+## Men in Black — as undertone, not costume
+The frame stays (ArcNet = the shield around the fleet; agents are registered and monitored; a prompt-injected agent is a bug in a human suit). But execution is **product-grade**; MIB survives only as the wordmark, deadpan microcopy, and a whisper of aesthetic. Not a themed console. Frontend direction: `09-frontend.md`.
 
-1. HQ board: fleet of agents, all green, telemetry flowing. ("Every agent on Earth, registered and monitored.")
-2. Run the Bug Suite. Agent J fetches a webpage with a hidden injection → tries to exfiltrate via email.
-3. Split screen: SigNoz trace shows the poisoned span; guard blocks the tool call; alert fires; **a `steer` signal lands in Agent J's loop — it announces the fetched content was hostile, quarantines it, and completes the task safely without stopping for a human** (fully autonomous self-correction; the `pause`/HITL path is a separate signal kind, shown elsewhere).
-4. PII scenario → neuralyzer flash → redacted output; runaway loop → cost alert → kill signal.
-5. Export the Case File → Cursor (SigNoz MCP connected) reads it, pulls the trace itself, identifies the vulnerable tool prompt, proposes the fix.
-6. Close on the SigNoz dashboards: every detection, token, and dollar accounted for.
+## Features, re-tiered for v2
+
+Every P0 item carries a demo beat (`06-demo-script.md`).
+
+**P0 — demo-critical**
+- F1 Instrumented fleet (SigNoz, Agno via openinference).
+- F2 Trust & guard telemetry (Unplug source-trust as `UnplugGuardrail` + tool hooks; `arcnet.guard.*`).
+- F3 Bug Suite scenarios (S0/S1/S2/S4/S5).
+- F4 SigNoz depth (dashboards, alerts incl. seasonal anomaly, webhook).
+- F5 Signals self-correct (`steer`/`kill`).
+- F6 Fleet Health view (agents + trust posture + forward-facing flag + threats + cost + Griffin).
+- F7 Agent-view + Case File + SigNoz MCP handoff.
+- **F14 Time Machine** — counterfactual replay of ≥1 recorded incident against a candidate model, with verdict. The headline.
+- F13 Griffin core.
+
+**P1 — strong**
+- Native SigNoz seasonal anomaly alert (pairing story).
+- Griffin breadth (auto-discovery, top-N).
+- Sources & Trust view (per-agent source ledger, what Unplug filtered/blocked).
+- HITL `pause` beat.
+- Time Machine breadth (replay a corpus of incidents, aggregate "model B resists N/12").
+- F9 canaries.
+
+**P2 — cut freely**
+- F10 LLM judge · F11 second framework adapter · Agent K · S3 Serleena.
+
+## Demo story (full script in `06`)
+1. **Fleet Health** — agents on SigNoz; one flagged **forward-facing** (higher injection-risk), trust posture next to cost/latency.
+2. **Edgar** — forward-facing agent scrapes a page with a hidden injection → Unplug flags the untrusted source, filters it, blocks the exfil, `steer` → self-corrects.
+3. **Griffin** — token-rate outlier flagged before any static threshold (The Worms).
+4. **Agent-view** — flip the incident to its machine format; hand to Claude Code/Codex → it reads the trust-annotated Case File (+ pulls raw traces via SigNoz MCP) and proposes the fix.
+5. **Time Machine (the whoa)** — replay the Edgar session against a candidate model, side by side: the candidate resists where the baseline was exploited. Proof.
+6. **Close** — SigNoz dashboards: every trace, dollar, and trust decision accounted for.

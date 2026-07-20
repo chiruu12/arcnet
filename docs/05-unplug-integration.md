@@ -8,9 +8,20 @@
   - **Verified against 0.5.2 source** (`origin/main`): the top-level exports `Guard, ScanResult, Finding, Action, Source` all exist, and `Guard` exposes `scan`, `scan_output`, `check_tool_call`, `add_canary`, `metrics`.
   - **From the older 0.2.0 explore, treat as assumed until Day 0**: the exact *field* lists of `ScanResult`/`Finding`, the default action thresholds, and the `notify_taint_source`/`wrap_for_context`/`with_tiny` signatures. Confirm these against the installed package and fix this doc where it drifts.
 
+## Role in ArcNet: source-trust monitoring (the spine, not a bolt-on)
+
+In v2, Unplug *is* the provenance/trust layer, not a side scanner. The framing:
+- Every datum an agent ingests carries a **trust level** (`user` · `retrieved`/`scraped` · `tool_output` · `external` · `system`) — this is Unplug's native `TrustLevel`/taint model.
+- Unplug scans the **untrusted** sources, because that's where injection enters. **Scraped/fetched content is filtered before it reaches the model.**
+- **Forward-facing agents** (those that ingest third-party content) are flagged higher injection-risk — ArcNet sets `arcnet.exposure=forward_facing` on the agent and surfaces it in Fleet Health.
+- Taint **propagates**: untrusted content flowing toward a sensitive tool (email/DB/payment) blocks that tool call (the Edgar exfil chain).
+- Homogeneous with observability: "source trust" and "injection exposure" are health dimensions next to cost and latency — one product.
+
+The Time Machine replays through the same `UnplugGuardrail`, so trust checks apply identically to baseline and candidate — the counterfactual isolates the *model's* behavior, not the guard's.
+
 ## What unplug-ai actually is (design for this, not the README)
 
-A fast, CPU-only guard: regex scanner families + normalization + taint tracking, with optional ML and an optional bring-your-own LLM judge. Sub-ms to low-ms per scan — cheap enough to run at **every** checkpoint and emit as telemetry. No server or MCP needed; pure in-process.
+A fast, CPU-only guard: regex scanner families + normalization + taint tracking, with optional ML and an optional bring-your-own LLM judge. Sub-ms to low-ms per scan — cheap enough to run at **every** checkpoint and emit as telemetry. No server or MCP needed; pure in-process. Its taint/trust model (`TrustLevel`, `TaintedText`, `Tagger`, `notify_taint_source`, `wrap_for_context`) is exactly what the source-trust spine needs.
 
 ## Core contract (top-level names verified on 0.5.2; field details assumed — confirm Day 0)
 

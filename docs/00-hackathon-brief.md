@@ -23,11 +23,11 @@ Source: https://www.wemakedevs.org/hackathons/signoz (fetched 2026-07-20)
 
 | Criterion | Our answer |
 |---|---|
-| Potential Impact | Agent security × observability is unsolved and topical; prompt injection is the #1 agent risk (OWASP LLM01). ArcNet closes the loop from *observe* → *defend* → *fix*. |
-| Creativity & Innovation | Signals that feed detections **back into the agent's own loop** (self-correcting agents); Case File export + SigNoz MCP handoff so coding agents investigate live telemetry; MIB theming. |
+| Potential Impact | The field admits nobody closes the trace→fix→proof loop (LangSmith/Langfuse/Arize). ArcNet does: observe → defend → hand to the coding agent → **prove a fix is better**. Source-trust + forward-facing risk targets the #1 agent risk (OWASP LLM01 injection). |
+| Creativity & Innovation | **The Time Machine** — counterfactual replay of a real incident against a different model, proof not vibes. The **agent-view** — every datum has a machine-optimal twin coding agents consume. Self-correcting agents via signals. (Landscape shows these are genuinely unclaimed — see `08-vision-v2.md`.) |
 | Technical Excellence | OTel GenAI semantic conventions, clean SDK layering, idiomatic Agno guardrails/HITL, typed FastAPI, provisioned-as-code dashboards/alerts. |
 | **Best Use of SigNoz** | All three OTel signals (traces, metrics, logs) surfaced through SigNoz dashboards + alert rules (incl. native seasonal anomaly) + webhook channel + Query Range API powering our own UI + ClickHouse panels + **SigNoz MCP server** (dev-time and in the demo) + **SigNoz agent skills** in our workflow + prebuilt Agno dashboard template. See `04-signoz-integration.md` checklist. |
-| User Experience | HQ dashboard (MIB observation deck), one-command demo, neuralyzer redaction flash, live threat feed. |
+| User Experience | Product-grade UI in the Unplug design language (dark terminal, cyan, mono), the `human ⇄ agent view` toggle, the Time Machine side-by-side replay, one-command demo. |
 | Presentation Quality | Scripted demo (`06-demo-script.md`), tight README, architecture diagram, <3min video. |
 
 ## Side quests (optional, decide later)
