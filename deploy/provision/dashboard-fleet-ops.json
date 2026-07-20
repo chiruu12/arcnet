@@ -1,0 +1,609 @@
+{
+  "title": "ArcNet Fleet Ops",
+  "description": "Agent runs, latency, errors, sessions \u2014 OpenInference + arcnet.*",
+  "tags": [
+    "arcnet"
+  ],
+  "version": "v5",
+  "uploadedGrafana": false,
+  "variables": {},
+  "panelMap": {},
+  "layout": [
+    {
+      "h": 5,
+      "i": "f790bc85-56ef-4f98-871c-1dfeeeace500",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 5,
+      "i": "83ad9af2-8f5f-4a8f-a11a-044968fffb4f",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 0
+    },
+    {
+      "h": 5,
+      "i": "1f7572f2-fbdc-4769-b5ad-a19b2ee85176",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 5
+    },
+    {
+      "h": 5,
+      "i": "f292aa2a-1bf6-4a2f-9a0f-14a7b2510e1b",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 5
+    },
+    {
+      "h": 5,
+      "i": "e9bcef32-7a57-4bbf-95c6-3ceb109b71aa",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 10
+    },
+    {
+      "h": 5,
+      "i": "8f7d3e76-08c9-4e90-8366-0b61f46676df",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 10
+    }
+  ],
+  "widgets": [
+    {
+      "id": "f790bc85-56ef-4f98-871c-1dfeeeace500",
+      "title": "Agent runs",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "fb4085cb-78b0-4e84-9f08-3b66db0dd83a",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "openinference.span.kind = 'AGENT'"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "arcnet.agent_id----",
+                  "key": "arcnet.agent_id",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{arcnet.agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "83ad9af2-8f5f-4a8f-a11a-044968fffb4f",
+      "title": "Error spans",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "03b11aa0-83b2-44d8-8943-2f0ba9f68729",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "has_error = true"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "arcnet.agent_id----",
+                  "key": "arcnet.agent_id",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{arcnet.agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "1f7572f2-fbdc-4769-b5ad-a19b2ee85176",
+      "title": "p99 agent latency",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "ns",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "dd8bb27f-105d-4421-bf31-0b8c222f51bf",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "p99(duration_nano)"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "openinference.span.kind = 'AGENT'"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "arcnet.agent_id----",
+                  "key": "arcnet.agent_id",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{arcnet.agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "f292aa2a-1bf6-4a2f-9a0f-14a7b2510e1b",
+      "title": "Tool calls",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "7d027bef-dcde-408a-b726-e05499ae30ae",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.tool.calls",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "agent_id--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "agent_id",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "e9bcef32-7a57-4bbf-95c6-3ceb109b71aa",
+      "title": "Guard latency",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "ms",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "ff023dde-8111-417b-b6a9-de91c49ab701",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.guard.latency",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "checkpoint--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "checkpoint",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{checkpoint}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "8f7d3e76-08c9-4e90-8366-0b61f46676df",
+      "title": "Signals emitted",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "923e5017-bc7e-4fa8-9c8b-0fddba154e66",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.signals.emitted",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "kind--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "kind",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{kind}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    }
+  ]
+}

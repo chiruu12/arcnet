@@ -1,0 +1,568 @@
+{
+  "title": "ArcNet Threats & Trust",
+  "description": "Threat counts, block rate, guard latency, findings",
+  "tags": [
+    "arcnet"
+  ],
+  "version": "v5",
+  "uploadedGrafana": false,
+  "variables": {},
+  "panelMap": {},
+  "layout": [
+    {
+      "h": 5,
+      "i": "8d4ab959-0bc2-42ee-9840-8064f2425b2c",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 5,
+      "i": "66047ccf-f5da-4469-8219-266cb2ba9e27",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 0
+    },
+    {
+      "h": 5,
+      "i": "1d5a7239-54cb-48a5-a404-2b92d6fd87e7",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 5
+    },
+    {
+      "h": 5,
+      "i": "767dbcb2-cddf-49a1-9987-cf8ca9e47bf2",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 5
+    },
+    {
+      "h": 5,
+      "i": "4d7af464-6d78-432d-bfe2-2c8c340b8790",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 10
+    },
+    {
+      "h": 6,
+      "i": "01296fb7-c566-42e2-844e-671c1d7e9de3",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 15
+    }
+  ],
+  "widgets": [
+    {
+      "id": "8d4ab959-0bc2-42ee-9840-8064f2425b2c",
+      "title": "Threats detected",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "51e06e94-ffda-4e6c-af7b-4cf092474957",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.threats.detected",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "category--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "category",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{category}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "66047ccf-f5da-4469-8219-266cb2ba9e27",
+      "title": "Threats by action",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "c037544c-2bb9-4e81-9e1a-4edbafd3d2c6",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.threats.detected",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "action--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "action",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{action}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "1d5a7239-54cb-48a5-a404-2b92d6fd87e7",
+      "title": "Guard blocks",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "b0ecc7cb-f0ea-4f1c-8c37-9f7923514788",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "name = 'arcnet.guard' AND arcnet.guard.action = 'block'"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "arcnet.agent_id----",
+                  "key": "arcnet.agent_id",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{arcnet.agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "767dbcb2-cddf-49a1-9987-cf8ca9e47bf2",
+      "title": "Guard by checkpoint",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "2edbd58b-0096-4e8d-99f5-f66792433a19",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "name = 'arcnet.guard'"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "arcnet.guard.checkpoint----",
+                  "key": "arcnet.guard.checkpoint",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{arcnet.guard.checkpoint}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "4d7af464-6d78-432d-bfe2-2c8c340b8790",
+      "title": "Guard latency p95",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "ms",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "0b744fa1-625e-4454-87df-eb6e1ffe9ef7",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.guard.latency",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [],
+              "having": {
+                "expression": ""
+              },
+              "legend": "arcnet.guard.latency",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "01296fb7-c566-42e2-844e-671c1d7e9de3",
+      "title": "Top attack categories (ClickHouse SQL)",
+      "description": "ClickHouse SQL \u2014 top arcnet.guard finding categories from span events",
+      "panelTypes": "table",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "clickhouse_sql",
+        "unit": "",
+        "id": "f0f3747f-ee78-4efd-b3d8-6eb0c82ee2fd",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "findings",
+            "name": "A",
+            "query": "SELECT\n  attributes_string['arcnet.guard.top_category'] AS category,\n  attributes_string['arcnet.guard.action'] AS action,\n  count() AS c\nFROM signoz_traces.distributed_signoz_index_v2\nWHERE name = 'arcnet.guard'\n  AND timestamp >= now() - INTERVAL 24 HOUR\nGROUP BY category, action\nORDER BY c DESC\nLIMIT 20"
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    }
+  ]
+}

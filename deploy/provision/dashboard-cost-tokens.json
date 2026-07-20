@@ -1,0 +1,615 @@
+{
+  "title": "ArcNet Cost & Tokens",
+  "description": "Tokens + $ by agent/model from arcnet.* metrics and OpenInference llm.token_count.*",
+  "tags": [
+    "arcnet"
+  ],
+  "version": "v5",
+  "uploadedGrafana": false,
+  "variables": {},
+  "panelMap": {},
+  "layout": [
+    {
+      "h": 5,
+      "i": "557d6bf8-fba9-4200-bbe2-081d07aca68c",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 5,
+      "i": "cdf4fb95-ea0a-44ce-b3b0-10d1f3b2eeeb",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 0
+    },
+    {
+      "h": 5,
+      "i": "78c82f07-a316-4ac5-9b80-593c8b830ff7",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 5
+    },
+    {
+      "h": 5,
+      "i": "8813ab81-88f5-4592-989d-3104d466fc79",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 5
+    },
+    {
+      "h": 5,
+      "i": "88280ac1-1b31-4330-9285-d8ac9516abb5",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 10
+    },
+    {
+      "h": 5,
+      "i": "bb72c027-f0ee-48b5-9c31-fe5415ca175e",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 10
+    }
+  ],
+  "widgets": [
+    {
+      "id": "557d6bf8-fba9-4200-bbe2-081d07aca68c",
+      "title": "Tokens total",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "a0a8a6e6-2f29-4452-8560-3cb0f0208864",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.tokens.total",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "agent_id--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "agent_id",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "cdf4fb95-ea0a-44ce-b3b0-10d1f3b2eeeb",
+      "title": "Cost USD",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "d3968519-5e6e-4f33-af78-890fdd35d4a6",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.cost.usd",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "agent_id--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "agent_id",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "78c82f07-a316-4ac5-9b80-593c8b830ff7",
+      "title": "Prompt tokens (span attrs)",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "fd46f1a0-a2df-40b5-9523-b53ef516c5e5",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "sum(llm.token_count.prompt)"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "openinference.span.kind = 'LLM'"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "llm.model_name----",
+                  "key": "llm.model_name",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{llm.model_name}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "8813ab81-88f5-4592-989d-3104d466fc79",
+      "title": "Completion tokens (span attrs)",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "a9978737-7e6c-4d69-abb2-744ce09aa0b3",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "sum(llm.token_count.completion)"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": "openinference.span.kind = 'LLM'"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "llm.model_name----",
+                  "key": "llm.model_name",
+                  "type": ""
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{llm.model_name}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "88280ac1-1b31-4330-9285-d8ac9516abb5",
+      "title": "Cost by model",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "9eaa7b10-026d-4f53-9453-f1a8ec7d8188",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.cost.usd",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "model--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "model",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{model}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "bb72c027-f0ee-48b5-9c31-fe5415ca175e",
+      "title": "Anomalies (Griffin)",
+      "description": "",
+      "panelTypes": "graph",
+      "yAxisUnit": "none",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "softMax": 0,
+      "softMin": 0,
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "decimalPrecision": 2,
+      "fillSpans": false,
+      "isLogScale": false,
+      "isStacked": false,
+      "legendPosition": "bottom",
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "customLegendColors": {},
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder",
+        "unit": "",
+        "id": "23c5c801-07f4-4c94-8675-ce5f7c5f4cd9",
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "metricName": "arcnet.anomaly",
+                  "timeAggregation": "rate",
+                  "spaceAggregation": "sum",
+                  "temporality": "",
+                  "reduceTo": "sum"
+                }
+              ],
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "agent_id--string--tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "agent_id",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{agent_id}}",
+              "limit": null,
+              "orderBy": [],
+              "source": "",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      }
+    }
+  ]
+}
