@@ -85,14 +85,14 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 5 — UI + Case File + Record
 
-- [ ] Finish the React app started in Phase 3's parallel track (direction: `09-frontend.md`): wire **Fleet Health** + **Time Machine** to real APIs; Signals + Case Files views
-- [ ] **Global Human ⇄ Agent view toggle** wired to `/api/agent-view/*`
-- [ ] Case File exporter (`case-file.md`+`.json`, embedded trace_ids + MCP instructions); "hand to coding agent" flow
-- [ ] Live test: hand a Case File to Claude Code (SigNoz MCP connected) → it pulls traces + proposes the fix; **record a backup of this beat** (gate G5)
-- [ ] Seed rich history for the dashboards; Neuralyzer redaction surfaced; `scripts/run-demo.sh`; polish empty/error states
-- [ ] README rewrite incl. the **screenshot slots judges score**: all 3 dashboards, the ClickHouse-SQL panel with its query visible, the seasonal-anomaly rule next to Griffin's card (the pairing visual)
-- [ ] **Video half-day (protected block):** assemble from the per-beat clips captured at each phase exit + narration + retakes — video production is a 3–5× underestimate when left as a trailing bullet
-- [ ] **Pre-cut from the demo path:** the 12-incident corpus recording + aggregate — post-recording hours only; if it happens it's a README artifact, never an on-camera element
+- [x] Finish the React app started in Phase 3's parallel track (direction: `09-frontend.md`): wire **Fleet Health** + **Time Machine** to real APIs; Signals + Case Files views — all six views live (`fleet_health`, `signals` w/ SSE feed, `sources_trust`, `time_machine` w/ live `replay.run()` + history, `case_files` w/ incident preview + export, `dashboards` deep-links); empty/error seam states everywhere
+- [x] **Global Human ⇄ Agent view toggle** wired to `/api/agent-view/*` — generic `GET /api/agent-view/{view}/{id}` (incident/session/fleet/sources) added server-side; replay keeps its dedicated route
+- [x] Case File exporter (`case-file.md`+`.json`, embedded trace_ids + MCP instructions); "hand to coding agent" flow — `GET /export/case-file/{session_id}` zip; `hand_to(claude_code)` button in Time Machine + `export_case_file()` in Case Files; covered by `server/tests/test_case_file.py`
+- [ ] Live test: hand a Case File to Claude Code (SigNoz MCP connected) → it pulls traces + proposes the fix; **record a backup of this beat** (gate G5) — **DEFERRED (user resource pause):** requires the Dockerized SigNoz + MCP stack; the Case File bundle itself ships MCP instructions and is exercised by tests
+- [x] Seed rich history for the dashboards; Neuralyzer redaction surfaced; `scripts/run-demo.sh`; polish empty/error states — `scripts/seed_demo.py` (background fleet, deterministic, never touches real recordings), real S2 redact threat rows in history; `run-demo.sh` = seed + server + replay runtime + HQ in one command, no Docker required
+- [x] README rewrite incl. the **screenshot slots judges score** — rewritten (quick start, hero results table, Case File handoff, criteria); screenshot *capture* DEFERRED (user resource pause — needs SigNoz UI), slots reserved in README
+- [ ] **Video half-day (protected block):** assemble from the per-beat clips captured at each phase exit + narration + retakes — human task; demo choreography (`run-demo.sh`) ready for it
+- [x] **Pre-cut from the demo path:** the 12-incident corpus recording + aggregate — confirmed cut
 
 **Exit: end-to-end demo recorded (with backups); the two hero views product-polished. Any time left after this exit = polish loop: re-record weak beats, tighten the UI, add P1s (corpus first).**
 
