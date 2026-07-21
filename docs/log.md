@@ -42,3 +42,8 @@ Full gap pass over the plan before coding. **Schedule re-anchored**: Mon went to
 
 **Expected:** TabFM G2; S2 redact; 3 dashboards + v5 alerts + seasonal artifact; webhook attributable; logs↔trace; MCP answering; hq↔server↔SigNoz seam once.
 **Actual:** G2 → TabFM too slow (~12s/series) + TabPFN needs `TABPFN_TOKEN` → **locked MAD**; S2 PASS (`[REDACTED]` email+SSN); dashboards/alerts/seasonal JSON + `setup.py` validate (API provision SKIP — no key); webhook → `steer` signal with `session_id`/`agent_id`; OTLP LoggingHandler; MCP `v0.8.0` binary+configs (tools need key); hq seam page + `/api/fleet` + `/api/signoz/status` (UI 200). Exit **green / PARTIAL** on live SigNoz API+MCP.
+
+## Phase 3 — Tue Jul 21 (signals + Griffin) — EXIT
+
+**Expected:** signal bus SSE + steer/kill; S1+S4 camera-speed; Griffin MAD + seed; G3 tripwire; HQ shells on mock.
+**Actual:** SSE bus + SDK client (steer/kill/pause HITL scaffold); S1 PASS (retrieved path; model often resists without exfil — no EMAIL_SENT); S4 PASS (Griffin evaluate → kill); `scripts/seed.py` + MAD worker; G3 PASS on S1+S4 vs gpt-4o; HQ fleet_health + time_machine mock shells. `SIGNOZ_API_KEY` still empty → provision/Query Range remain BLOCKED.

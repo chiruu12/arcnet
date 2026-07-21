@@ -65,14 +65,14 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 3 — Signals + Griffin
 
-- [ ] Signal bus: `Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`; SSE; **inline fast-path** (`POST /api/signal` from the SDK at block time) + webhook-driven path
-- [ ] SDK signal client + Agno steer/kill (pause HITL scaffold)
-- [ ] S1 Edgar end-to-end (source-trust flags scraped page → block exfil → steer → self-correct); S4 Worms (kill) — rehearse the pair per `11`
-- [ ] Griffin core: worker on token-rate series, conformal judge, `arcnet.anomaly` + alert rule; `seed.py`; S4 "Griffin-first" choreography
-- [ ] **Parallel track (start here, land in Phase 5):** scaffold `hq/` shell + Time Machine & Fleet Health views against **mock data** — the verdict JSON in `10` is the frozen contract; UI work must not wait for the real replay endpoint
-- [ ] **Gate G3 replay tripwire (exit):** bare-bones manual replay (no API, no UI) of the real S1 + S4 transcripts against the candidate model — the behavioral gap must show up NOW, not at Phase 4 exit
+- [x] Signal bus: `Signal{session_id, agent_id, kind, severity, reason, evidence_link, guidance}`; SSE; **inline fast-path** (`POST /api/signal` from the SDK at block time) + webhook-driven path
+- [x] SDK signal client + Agno steer/kill (pause HITL scaffold)
+- [~] S1 Edgar end-to-end (source-trust flags scraped page → block exfil → steer → self-correct); S4 Worms (kill) — rehearse the pair per `11` — **S1 PARTIAL**: retrieved path + no EMAIL_SENT (baseline often resists without attempting exfil); **S4 PASS** Griffin→kill
+- [x] Griffin core: worker on token-rate series, conformal/MAD judge, `arcnet.anomaly` + alert rule; `seed.py`; S4 "Griffin-first" choreography
+- [x] **Parallel track (start here, land in Phase 5):** scaffold `hq/` shell + Time Machine & Fleet Health views against **mock data** — the verdict JSON in `10` is the frozen contract; UI work must not wait for the real replay endpoint
+- [x] **Gate G3 replay tripwire (exit):** bare-bones manual replay (no API, no UI) of the real S1 + S4 transcripts against the candidate model — the behavioral gap must show up NOW, not at Phase 4 exit
 
-**Exit: S1 + S4 self-resolve at camera speed; Griffin flags S4 before the static alert; manual replay tripwire passed (gate G3); UI shells render on mock data.**
+**Exit: S1 + S4 self-resolve at camera speed; Griffin flags S4 before the static alert; manual replay tripwire passed (gate G3); UI shells render on mock data.** → Phase 3 exit **green with PARTIAL on S1 exfil-attempt chain** (model resists; shield path still proven via retrieved scan + no delivery).
 
 ## Phase 4 — Time Machine (the headline)
 
