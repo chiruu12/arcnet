@@ -491,7 +491,10 @@ def list_sessions(
 ) -> list[dict[str, Any]]:
     """Read-only session index for the UI (transcripts excluded — they're big)."""
     conn = get_conn()
-    q = "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, started_at, ended_at FROM sessions WHERE 1=1"
+    q = (
+        "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, "
+        "started_at, ended_at, (transcript IS NOT NULL) AS has_transcript FROM sessions WHERE 1=1"
+    )
     params: list[Any] = []
     if scenario:
         q += " AND scenario = ?"

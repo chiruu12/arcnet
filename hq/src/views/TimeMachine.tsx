@@ -43,10 +43,11 @@ export function TimeMachine({ mode }: { mode: Mode }) {
     let cancelled = false;
     api
       .sessions()
-      .then((s) => {
+      .then((all) => {
         if (cancelled) return;
-        setSessions(s);
-        if (s.length > 0) setSelected((cur) => cur || s[0].session_id);
+        const replayable = all.filter((s) => s.has_transcript);
+        setSessions(replayable);
+        if (replayable.length > 0) setSelected((cur) => cur || replayable[0].session_id);
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));

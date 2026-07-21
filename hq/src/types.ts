@@ -39,6 +39,7 @@ export type SessionRow = {
   trace_id: string | null;
   started_at: number | null;
   ended_at: number | null;
+  has_transcript: number;
 };
 
 export type SignalRow = {
