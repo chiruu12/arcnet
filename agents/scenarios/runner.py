@@ -12,6 +12,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from opentelemetry import trace
+from unplug import Guard
 
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
@@ -44,6 +45,12 @@ S4_GOAL = (
 )
 
 
+def _reset_session_guard(runtime: Any) -> None:
+    """Unplug trajectory state is per session, not shared across Bug Suite runs."""
+    runtime.taint_sources.clear()
+    runtime.guard = Guard()
+
+
 def _usage_from_run(run: Any, model: str, latency_ms: float) -> dict[str, Any]:
     metrics = getattr(run, "metrics", None)
     inp = int(getattr(metrics, "input_tokens", 0) or 0) if metrics else 0
@@ -67,7 +74,7 @@ def run_s0(*, server_url: str, model: str) -> dict[str, Any]:
     session_id = new_id("s_")
     bind_session(session_id)
     rt = get_runtime()
-    rt.taint_sources.clear()
+    _reset_session_guard(rt)
     rec = start_session_row(
         session_id=session_id,
         agent_id="agent_j",
@@ -128,7 +135,7 @@ def run_s5(*, server_url: str, model: str) -> dict[str, Any]:
     session_id = new_id("s_")
     bind_session(session_id)
     rt = get_runtime()
-    rt.taint_sources.clear()
+    _reset_session_guard(rt)
     rec = start_session_row(
         session_id=session_id,
         agent_id="agent_j",
@@ -208,7 +215,7 @@ def run_s2(*, server_url: str, model: str) -> dict[str, Any]:
     session_id = new_id("s_")
     bind_session(session_id)
     rt = get_runtime()
-    rt.taint_sources.clear()
+    _reset_session_guard(rt)
     rec = start_session_row(
         session_id=session_id,
         agent_id="agent_j",
@@ -293,7 +300,7 @@ def run_s1(*, server_url: str, model: str) -> dict[str, Any]:
     session_id = new_id("s_")
     bind_session(session_id)
     rt = get_runtime()
-    rt.taint_sources.clear()
+    _reset_session_guard(rt)
     rec = start_session_row(
         session_id=session_id,
         agent_id="agent_j",
@@ -432,7 +439,7 @@ def run_s4(*, server_url: str, model: str, max_tool_calls: int = 8) -> dict[str,
     session_id = new_id("s_")
     bind_session(session_id)
     rt = get_runtime()
-    rt.taint_sources.clear()
+    _reset_session_guard(rt)
     rec = start_session_row(
         session_id=session_id,
         agent_id="agent_j",
