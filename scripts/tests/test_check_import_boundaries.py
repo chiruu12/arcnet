@@ -49,6 +49,21 @@ class BoundaryScanTests(unittest.TestCase):
         problems = scan(self.root)
         self.assertEqual(len(problems), 3)
 
+    def test_hq_vite_glob_into_demo_layer_is_flagged(self) -> None:
+        write(
+            self.root,
+            "hq/src/glob_bad.ts",
+            'const demos = import.meta.glob("../../agents/**/*.ts");\n',
+        )
+        write(
+            self.root,
+            "hq/src/glob_ok.ts",
+            'const views = import.meta.glob(["./views/*.tsx", "/src/panels/*.tsx"]);\n',
+        )
+        problems = scan(self.root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("glob_bad.ts", problems[0])
+
     def test_hq_bare_and_internal_specifiers_are_allowed(self) -> None:
         write(
             self.root,

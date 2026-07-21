@@ -25,6 +25,9 @@ TS_IMPORT_RE = re.compile(
     r"""|\bimport\s*\(\s*["']([^"']+)["']\s*\)"""
     r"""|\bimport\s+["']([^"']+)["']"""
 )
+# Vite also loads modules via `import.meta.glob("x")` (string or array arg).
+TS_GLOB_RE = re.compile(r"""import\s*\.\s*meta\s*\.\s*glob(?:Eager)?\s*\(([^)]*)\)""")
+TS_STRING_RE = re.compile(r"""["']([^"']+)["']""")
 
 
 def py_violations_in(path: Path, root: Path) -> list[str]:
@@ -47,16 +50,24 @@ def py_violations_in(path: Path, root: Path) -> list[str]:
 
 def ts_violations_in(path: Path, root: Path) -> list[str]:
     text = path.read_text()
-    found: list[str] = []
+    specs: list[tuple[str, int]] = []
     for match in TS_IMPORT_RE.finditer(text):
         spec = next(group for group in match.groups() if group)
+        specs.append((spec, match.start()))
+    for match in TS_GLOB_RE.finditer(text):
+        for literal in TS_STRING_RE.finditer(match.group(1)):
+            specs.append((literal.group(1), match.start()))
+    found: list[str] = []
+    for spec, pos in specs:
         if not spec.startswith("."):
             continue  # bare specifiers are npm packages, not repo dirs
+        # Glob wildcards resolve as literal path components, so a pattern like
+        # "../../agents/**/*.ts" still lands under the forbidden directory.
         target = (path.parent / spec).resolve()
         for name in FORBIDDEN_DIR_NAMES:
             bad_dir = (root / name).resolve()
             if target == bad_dir or bad_dir in target.parents:
-                lineno = text.count("\n", 0, match.start()) + 1
+                lineno = text.count("\n", 0, pos) + 1
                 found.append(f"{path.relative_to(root)}:{lineno}: imports {spec}")
     return found
 
