@@ -241,7 +241,9 @@ async def signals_stream(
             q = "SELECT * FROM signals WHERE 1=1"
             params: list[Any] = []
             if session_id:
-                q += " AND session_id = ?"
+                # Same scoping as the live filter below: session rows plus
+                # agent-wide rows (session_id NULL, e.g. Griffin) are delivered.
+                q += " AND (session_id = ? OR session_id IS NULL)"
                 params.append(session_id)
             q += " ORDER BY created_at DESC LIMIT 50"
             rows = list(reversed(conn.execute(q, params).fetchall()))
