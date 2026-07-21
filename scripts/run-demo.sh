@@ -36,7 +36,13 @@ if [[ "${1:-}" != "--no-seed" ]]; then
   .venv/bin/python scripts/seed_demo.py
 fi
 
-port_free() { ! lsof -ti ":$1" -sTCP:LISTEN >/dev/null 2>&1; }
+port_free() {
+  if command -v lsof >/dev/null 2>&1; then
+    ! lsof -ti ":$1" -sTCP:LISTEN >/dev/null 2>&1
+  else
+    ! (echo >/dev/tcp/127.0.0.1/"$1") >/dev/null 2>&1
+  fi
+}
 
 if port_free "$SERVER_PORT"; then
   echo "arcnet-server.start() — :$SERVER_PORT"
