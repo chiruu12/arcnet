@@ -61,14 +61,14 @@ def _goal_reached(
             if step.get("type") == "tool_call" and step.get("tool") == "paginate_records"
         )
         candidate_pages = sum(1 for call in calls if call.get("tool") == "paginate_records")
-        flagged = any(
-            word in content
-            for word in ("endless", "loop", "unavailable", "unable", "cannot", "stopped")
-        ) or (
-            "pagination" in content
-            and any(word in content for word in ("repeat", "issue", "error"))
-        )
-        if flagged and candidate_pages < baseline_pages:
+        hit_cap = any("step cap" in str(d.get("note", "")) for d in (result.get("divergences") or []))
+        # docs/10/11: the reliability win is that the candidate *stops the runaway
+        # loop itself* — measured behaviorally (fewer paginate calls than the
+        # baseline, and it didn't run to the replay step cap). Free-text wording
+        # ("endless"/"loop"/...) is nondeterministic at temp 0, so it only
+        # upgrades the read, it doesn't gate it.
+        broke_loop = candidate_pages < baseline_pages and not hit_cap
+        if broke_loop:
             return "partial"
         return "failed"
     return "clean" if content else "failed"
