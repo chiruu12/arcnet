@@ -33,6 +33,7 @@ class ArcnetRuntime:
     cost_usd: Counter
     tool_calls: Counter
     signals_emitted: Counter
+    anomaly: Counter | None = None
     taint_sources: list[TaintedText] = field(default_factory=list)
     transcript: TranscriptRecorder | None = None
     model: str | None = None

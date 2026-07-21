@@ -95,8 +95,13 @@ def init(
 
     guard = Guard(config=guard_config) if guard_config is not None else Guard()
     signals = SignalClient(server_url=server, session_id=sid, agent_id=agent_id)
+    signals.start()
     tracer = trace.get_tracer("arcnet")
     meter = metrics.get_meter("arcnet")
+    anomaly = meter.create_counter(
+        "arcnet.anomaly",
+        description="Griffin anomaly detections (1 per outlier)",
+    )
 
     rt = ArcnetRuntime(
         service_name=service_name,
@@ -135,6 +140,7 @@ def init(
             "arcnet.signals.emitted",
             description="Signals emitted",
         ),
+        anomaly=anomaly,
         model=model or os.getenv("ARCNET_MODEL"),
     )
     set_runtime(rt)
@@ -149,6 +155,11 @@ def init(
 
 
 def shutdown() -> None:
+    from arcnet.context import try_get_runtime
+
+    rt = try_get_runtime()
+    if rt is not None:
+        rt.signals.stop()
     set_runtime(None)
     tp = trace.get_tracer_provider()
     if hasattr(tp, "force_flush"):
