@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agno.exceptions import CheckTrigger, InputCheckError, OutputCheckError
+from agno.exceptions import CheckTrigger, InputCheckError
 from agno.guardrails import BaseGuardrail
 from agno.run.agent import RunInput
 from agno.run.team import TeamRunInput
@@ -125,15 +125,21 @@ def tool_call_middleware(
     call_args = dict(args or {})
     rt = try_get_runtime()
 
-    # Check pending steer/kill between steps
-    if rt is not None:
-        for sig in rt.signals.check_signals():
-            if sig.get("kind") == "steer" and sig.get("guidance"):
-                rt.signals.apply_steer(agent, sig["guidance"])
-            elif sig.get("kind") == "kill" and agent is not None:
-                run_id = getattr(agent, "run_id", None)
-                if run_id and hasattr(agent, "cancel_run"):
-                    agent.cancel_run(run_id)
+    # Check pending steer/kill/pause between steps (SSE + inline queue)
+    if rt is not None and agent is not None:
+        acted = rt.signals.apply_signals(agent)
+        state = getattr(agent, "session_state", None) or {}
+        if "kill" in acted or state.get("arcnet_kill"):
+            if rt.transcript is not None:
+                rt.transcript.record_tool_call(
+                    tool=tool_name,
+                    args=call_args,
+                    recorded_output=None,
+                    guard={"checkpoint": "tool_call", "action": "kill"},
+                )
+            return "[ARCNET KILLED] Run cancelled by signal bus."
+        if state.get("arcnet_pause"):
+            return "[ARCNET PAUSED] Awaiting human approval."
 
     if rt is None or func is None:
         return func(**call_args) if func else None
@@ -183,6 +189,35 @@ def tool_call_middleware(
         return f"[ARCNET BLOCKED] Tool '{tool_name}' cancelled by source-trust guard."
 
     out = func(**call_args)
+
+    # Agno @tool(post_hook=…) does not run when middleware calls func(**args) directly.
+    # Apply retrieval scan here for fetch tools (docs/02 retrieved checkpoint).
+    if tool_name in ("fetch_url",) and out is not None:
+
+        class _FC:
+            pass
+
+        fc = _FC()
+        fc.result = out
+        fc.function = type("F", (), {"name": tool_name})()
+
+        if rt.transcript is not None:
+            # Record first so retrieval_post_hook can stamp guard onto this step.
+            rt.transcript.record_tool_call(
+                tool=tool_name,
+                args=call_args,
+                recorded_output=str(out),
+                trust_level="retrieved",
+            )
+        retrieval_post_hook(fc)
+        out = fc.result
+        if rt.transcript is not None:
+            for step in reversed(rt.transcript.steps):
+                if step.get("type") == "tool_call" and step.get("tool") == tool_name:
+                    step["recorded_output"] = str(out) if out is not None else None
+                    break
+        return out
+
     if rt.transcript is not None:
         rt.transcript.record_tool_call(
             tool=tool_name,
@@ -235,19 +270,24 @@ def output_post_hook(run_output: Any = None, **_: Any) -> None:
     # Neuralyzer: ship redacted text for leakage (even when unplug chooses block via coverage gate).
     if findings and (raw_action in ("redact", "block", "review") or is_leak):
         redacted = _span_redact(text, findings)
-        if "[REDACTED]" in redacted or redacted != text:
-            run_output.content = redacted
-            emit_guard_telemetry(
-                checkpoint="output",
-                action="redact",
-                risk_score=float(result.risk_score or 0.0),
-                findings=findings,
-                latency_ms=latency_ms,
-                trust_level="tool_output",
+        if "[REDACTED]" not in redacted and redacted == text:
+            # No span metadata — still contain leakage instead of raising
+            redacted = (
+                "[ARCNET REDACTED] Output contained sensitive fields and was withheld. "
+                "Answer from non-sensitive order status only."
             )
-            if rt.transcript is not None:
-                rt.transcript.record_model_turn(redacted)
-            return
+        run_output.content = redacted
+        emit_guard_telemetry(
+            checkpoint="output",
+            action="redact",
+            risk_score=float(result.risk_score or 0.0),
+            findings=findings,
+            latency_ms=latency_ms,
+            trust_level="tool_output",
+        )
+        if rt.transcript is not None:
+            rt.transcript.record_model_turn(redacted)
+        return
 
     emit_guard_telemetry(
         checkpoint="output",
@@ -257,11 +297,18 @@ def output_post_hook(run_output: Any = None, **_: Any) -> None:
         latency_ms=latency_ms,
         trust_level="tool_output",
     )
+    # Prefer redact over hard-fail for demo continuity (S1 may echo customer fields).
     if result.action == Action.BLOCK:
-        raise OutputCheckError(
-            "ArcNet blocked leaking output.",
-            check_trigger=CheckTrigger.PII_DETECTED,
+        run_output.content = "[ARCNET BLOCKED] Output withheld by source-trust guard."
+        emit_guard_telemetry(
+            checkpoint="output",
+            action="block",
+            risk_score=float(result.risk_score or 0.0),
+            findings=findings,
+            latency_ms=latency_ms,
+            trust_level="tool_output",
         )
+        return
 
 
 def build_guard_hooks(guard: Guard | None = None) -> dict[str, Any]:

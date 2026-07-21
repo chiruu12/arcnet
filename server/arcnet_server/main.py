@@ -1,17 +1,24 @@
-"""ArcNet server — SQLite + Phase 1 write/read routes (docs/12)."""
+"""ArcNet server — SQLite + signal bus + Griffin + Phase 3 routes (docs/12)."""
 
 from __future__ import annotations
 
+import asyncio
+import json
+import os
 import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from sse_starlette.sse import EventSourceResponse
 
+from arcnet_server.bus import BUS
 from arcnet_server.db import connect, dumps, init_db, now_ms, row_to_dict
 
 _conn = None
+_griffin_task: asyncio.Task | None = None
 
 
 def get_conn():
@@ -24,8 +31,25 @@ def get_conn():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    global _griffin_task
     get_conn()
+    # Griffin worker (MAD) — demo cadence when ARCNET_GRIFFIN_DEMO=1
+    try:
+        from arcnet_server.griffin import griffin_loop
+
+        cadence = float(os.getenv("ARCNET_GRIFFIN_CADENCE_S", "60"))
+        if os.getenv("ARCNET_GRIFFIN_DEMO", "").strip() in ("1", "true", "yes"):
+            cadence = float(os.getenv("ARCNET_GRIFFIN_DEMO_CADENCE_S", "10"))
+        _griffin_task = asyncio.create_task(griffin_loop(get_conn, cadence_s=cadence))
+    except Exception:  # noqa: BLE001
+        _griffin_task = None
     yield
+    if _griffin_task is not None:
+        _griffin_task.cancel()
+        try:
+            await _griffin_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="arcnet-server", version="0.1.0", lifespan=lifespan)
@@ -39,6 +63,36 @@ app.add_middleware(
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}{secrets.token_hex(4)}"
+
+
+def _insert_signal(body: dict[str, Any], *, status: str = "pending") -> dict[str, Any]:
+    signal_id = body.get("signal_id") or _new_id("sig_")
+    ts = now_ms()
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO signals
+           (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance, source, status, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            signal_id,
+            body.get("session_id"),
+            body["agent_id"],
+            body["kind"],
+            body["severity"],
+            body["reason"],
+            body.get("evidence_link"),
+            body.get("guidance"),
+            body.get("source") or "inline",
+            status,
+            ts,
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM signals WHERE signal_id=?", (signal_id,)).fetchone()
+    d = row_to_dict(row)
+    assert d is not None
+    BUS.publish("signal", d)
+    return d
 
 
 @app.get("/health")
@@ -78,7 +132,6 @@ async def upsert_session(request: Request) -> dict[str, Any]:
     session_id = body.get("session_id") or _new_id("s_")
     agent_id = body["agent_id"]
     conn = get_conn()
-    # Ensure agent exists (minimal upsert)
     if not conn.execute("SELECT 1 FROM agents WHERE agent_id=?", (agent_id,)).fetchone():
         ts = now_ms()
         conn.execute(
@@ -168,30 +221,60 @@ def get_session(session_id: str, include: str | None = Query(default=None)) -> d
 @app.post("/api/signal")
 async def post_signal(request: Request) -> dict[str, Any]:
     body = await request.json()
-    signal_id = body.get("signal_id") or _new_id("sig_")
-    ts = now_ms()
-    conn = get_conn()
-    conn.execute(
-        """INSERT INTO signals
-           (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance, source, status, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            signal_id,
-            body.get("session_id"),
-            body["agent_id"],
-            body["kind"],
-            body["severity"],
-            body["reason"],
-            body.get("evidence_link"),
-            body.get("guidance"),
-            body.get("source") or "inline",
-            "pending",
-            ts,
-        ),
-    )
-    conn.commit()
-    row = conn.execute("SELECT * FROM signals WHERE signal_id=?", (signal_id,)).fetchone()
-    return row_to_dict(row)  # type: ignore[return-value]
+    return _insert_signal(body)
+
+
+@app.get("/signals/stream")
+async def signals_stream(
+    request: Request,
+    session_id: str | None = None,
+) -> EventSourceResponse:
+    """SSE firehose / per-session stream with Last-Event-ID replay (docs/12)."""
+
+    async def gen():
+        # Replay missed rows from tables when Last-Event-ID present
+        last = request.headers.get("last-event-id") or request.headers.get("Last-Event-ID")
+        conn = get_conn()
+        if last and last.isdigit():
+            # Best-effort: replay recent pending signals (event ids are bus seq, not signal_ids).
+            # On reconnect, dump last 50 matching rows as catch-up.
+            q = "SELECT * FROM signals WHERE 1=1"
+            params: list[Any] = []
+            if session_id:
+                # Same scoping as the live filter below: session rows plus
+                # agent-wide rows (session_id NULL, e.g. Griffin) are delivered.
+                q += " AND (session_id = ? OR session_id IS NULL)"
+                params.append(session_id)
+            q += " ORDER BY created_at DESC LIMIT 50"
+            rows = list(reversed(conn.execute(q, params).fetchall()))
+            for row in rows:
+                d = row_to_dict(row)
+                if d:
+                    yield {"event": "signal", "id": d["signal_id"], "data": json.dumps(d)}
+
+        q = BUS.subscribe()
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    ev = await asyncio.wait_for(q.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield {"event": "ping", "data": "{}"}
+                    continue
+                if session_id and ev.event == "signal":
+                    sid = (ev.data or {}).get("session_id")
+                    if sid and sid != session_id:
+                        continue
+                yield {
+                    "event": ev.event,
+                    "id": ev.event_id,
+                    "data": json.dumps(ev.data),
+                }
+        finally:
+            BUS.unsubscribe(q)
+
+    return EventSourceResponse(gen())
 
 
 @app.post("/api/threats")
@@ -223,7 +306,10 @@ async def post_threat(request: Request) -> dict[str, Any]:
     )
     conn.commit()
     row = conn.execute("SELECT * FROM threats WHERE threat_id=?", (threat_id,)).fetchone()
-    return row_to_dict(row)  # type: ignore[return-value]
+    d = row_to_dict(row)
+    assert d is not None
+    BUS.publish("threat", d)
+    return d
 
 
 @app.get("/api/threats")
@@ -290,6 +376,53 @@ def list_sources(
     return [row_to_dict(r) for r in rows]  # type: ignore[misc]
 
 
+@app.post("/api/hitl")
+async def create_hitl(request: Request) -> dict[str, Any]:
+    """Create a HITL approval row (pause scaffold)."""
+    body = await request.json()
+    hitl_id = body.get("hitl_id") or _new_id("hitl_")
+    ts = now_ms()
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO hitl_requests (hitl_id, run_id, session_id, payload, status, created_at)
+           VALUES (?,?,?,?,?,?)""",
+        (
+            hitl_id,
+            body["run_id"],
+            body.get("session_id"),
+            dumps(body.get("payload")),
+            "pending",
+            ts,
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM hitl_requests WHERE hitl_id=?", (hitl_id,)).fetchone()
+    d = row_to_dict(row, json_fields=["payload"])
+    assert d is not None
+    BUS.publish("hitl_request", d)
+    return d
+
+
+@app.post("/api/hitl/{hitl_id}")
+async def decide_hitl(hitl_id: str, request: Request) -> dict[str, Any]:
+    body = await request.json()
+    decision = body.get("decision")
+    if decision not in ("approved", "rejected"):
+        raise HTTPException(400, "decision must be approved|rejected")
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM hitl_requests WHERE hitl_id=?", (hitl_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, f"hitl {hitl_id} not found")
+    ts = now_ms()
+    conn.execute(
+        "UPDATE hitl_requests SET status=?, decided_at=? WHERE hitl_id=?",
+        (decision, ts, hitl_id),
+    )
+    conn.commit()
+    updated = conn.execute("SELECT * FROM hitl_requests WHERE hitl_id=?", (hitl_id,)).fetchone()
+    return row_to_dict(updated, json_fields=["payload"])  # type: ignore[return-value]
+
+
 def _kind_from_labels(labels: dict[str, Any]) -> tuple[str, str]:
     """Map alert labels → (signal kind, severity)."""
     arcnet_kind = str(labels.get("arcnet_kind") or labels.get("severity") or "note").lower()
@@ -309,8 +442,6 @@ def _kind_from_labels(labels: dict[str, Any]) -> tuple[str, str]:
 @app.post("/webhooks/signoz")
 async def signoz_webhook(request: Request):
     """SigNoz alert webhook — dedupe + map labels → Signal (docs/12)."""
-    from fastapi.responses import Response
-
     body = await request.json()
     conn = get_conn()
     ts = now_ms()
@@ -363,32 +494,25 @@ async def signoz_webhook(request: Request):
             or labels.get("alertname")
             or "signoz alert"
         )[:500]
-        signal_id = _new_id("sig_")
-        conn.execute(
-            """INSERT INTO signals
-               (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance, source, status, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                signal_id,
-                session_id,
-                agent_id,
-                kind,
-                severity,
-                reason,
-                None,
-                annotations.get("description"),
-                "alert",
-                "pending",
-                ts,
-            ),
+        row = _insert_signal(
+            {
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "kind": kind,
+                "severity": severity,
+                "reason": reason,
+                "guidance": annotations.get("description"),
+                "source": "alert",
+            }
         )
+        _ = row
         conn.commit()
     return Response(status_code=204)
 
 
 @app.get("/api/fleet")
 def fleet() -> list[dict[str, Any]]:
-    """Fleet Health aggregate (docs/12) — seam check target."""
+    """Fleet Health aggregate (docs/12)."""
     conn = get_conn()
     day_ago = now_ms() - 24 * 60 * 60 * 1000
     agents = conn.execute("SELECT * FROM agents ORDER BY last_seen DESC").fetchall()
@@ -413,7 +537,11 @@ def fleet() -> list[dict[str, Any]]:
             "SELECT COUNT(*) FROM signals WHERE agent_id=? AND status IN ('pending','delivered')",
             (aid,),
         ).fetchone()[0]
-        # cost from session usage JSON is best-effort
+        anomalies_24h = conn.execute(
+            """SELECT COUNT(*) FROM signals
+               WHERE agent_id=? AND source='griffin' AND created_at>=?""",
+            (aid, day_ago),
+        ).fetchone()[0]
         cost_rows = conn.execute(
             "SELECT usage FROM sessions WHERE agent_id=? AND started_at>=?",
             (aid, day_ago),
@@ -423,8 +551,6 @@ def fleet() -> list[dict[str, Any]]:
             if not usage_raw:
                 continue
             try:
-                import json
-
                 u = json.loads(usage_raw) if isinstance(usage_raw, str) else usage_raw
                 cost += float((u or {}).get("cost_usd") or 0.0)
             except Exception:  # noqa: BLE001
@@ -442,7 +568,7 @@ def fleet() -> list[dict[str, Any]]:
                     "threats_24h": threats_24h,
                     "blocked_24h": blocked_24h,
                     "cost_24h_usd": round(cost, 6),
-                    "anomalies_24h": 0,
+                    "anomalies_24h": anomalies_24h,
                     "active_signals": active_signals,
                 },
             }
@@ -450,11 +576,27 @@ def fleet() -> list[dict[str, Any]]:
     return out
 
 
+@app.get("/api/griffin/status")
+def griffin_status() -> dict[str, Any]:
+    from arcnet_server.griffin import cache_snapshot
+
+    return cache_snapshot()
+
+
+@app.post("/api/griffin/evaluate")
+async def griffin_evaluate(request: Request) -> dict[str, Any]:
+    """On-demand evaluate (S4 choreography) — docs/07."""
+    from arcnet_server.griffin import evaluate_series
+
+    body = await request.json()
+    series_id = body.get("series_id") or "arcnet.tokens.total|agent_j"
+    observed = body.get("observed")
+    return evaluate_series(get_conn, series_id=series_id, observed=observed)
+
+
 @app.get("/api/signoz/status")
 def signoz_status() -> dict[str, Any]:
     """Seam probe: can we reach SigNoz UI? Query Range needs API key."""
-    import os
-
     import httpx
 
     url = os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
@@ -488,4 +630,35 @@ def signoz_status() -> dict[str, Any]:
         "api_key_present": bool(key),
         "query_range_ok": query_ok,
         "query_note": query_note,
+    }
+
+
+@app.get("/api/mock/time-machine")
+def mock_time_machine() -> dict[str, Any]:
+    """Frozen verdict contract (docs/10) for HQ Phase 3 shell — real POST /api/replay is Phase 4."""
+    return {
+        "replay_id": "r_08c1",
+        "session_id": "s_77b2",
+        "scenario": "S4",
+        "baseline": {
+            "model": "gpt-4o-mini",
+            "goal_reached": "killed",
+            "steps": 19,
+            "tool_errors": 0,
+            "cost_usd": 0.062,
+            "latency_ms": 41000,
+        },
+        "candidate": {
+            "model": "gpt-4o",
+            "goal_reached": "partial",
+            "steps": 5,
+            "tool_errors": 0,
+            "cost_usd": 0.011,
+            "latency_ms": 9800,
+            "note": "flagged endless pagination and reported instead of looping",
+        },
+        "divergences": [{"step": 5, "note": "candidate stopped calling paginate_records"}],
+        "verdict": "improved",
+        "confidence": "3/3 runs",
+        "recommendation": "route batch/reconcile tasks to gpt-4o",
     }

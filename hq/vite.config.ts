@@ -7,8 +7,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": "http://127.0.0.1:8000",
+      "/signals": "http://127.0.0.1:8000",
       "/webhooks": "http://127.0.0.1:8000",
       "/health": "http://127.0.0.1:8000",
+      "/export": "http://127.0.0.1:8000",
     },
   },
 });
