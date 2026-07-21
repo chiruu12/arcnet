@@ -81,6 +81,20 @@ def retrieval_post_hook(fc: Any = None) -> None:
         findings_count=len(result.findings or []),
     )
 
+    # Stamp the recorded raw output with its guard result. The transcript keeps
+    # the pre-guard value so replay can pass it through this same checkpoint.
+    if rt.transcript is not None:
+        guard = {
+            "checkpoint": "retrieved",
+            "action": action,
+            "top_category": result.findings[0].category if result.findings else None,
+        }
+        for step in reversed(rt.transcript.steps):
+            if step.get("type") == "tool_call" and step.get("tool") == tool_name:
+                step["guard"] = guard
+                step["trust_level"] = "retrieved"
+                break
+
     if result.action == Action.BLOCK:
         fc.result = (
             "[ARCNET QUARANTINED] Retrieved content blocked by source-trust guard. "
@@ -98,20 +112,6 @@ def retrieval_post_hook(fc: Any = None) -> None:
         fc.result = result.redacted_text or wrapped
     else:
         fc.result = wrapped
-
-    # Patch the just-recorded tool_call step (middleware records before post_hook).
-    if rt.transcript is not None:
-        guard = {
-            "checkpoint": "retrieved",
-            "action": action,
-            "top_category": result.findings[0].category if result.findings else None,
-        }
-        for step in reversed(rt.transcript.steps):
-            if step.get("type") == "tool_call" and step.get("tool") == tool_name:
-                step["guard"] = guard
-                step["trust_level"] = "retrieved"
-                break
-
 
 def tool_call_middleware(
     function_name: str | None = None,
@@ -211,11 +211,6 @@ def tool_call_middleware(
             )
         retrieval_post_hook(fc)
         out = fc.result
-        if rt.transcript is not None:
-            for step in reversed(rt.transcript.steps):
-                if step.get("type") == "tool_call" and step.get("tool") == tool_name:
-                    step["recorded_output"] = str(out) if out is not None else None
-                    break
         return out
 
     if rt.transcript is not None:
