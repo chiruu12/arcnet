@@ -8,6 +8,7 @@
 - [ ] Service-account API key for Query Range API (server-side only, via env) — **cannot be created headlessly** (no public create-key API without an existing admin session; docs confirm Settings → Service Accounts UI). **Manual one-time step documented in README.** Phase 0 verified hello traces via ClickHouse directly; Query Range call waits on this key.
 - Fallback: SigNoz Cloud trial if the Mac struggles — everything below works on both.
 - **Mac resources (Phase 0):** Docker Desktop 10 CPUs / 7.65 GiB. Steady-state RSS ≈ ClickHouse 1.2 GiB + keeper 120 MiB + postgres 73 MiB + signoz 45 MiB + ingester 46 MiB (~1.5 GiB total). Comfortable on this machine; keep ≥4 GiB Docker memory.
+- **Phase 6 re-bring-up (2026-07-22):** same pinned `signoz/signoz:v0.133.0` via `foundryctl` v0.2.15; healthy in <1 min, `/api/v1/health` ok, version endpoint confirms `v0.133.0`. RSS slightly above the Phase 0 note: ClickHouse ~1.55 GiB, keeper ~265 MiB, signoz ~118 MiB (still well within budget). **Drift:** Foundry-generated compose runs the ingester as `signoz/signoz-otel-collector:latest` (unpinned by the generator; only the signoz image is pinned via `casting.yaml`).
 
 ## Signals we emit
 
