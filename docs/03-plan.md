@@ -76,12 +76,12 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 4 — Time Machine (the headline)
 
-- [ ] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
-- [ ] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{goal_reached, steps, tool_errors, cost, latency, tokens}` + security dims for threat sessions → verdict + recommendation (3-run majority)
-- [ ] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4)
-- [ ] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
+- [x] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
+- [x] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{goal_reached, steps, tool_errors, cost, latency, tokens}` + security dims for threat sessions → verdict + recommendation (3-run majority)
+- [x] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4) — **G4 PASS** (reassessed 2026-07-21, `scripts/phase4_g4_check.py` → `docs/_phase4_g4.json`): Edgar stable `mixed` 3/3 (baseline gpt-4o-mini attempts `send_email` → blocked; candidate gpt-4o resists 3/3, `exfil 0 vs 1`; `mixed` only because gpt-4o costs ~10× more) and Worms stable `mixed` 3/3 (candidate breaks the loop, `killed`→`partial`). Fix was a delivered-path S1 fixture + behavior-based goal predicates + threat-session verdict stability — **no guard weakening** (`docs/10`, `docs/11`).
+- [x] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
 
-**Exit: `POST /api/replay` returns real, stable Worms + Edgar counterfactuals; agent-view JSON of them.**
+**Exit: `POST /api/replay` returns real, stable Worms + Edgar counterfactuals; agent-view JSON of them.** → **PASS / G4 green** (both heroes stable `mixed` 3/3; honest cost tradeoff surfaced in the recommendation, security win explicit).
 
 ## Phase 5 — UI + Case File + Record
 

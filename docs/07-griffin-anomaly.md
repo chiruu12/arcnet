@@ -43,6 +43,10 @@ flowchart LR
 - **UI**: Griffin card on Fleet Health + anomaly cards in the threat feed.
 - **Demo**: S4 *The Worms* — Griffin flags the token-rate outlier **before** the static cost-burn threshold trips (show both firing, Griffin first). Optionally a latency-drift micro-scenario nothing else can catch.
 
+### Runtime isolation decision (Phase 4)
+
+The locked MAD fallback remains an async task in `arcnet-server`: it is lightweight and splitting it would add deployment surface without resource isolation. If TabFM or TabPFN becomes available, run that estimator in a separate worker/container behind a narrow internal `forecast(history, features) -> predictions` interface. The server continues to own history queries, conformal calibration, anomaly judgment, OTLP emission, and fallback. vLLM is not an implementation option for either model; both require their Python tabular-model runtimes. A worker failure or missing `TABPFN_TOKEN` degrades to MAD, so the demo and public API remain unchanged.
+
 ### S4 choreography — guaranteeing "Griffin first" (don't leave it to chance)
 
 Griffin's default 60s cycle vs an instant threshold is a coin-flip on camera. Make the ordering deterministic:

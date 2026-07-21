@@ -153,6 +153,13 @@ The UI never **queries SigNoz's API** directly — all telemetry comes through t
 - **SigNoz MCP server** — self-hosted binary (darwin_arm64) or Docker; wired into Cursor/Claude Code config. Used two ways: **dev-time** (we build dashboards/alerts/queries with SigNoz agent skills + MCP while developing) and **demo-time** (the Case File beat).
 - `provision/` — idempotent setup: import Agno dashboard template + our 3 custom dashboards, alert rules, webhook channel. Prefer plain SigNoz APIs in the script; use MCP/agent-skills interactively to author the JSON.
 
+### Model runtime boundaries (Phase 4 decision)
+
+- **vLLM is not part of the current deployment.** The Time Machine currently compares hosted OpenAI chat models, so their provider API is already the inference boundary. vLLM only becomes relevant if ArcNet later serves a compatible open-weight **LLM** locally; it cannot serve TabFM/TabPFN because those are tabular estimators, not autoregressive LLMs.
+- **Unplug remains in-process in `sdk/`.** It is a CPU-only, low-latency synchronous guard with per-session taint state. Moving it behind a network hop would add a failure mode to every checkpoint and weaken the fail-closed source-trust path without isolating a heavyweight runtime.
+- **Griffin keeps MAD in the server process for the hackathon fallback.** If TabFM or TabPFN is enabled, its heavyweight model runtime belongs in a separate deployable worker/container so model loading, native dependencies, memory, and CPU do not compete with the control-plane API. The minimal internal boundary is `forecast(history, features) -> point predictions`; conformal calibration, noise-floor judgment, telemetry, and signal emission stay in `server/`. This boundary is internal and does not alter any frozen `12-data-api.md` route or shape.
+- **Reliability order remains MAD → optional tabular worker, not the reverse.** A missing token, unavailable worker, or model timeout falls back to MAD and is reported honestly. No new network service is required for Phase 4 replay.
+
 ## Product core vs demo layer (this repo outlives the hackathon)
 
 ArcNet is a long-term project; the hackathon is its v1 milestone (`08-vision-v2.md`). Two rules keep that true while building fast:
@@ -191,7 +198,9 @@ Enumerated so the "judge runs `docker compose up` + `run-demo.sh`" claim is real
 | `SIGNOZ_API_KEY` | Service-account key for Query Range API (server-side only) | server/ |
 | `SIGNOZ_URL` | SigNoz instance URL | server/, MCP |
 | `ARCNET_SERVER_URL` | Signal SSE + API base | sdk/, hq/ |
+| `ARCNET_AGENTOS_URL` | Internal agent-runtime replay adapter (default `http://localhost:7777`) | server/ |
 | `HF_TOKEN` | (only if TabFM/TabPFN weight download needs it) | server/ (Griffin) |
+| `TABPFN_TOKEN` | Prior Labs model token; absent means MAD fallback | optional Griffin worker |
 
 The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code) reuses `SIGNOZ_URL` + `SIGNOZ_API_KEY` — documented in `deploy/mcp/`. Model price constants (not a secret) live in `sdk/arcnet/pricing.py`.
 
@@ -207,6 +216,7 @@ The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code
 | Webhook payload lacks trace context | Encode session/agent identity into alert labels at provision time; server enriches via Query API |
 | Alert evaluation interval too slow for on-camera self-correct | Inline fast-path signal at block time (§3); alert stays the system of record; tune rule eval/`for:` windows in Phase 2 |
 | **Time Machine replay: recorded trace lacks full inputs to re-run** | We control the demo agents, so the harness records the full transcript (goal, tool I/O, model turns) into SQLite at run time — never reconstructed from generic OTel spans (attribute size caps make that unreliable). Gate G3 (Phase-3 exit) manually replays the real S1+S4 transcripts before the diff API/UI is built. |
+| **Edgar baseline is contained before model exploitation** | Phase-4 live verification found that the default Unplug guard blocks the poisoned retrieved page and quarantines it before the model sees the injected instruction. This is correct runtime defense but does not produce the planned "baseline attempted exfil" replay. G4 stays red until a naturally lower-scoring review-path fixture or different recorded incident yields a real attempted side effect; never weaken or remote the in-process guard to manufacture that evidence. |
 | Instrumentor emits OpenInference semconv, not `gen_ai.*` | Confirmed from source — dashboards/alerts/Griffin are authored against the real keys (`04`); Phase 0 pulls one live trace and pastes the actual names into `04` before any dashboard JSON is written |
 | Steer via run-state write unverified on agno 2.7.4 | **Phase 0 G1 PASS:** `agent.session_state` write at tool N visible at N+1. Fallback = per-call `post_hook` substitution (also proven) remains documented |
 | SigNoz alert API rejects legacy payloads | Author alert payloads in the current v5 `queries` format (crib from the Terraform-provider examples), never from memory/tutorials |

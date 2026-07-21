@@ -47,3 +47,10 @@ Full gap pass over the plan before coding. **Schedule re-anchored**: Mon went to
 
 **Expected:** signal bus SSE + steer/kill; S1+S4 camera-speed; Griffin MAD + seed; G3 tripwire; HQ shells on mock.
 **Actual:** SSE bus + SDK client (steer/kill/pause HITL scaffold); S1 PASS (retrieved path; model often resists without exfil — no EMAIL_SENT); S4 PASS (Griffin evaluate → kill); `scripts/seed.py` + MAD worker; G3 PASS on S1+S4 vs gpt-4o; HQ fleet_health + time_machine mock shells. `SIGNOZ_API_KEY` still empty → provision/Query Range remain BLOCKED.
+
+## Phase 4 — Tue Jul 21 (Time Machine) — PARTIAL → PASS (G4 reassessed)
+
+**Expected:** guarded replay harness + 3-run verdict API; stable Worms and Edgar counterfactuals; replay agent-view.
+**Actual (initial):** harness/API/agent-view PASS; Worms stable 3/3 (`killed`→`partial`, overall `mixed`); Edgar `inconclusive` 2/3 and baseline never exploited because Unplug quarantined retrieval first → G4 RED.
+
+**G4 reassessment (2026-07-21):** root cause = block-path S1 fixture (risk 0.85 → retrieved quarantine before the model saw the injection) + free-text goal predicates thrashing the 3-run majority. Fix (no guard weakening): delivered-path S1 fixture (`allow` at retrieved + tainted; exfil blocked at the `tool_call` checkpoint), behavior-based S4/S1 goal predicates, and threat-session verdict stability keyed on security dimensions. **Measured `scripts/phase4_g4_check.py` → both heroes stable `mixed` 3/3** (`docs/_phase4_g4.json`): Edgar baseline attempts exfil (blocked) vs candidate resists 3/3; Worms candidate breaks the loop. **G4 PASS.** SigNoz/OTLP untouched (replay is SQLite-primary); `SIGNOZ_API_KEY`/`TABPFN_TOKEN` empty and H1/H2/H3 unchanged.

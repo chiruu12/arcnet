@@ -21,6 +21,7 @@ def build_agent_j(
     name: str = "Agent J",
     model: str | None = None,
     temperature: float = 0.0,
+    instructions: str | None = None,
 ) -> Agent:
     model_id = model or os.getenv("ARCNET_MODEL", "gpt-4o-mini")
     hooks = build_guard_hooks()
@@ -29,7 +30,7 @@ def build_agent_j(
         name=name,
         model=OpenAIChat(id=model_id, temperature=temperature),
         tools=list(TOOLS),
-        instructions=PROMPT_J.read_text(),
+        instructions=instructions or PROMPT_J.read_text(),
         pre_hooks=[hooks["input_guardrail"]],
         post_hooks=[hooks["output_post_hook"]],
         tool_hooks=[hooks["tool_call_middleware"]],
