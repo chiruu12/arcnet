@@ -1,0 +1,525 @@
+"""Query/write primitives — the only module that speaks SQL (docs/13).
+
+Every function takes an open connection, returns plain dict records (JSON
+columns parsed), and orders deterministically (timestamp DESC, id DESC) so
+pagination and demo output are stable. Read models project these records for
+the human and agent audiences; routes never embed SQL.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from typing import Any
+
+from arcnet_server.db import dumps, now_ms, row_to_dict
+
+DAY_MS = 24 * 60 * 60 * 1000
+
+# ---------------------------------------------------------------- agents
+
+
+def get_agent(conn: sqlite3.Connection, agent_id: str) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM agents WHERE agent_id=?", (agent_id,)).fetchone()
+    return row_to_dict(row)
+
+
+def upsert_agent(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str, Any]:
+    agent_id = fields["agent_id"]
+    ts = now_ms()
+    if get_agent(conn, agent_id):
+        conn.execute(
+            "UPDATE agents SET name=?, role=?, exposure=?, model=?, last_seen=? WHERE agent_id=?",
+            (
+                fields.get("name") or agent_id,
+                fields.get("role"),
+                fields.get("exposure") or "internal",
+                fields.get("model"),
+                ts,
+                agent_id,
+            ),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) VALUES (?,?,?,?,?,?,?)",
+            (
+                agent_id,
+                fields.get("name") or agent_id,
+                fields.get("role"),
+                fields.get("exposure") or "internal",
+                fields.get("model"),
+                ts,
+                ts,
+            ),
+        )
+    conn.commit()
+    agent = get_agent(conn, agent_id)
+    assert agent is not None
+    return agent
+
+
+def ensure_agent(conn: sqlite3.Connection, agent_id: str, *, exposure: str | None, model: str | None) -> None:
+    if get_agent(conn, agent_id) is None:
+        ts = now_ms()
+        conn.execute(
+            "INSERT INTO agents (agent_id, name, exposure, model, first_seen, last_seen) VALUES (?,?,?,?,?,?)",
+            (agent_id, agent_id, exposure or "internal", model, ts, ts),
+        )
+
+
+def fleet_records(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Agents + 24h health aggregates in one pass (no per-agent query loop)."""
+    day_ago = now_ms() - DAY_MS
+    agents = [
+        row_to_dict(r)
+        for r in conn.execute(
+            "SELECT * FROM agents ORDER BY last_seen DESC, agent_id ASC"
+        ).fetchall()
+    ]
+
+    def counts(query: str, params: tuple[Any, ...]) -> dict[str, int]:
+        return {row[0]: row[1] for row in conn.execute(query, params).fetchall()}
+
+    sessions_24h = counts(
+        "SELECT agent_id, COUNT(*) FROM sessions WHERE started_at>=? GROUP BY agent_id",
+        (day_ago,),
+    )
+    threats_24h = counts(
+        "SELECT agent_id, COUNT(*) FROM threats WHERE created_at>=? GROUP BY agent_id",
+        (day_ago,),
+    )
+    blocked_24h = counts(
+        "SELECT agent_id, COUNT(*) FROM threats WHERE action='block' AND created_at>=? GROUP BY agent_id",
+        (day_ago,),
+    )
+    anomalies_24h = counts(
+        "SELECT agent_id, COUNT(*) FROM signals WHERE source='griffin' AND created_at>=? GROUP BY agent_id",
+        (day_ago,),
+    )
+    active_signals = counts(
+        "SELECT agent_id, COUNT(*) FROM signals WHERE status IN ('pending','delivered') GROUP BY agent_id",
+        (),
+    )
+    cost_24h = {
+        row[0]: float(row[1] or 0.0)
+        for row in conn.execute(
+            """SELECT agent_id,
+                      SUM(CASE WHEN json_valid(usage)
+                          THEN COALESCE(json_extract(usage, '$.cost_usd'), 0) ELSE 0 END)
+               FROM sessions WHERE started_at>=? GROUP BY agent_id""",
+            (day_ago,),
+        ).fetchall()
+    }
+
+    out: list[dict[str, Any]] = []
+    for agent in agents:
+        assert agent is not None
+        aid = agent["agent_id"]
+        out.append(
+            {
+                **agent,
+                "health": {
+                    "sessions_24h": sessions_24h.get(aid, 0),
+                    "threats_24h": threats_24h.get(aid, 0),
+                    "blocked_24h": blocked_24h.get(aid, 0),
+                    "cost_24h_usd": round(cost_24h.get(aid, 0.0), 6),
+                    "anomalies_24h": anomalies_24h.get(aid, 0),
+                    "active_signals": active_signals.get(aid, 0),
+                },
+            }
+        )
+    return out
+
+
+# ---------------------------------------------------------------- sessions
+
+
+def get_session(conn: sqlite3.Connection, session_id: str) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM sessions WHERE session_id=?", (session_id,)).fetchone()
+    return row_to_dict(row, json_fields=["outcome", "usage", "transcript"])
+
+
+def upsert_session(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str, Any]:
+    session_id = fields["session_id"]
+    values = (
+        fields["agent_id"],
+        fields.get("scenario"),
+        fields.get("goal"),
+        fields.get("system_prompt_ref"),
+        fields.get("model"),
+        fields.get("temperature"),
+        fields.get("status") or "running",
+        dumps(fields.get("outcome")),
+        dumps(fields.get("usage")),
+        fields.get("trace_id"),
+        dumps(fields.get("transcript")),
+        fields.get("started_at") or now_ms(),
+        fields.get("ended_at"),
+    )
+    existing = conn.execute(
+        "SELECT session_id FROM sessions WHERE session_id=?", (session_id,)
+    ).fetchone()
+    if existing:
+        conn.execute(
+            """UPDATE sessions SET agent_id=?, scenario=?, goal=?, system_prompt_ref=?, model=?,
+               temperature=?, status=?, outcome=?, usage=?, trace_id=?,
+               transcript=COALESCE(?, transcript), started_at=COALESCE(?, started_at), ended_at=?
+               WHERE session_id=?""",
+            (*values, session_id),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO sessions
+               (agent_id, scenario, goal, system_prompt_ref, model, temperature,
+                status, outcome, usage, trace_id, transcript, started_at, ended_at, session_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (*values, session_id),
+        )
+    conn.commit()
+    session = get_session(conn, session_id)
+    assert session is not None
+    return session
+
+
+def list_sessions(
+    conn: sqlite3.Connection,
+    *,
+    scenario: str | None = None,
+    agent_id: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Index rows for pickers/lists — transcripts excluded by design (they're big)."""
+    q = (
+        "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, "
+        "started_at, ended_at, (transcript IS NOT NULL) AS has_transcript FROM sessions WHERE 1=1"
+    )
+    params: list[Any] = []
+    if scenario:
+        q += " AND scenario = ?"
+        params.append(scenario)
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    q += " ORDER BY started_at DESC, session_id DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(q, params).fetchall()
+    return [row_to_dict(r, json_fields=["outcome", "usage"]) for r in rows]  # type: ignore[misc]
+
+
+def session_or_agent_exists(conn: sqlite3.Connection, ref_id: str) -> bool:
+    return bool(
+        conn.execute("SELECT 1 FROM agents WHERE agent_id=?", (ref_id,)).fetchone()
+        or conn.execute("SELECT 1 FROM sessions WHERE session_id=?", (ref_id,)).fetchone()
+    )
+
+
+# ---------------------------------------------------------------- threats
+
+
+def insert_threat(conn: sqlite3.Connection, threat_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    conn.execute(
+        """INSERT INTO threats
+           (threat_id, session_id, agent_id, checkpoint, action, category, subcategory,
+            risk_score, trust_level, evidence, trace_id, span_id, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            threat_id,
+            fields.get("session_id"),
+            fields.get("agent_id"),
+            fields.get("checkpoint"),
+            fields.get("action"),
+            fields.get("category"),
+            fields.get("subcategory"),
+            fields.get("risk_score"),
+            fields.get("trust_level"),
+            fields.get("evidence"),
+            fields.get("trace_id"),
+            fields.get("span_id"),
+            now_ms(),
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM threats WHERE threat_id=?", (threat_id,)).fetchone()
+    d = row_to_dict(row)
+    assert d is not None
+    return d
+
+
+def list_threats(
+    conn: sqlite3.Connection,
+    *,
+    since: int | None = None,
+    agent_id: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    q = "SELECT * FROM threats WHERE 1=1"
+    params: list[Any] = []
+    if since is not None:
+        q += " AND created_at >= ?"
+        params.append(since)
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    q += " ORDER BY created_at DESC, threat_id DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(q, params).fetchall()
+    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+def threats_for_session(conn: sqlite3.Connection, session_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM threats WHERE session_id=? ORDER BY created_at ASC, threat_id ASC",
+        (session_id,),
+    ).fetchall()
+    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------- sources
+
+
+def insert_source(conn: sqlite3.Connection, source_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    conn.execute(
+        """INSERT INTO sources
+           (source_id, session_id, agent_id, origin, trust_level, scan_action, findings, created_at)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (
+            source_id,
+            fields.get("session_id"),
+            fields.get("agent_id"),
+            fields.get("origin"),
+            fields.get("trust_level"),
+            fields.get("scan_action"),
+            fields.get("findings") or 0,
+            now_ms(),
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM sources WHERE source_id=?", (source_id,)).fetchone()
+    d = row_to_dict(row)
+    assert d is not None
+    return d
+
+
+def list_sources(
+    conn: sqlite3.Connection,
+    *,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    q = "SELECT * FROM sources WHERE 1=1"
+    params: list[Any] = []
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    if session_id:
+        q += " AND session_id = ?"
+        params.append(session_id)
+    q += " ORDER BY created_at DESC, source_id DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(q, params).fetchall()
+    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+def sources_for_ref(conn: sqlite3.Connection, ref_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
+    """Source ledger by session OR agent id — the agent-view lookup (docs/12)."""
+    rows = conn.execute(
+        "SELECT * FROM sources WHERE session_id=? OR agent_id=? "
+        "ORDER BY created_at DESC, source_id DESC LIMIT ?",
+        (ref_id, ref_id, limit),
+    ).fetchall()
+    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------- signals
+
+
+def insert_signal(
+    conn: sqlite3.Connection,
+    signal_id: str,
+    fields: dict[str, Any],
+    *,
+    status: str = "pending",
+) -> dict[str, Any]:
+    conn.execute(
+        """INSERT INTO signals
+           (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance, source, status, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            signal_id,
+            fields.get("session_id"),
+            fields["agent_id"],
+            fields["kind"],
+            fields["severity"],
+            fields["reason"],
+            fields.get("evidence_link"),
+            fields.get("guidance"),
+            fields.get("source") or "inline",
+            status,
+            now_ms(),
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM signals WHERE signal_id=?", (signal_id,)).fetchone()
+    d = row_to_dict(row)
+    assert d is not None
+    return d
+
+
+def signal_matches_session(signal: dict[str, Any], session_id: str | None) -> bool:
+    """One attribution rule for live SSE, reconnect catch-up, and REST.
+
+    A session-scoped subscriber gets its own rows plus agent/fleet-wide rows
+    (session_id NULL — e.g. Griffin anomalies, fleet alerts).
+    """
+    if not session_id:
+        return True
+    sid = signal.get("session_id")
+    return sid is None or sid == session_id
+
+
+def list_signals(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    q = "SELECT * FROM signals WHERE 1=1"
+    params: list[Any] = []
+    if session_id:
+        # Same scoping as signal_matches_session: session rows + fleet-wide rows.
+        q += " AND (session_id = ? OR session_id IS NULL)"
+        params.append(session_id)
+    q += " ORDER BY created_at DESC, signal_id DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(q, params).fetchall()
+    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+def expire_alert_signals(conn: sqlite3.Connection, agent_id: str, *, window_ms: int) -> None:
+    conn.execute(
+        """UPDATE signals SET status='expired'
+           WHERE agent_id=? AND source='alert' AND status IN ('pending','delivered')
+           AND created_at >= ?""",
+        (agent_id, now_ms() - window_ms),
+    )
+
+
+# ---------------------------------------------------------------- replays
+
+
+def insert_replay(conn: sqlite3.Connection, fields: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT INTO replays
+           (replay_id, session_id, candidate_model, candidate_prompt_ref,
+            runs, verdict, created_at, duration_ms)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (
+            fields["replay_id"],
+            fields["session_id"],
+            fields.get("candidate_model"),
+            fields.get("candidate_prompt_ref"),
+            dumps(fields.get("runs")),
+            dumps(fields["verdict"]),
+            now_ms(),
+            fields.get("duration_ms"),
+        ),
+    )
+    conn.commit()
+
+
+def get_replay(conn: sqlite3.Connection, replay_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        """SELECT r.*, s.trace_id
+           FROM replays r JOIN sessions s ON s.session_id=r.session_id
+           WHERE r.replay_id=?""",
+        (replay_id,),
+    ).fetchone()
+    return row_to_dict(row, json_fields=["verdict", "runs"])
+
+
+def list_replays(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    q = (
+        "SELECT replay_id, session_id, candidate_model, candidate_prompt_ref, verdict, "
+        "created_at, duration_ms FROM replays WHERE 1=1"
+    )
+    params: list[Any] = []
+    if session_id:
+        q += " AND session_id = ?"
+        params.append(session_id)
+    q += " ORDER BY created_at DESC, replay_id DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(q, params).fetchall()
+    return [row_to_dict(r, json_fields=["verdict"]) for r in rows]  # type: ignore[misc]
+
+
+def latest_replay_for_session(conn: sqlite3.Connection, session_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        "SELECT replay_id, verdict FROM replays WHERE session_id=? "
+        "ORDER BY created_at DESC, replay_id DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    return row_to_dict(row, json_fields=["verdict"])
+
+
+# ---------------------------------------------------------------- hitl
+
+
+def insert_hitl(conn: sqlite3.Connection, hitl_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    conn.execute(
+        """INSERT INTO hitl_requests (hitl_id, run_id, session_id, payload, status, created_at)
+           VALUES (?,?,?,?,?,?)""",
+        (
+            hitl_id,
+            fields["run_id"],
+            fields.get("session_id"),
+            dumps(fields.get("payload")),
+            "pending",
+            now_ms(),
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM hitl_requests WHERE hitl_id=?", (hitl_id,)).fetchone()
+    d = row_to_dict(row, json_fields=["payload"])
+    assert d is not None
+    return d
+
+
+def get_hitl(conn: sqlite3.Connection, hitl_id: str) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM hitl_requests WHERE hitl_id=?", (hitl_id,)).fetchone()
+    return row_to_dict(row, json_fields=["payload"])
+
+
+def decide_hitl(conn: sqlite3.Connection, hitl_id: str, decision: str) -> dict[str, Any]:
+    conn.execute(
+        "UPDATE hitl_requests SET status=?, decided_at=? WHERE hitl_id=?",
+        (decision, now_ms(), hitl_id),
+    )
+    conn.commit()
+    updated = get_hitl(conn, hitl_id)
+    assert updated is not None
+    return updated
+
+
+# ---------------------------------------------------------------- webhooks
+
+
+def webhook_seen_recently(conn: sqlite3.Connection, fingerprint: str, *, window_ms: int) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM webhook_events WHERE fingerprint=? AND received_at >= ? LIMIT 1",
+        (fingerprint, now_ms() - window_ms),
+    ).fetchone()
+    return row is not None
+
+
+def insert_webhook_event(
+    conn: sqlite3.Connection, fingerprint: str, status: str, payload: Any
+) -> None:
+    conn.execute(
+        "INSERT INTO webhook_events (fingerprint, status, payload, received_at) VALUES (?,?,?,?)",
+        (fingerprint, status, dumps(payload), now_ms()),
+    )

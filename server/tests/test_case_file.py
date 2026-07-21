@@ -18,6 +18,7 @@ class CaseFileTests(unittest.TestCase):
         import arcnet_server.main as m
         from arcnet_server.db import now_ms
 
+        m._conn = None  # tests share the module; force a fresh DB per class
         cls.m = m
         conn = m.get_conn()
         ts = now_ms()
@@ -64,7 +65,7 @@ class CaseFileTests(unittest.TestCase):
         conn.commit()
 
     def test_incident_envelope_shape(self) -> None:
-        env = self.m._incident_envelope("s_case")
+        env = self.m.agent_view("incident", "s_case")
         self.assertEqual(env["view"], "incident")
         self.assertEqual(env["id"], "s_case")
         data = env["data"]
