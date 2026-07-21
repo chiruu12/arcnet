@@ -75,6 +75,31 @@ python deploy/provision/setup.py     # dashboards + v5 alert rules
 ./deploy/mcp/install.sh              # SigNoz MCP for the Case File beat
 ```
 
+## Architecture & model boundaries
+
+```
+agents (AgentOS demo fleet) ──▶ sdk (arcnet: OTel + UnplugGuardrail + signals + replay harness)
+        │                              │ OTLP
+        │ POST /api/*                  ▼
+        └────────▶ server (FastAPI + SQLite) ◀──── SigNoz webhook (optional)
+                    │  repository → read models → thin routes
+                    ├─ human APIs  → hq (React dashboards)
+                    └─ agent APIs  → /api/agent-view/* + Case File → coding agents
+```
+
+- **Human vs agent read models** — one repository module owns every query; two serializer
+  layers project the same records for two audiences. Dashboards get stable typed rows and
+  health aggregates; coding agents get bounded, evidence-dense context (causal timeline, guard
+  verdicts, IDs, digests, MCP hints) — never full tool outputs or secrets.
+- **Unplug runs in-process** in the SDK: a CPU-only synchronous guard with per-session taint
+  state. No network hop in the fail-closed path.
+- **Griffin** (anomaly watcher) ships with a robust MAD judge in the server process; a
+  TabPFN-based forecaster is an optional separate worker (`TABPFN_TOKEN`), never a hard dep.
+- **No vLLM** — replay compares hosted chat models, so the provider API is the inference
+  boundary.
+- **Import rule**: `sdk/`, `server/`, `hq/` never import `agents/` or `scripts/`
+  (enforced by `scripts/check_import_boundaries.py`).
+
 ## The Case File handoff
 
 Every incident exports as a zip (`GET /export/case-file/{session_id}`) containing:
@@ -101,6 +126,10 @@ PYTHONPATH="sdk:server" uv run python -m unittest discover -s sdk/tests
 PYTHONPATH="sdk:server" uv run python -m unittest discover -s server/tests
 PYTHONPATH="sdk:agents" uv run python -m unittest agents.tests.test_s1_fixture
 
+# Boundaries + lockfile
+uv run python scripts/check_import_boundaries.py
+uv lock --check
+
 # Frontend
 cd hq && pnpm build
 
@@ -108,6 +137,32 @@ cd hq && pnpm build
 uv run python scripts/phase4_g4_check.py
 ```
 
+## Judging criteria map
+
+| Criterion | Where to look |
+|---|---|
+| Potential Impact | trace→fix→proof loop: observe → block/steer → Case File → Time Machine proof. Source-trust targets OWASP LLM01 (injection). |
+| Creativity & Innovation | Time Machine (whole-session counterfactual replay, guard live) + agent-view (machine twin of every panel). Prior art named honestly: LangSmith/Braintrust replay calls/datasets, not sessions. |
+| Technical Excellence | OpenInference semconv (real emitted keys), repository → read models → thin routes, idiomatic Agno guardrails/hooks, SQLite-primary replay, tests in `sdk/tests` + `server/tests`. |
+| Best Use of SigNoz | OTLP traces/metrics/logs, 3 provisioned dashboards + v5 alert rules + webhook → signal bus, SigNoz MCP in the Case File handoff (`deploy/`). |
+| User Experience | Six-view HQ in the Unplug design language, `human_view ⇄ agent_view` toggle, one-command demo. |
+| Presentation Quality | `docs/06-demo-script.md`, this README, `docs/02-architecture.md` diagrams. |
+
+## Limitations (honest)
+
+- **No auth** — localhost demo surface by design; not auth theater.
+- **Docker-dependent depth is deferred, not shown broken**: SigNoz dashboards/alerts, live MCP
+  handoff test, and README screenshots wait on the container stack. Everything demoable here
+  (replay, signals, Case Files, HQ) is SQLite-primary and Docker-free.
+- **Griffin** runs the MAD statistical baseline unless a TabPFN token is provided; narration
+  says so.
+- Temp-0 replay is variance reduction, not determinism — hence the 3-run majority and the
+  honest `inconclusive` verdict.
+- APIs return epoch-millisecond timestamps (documented drift from `docs/12`'s ISO-8601 note;
+  a versioned post-v1 API converts).
+
 ## Status
 
 Built for the **Agents of SigNoz** hackathon (WeMakeDevs × SigNoz, July 20–26 2026), Track 1: AI & Agent Observability. Build log with honest gate outcomes: `docs/log.md`.
+
+Licensed under [Apache-2.0](LICENSE). unplug-ai provenance disclosure above.
