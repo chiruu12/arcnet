@@ -153,6 +153,13 @@ The UI never **queries SigNoz's API** directly — all telemetry comes through t
 - **SigNoz MCP server** — self-hosted binary (darwin_arm64) or Docker; wired into Cursor/Claude Code config. Used two ways: **dev-time** (we build dashboards/alerts/queries with SigNoz agent skills + MCP while developing) and **demo-time** (the Case File beat).
 - `provision/` — idempotent setup: import Agno dashboard template + our 3 custom dashboards, alert rules, webhook channel. Prefer plain SigNoz APIs in the script; use MCP/agent-skills interactively to author the JSON.
 
+### Model runtime boundaries (Phase 4 decision)
+
+- **vLLM is not part of the current deployment.** The Time Machine currently compares hosted OpenAI chat models, so their provider API is already the inference boundary. vLLM only becomes relevant if ArcNet later serves a compatible open-weight **LLM** locally; it cannot serve TabFM/TabPFN because those are tabular estimators, not autoregressive LLMs.
+- **Unplug remains in-process in `sdk/`.** It is a CPU-only, low-latency synchronous guard with per-session taint state. Moving it behind a network hop would add a failure mode to every checkpoint and weaken the fail-closed source-trust path without isolating a heavyweight runtime.
+- **Griffin keeps MAD in the server process for the hackathon fallback.** If TabFM or TabPFN is enabled, its heavyweight model runtime belongs in a separate deployable worker/container so model loading, native dependencies, memory, and CPU do not compete with the control-plane API. The minimal internal boundary is `forecast(history, features) -> point predictions`; conformal calibration, noise-floor judgment, telemetry, and signal emission stay in `server/`. This boundary is internal and does not alter any frozen `12-data-api.md` route or shape.
+- **Reliability order remains MAD → optional tabular worker, not the reverse.** A missing token, unavailable worker, or model timeout falls back to MAD and is reported honestly. No new network service is required for Phase 4 replay.
+
 ## Product core vs demo layer (this repo outlives the hackathon)
 
 ArcNet is a long-term project; the hackathon is its v1 milestone (`08-vision-v2.md`). Two rules keep that true while building fast:

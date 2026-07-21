@@ -25,6 +25,8 @@ The Time Machine replays through the same `UnplugGuardrail`, so trust checks app
 
 A fast, CPU-only guard: regex scanner families + normalization + taint tracking, with optional ML and an optional bring-your-own LLM judge. Sub-ms to low-ms per scan — cheap enough to run at **every** checkpoint and emit as telemetry. No server or MCP needed; pure in-process. Its taint/trust model (`TrustLevel`, `TaintedText`, `Tagger`, `notify_taint_source`, `wrap_for_context`) is exactly what the source-trust spine needs.
 
+**Phase-4 placement decision:** keep Unplug in-process. Its checks are synchronous control-flow gates and its taint state is session-local; a separate service would add network latency and availability risk to the path that must block a dangerous tool call. vLLM is not applicable: Unplug is a guard/scanner library, not an autoregressive language model server. The optional LLM judge remains P2 and, if ever enabled, may call a provider or compatible LLM endpoint without moving the core guard out of process.
+
 ## Core contract (Phase 0 confirmed on installed `unplug-ai==0.5.2`)
 
 ```python
