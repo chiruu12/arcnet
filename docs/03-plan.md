@@ -76,12 +76,12 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 4 — Time Machine (the headline)
 
-- [ ] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
-- [ ] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{goal_reached, steps, tool_errors, cost, latency, tokens}` + security dims for threat sessions → verdict + recommendation (3-run majority)
-- [ ] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4)
-- [ ] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
+- [x] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
+- [x] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{goal_reached, steps, tool_errors, cost, latency, tokens}` + security dims for threat sessions → verdict + recommendation (3-run majority)
+- [~] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4) — **G4 RED/PARTIAL**: Worms behavior stable 3/3 (`killed` → `partial`, candidate flags repeated pagination; overall `mixed` because gpt-4o costs more and incurs one replay tool error). Edgar is `inconclusive` at 2/3; the fresh baseline was not exploited because the default in-process Unplug guard quarantined the retrieved injection before the model saw it. A different candidate/scenario variant is required; do not weaken the synchronous guard merely to manufacture the beat.
+- [x] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
 
-**Exit: `POST /api/replay` returns real, stable Worms + Edgar counterfactuals; agent-view JSON of them.**
+**Exit: `POST /api/replay` returns real, stable Worms + Edgar counterfactuals; agent-view JSON of them.** → **PARTIAL / G4 red** (Worms stable; Edgar not stable and the recorded baseline is contained before exploitation).
 
 ## Phase 5 — UI + Case File + Record
 
