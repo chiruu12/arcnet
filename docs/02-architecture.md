@@ -198,7 +198,9 @@ Enumerated so the "judge runs `docker compose up` + `run-demo.sh`" claim is real
 | `SIGNOZ_API_KEY` | Service-account key for Query Range API (server-side only) | server/ |
 | `SIGNOZ_URL` | SigNoz instance URL | server/, MCP |
 | `ARCNET_SERVER_URL` | Signal SSE + API base | sdk/, hq/ |
+| `ARCNET_AGENTOS_URL` | Internal agent-runtime replay adapter (default `http://localhost:7777`) | server/ |
 | `HF_TOKEN` | (only if TabFM/TabPFN weight download needs it) | server/ (Griffin) |
+| `TABPFN_TOKEN` | Prior Labs model token; absent means MAD fallback | optional Griffin worker |
 
 The **SigNoz MCP server** client config (Cursor `.cursor/mcp.json` / Claude Code) reuses `SIGNOZ_URL` + `SIGNOZ_API_KEY` — documented in `deploy/mcp/`. Model price constants (not a secret) live in `sdk/arcnet/pricing.py`.
 

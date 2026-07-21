@@ -7,8 +7,10 @@ import json
 import os
 import secrets
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -16,6 +18,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from arcnet_server.bus import BUS
 from arcnet_server.db import connect, dumps, init_db, now_ms, row_to_dict
+from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
 _griffin_task: asyncio.Task | None = None
@@ -216,6 +219,109 @@ def get_session(session_id: str, include: str | None = Query(default=None)) -> d
     if include != "transcript":
         d.pop("transcript", None)
     return d
+
+
+@app.post("/api/replay")
+async def post_replay(request: Request) -> dict[str, Any]:
+    """Replay one SQLite-primary recording three times against one candidate."""
+    body = await request.json()
+    session_id = body.get("session_id")
+    candidate_model = body.get("candidate_model")
+    candidate_prompt = body.get("candidate_prompt")
+    if not session_id:
+        raise HTTPException(400, "session_id is required")
+    if bool(candidate_model) == bool(candidate_prompt):
+        raise HTTPException(400, "provide exactly one of candidate_model or candidate_prompt")
+
+    session = get_session(str(session_id), include="transcript")
+    if not session.get("transcript"):
+        raise HTTPException(422, f"session {session_id} has no replay-ready transcript")
+    model = str(candidate_model or session.get("model") or "")
+    if not model:
+        raise HTTPException(422, "candidate prompt replay requires a recorded model")
+
+    replay_id = _new_id("r_")
+
+    def progress(phase: str, step: int, total_steps: int) -> None:
+        BUS.publish(
+            "replay_progress",
+            {
+                "replay_id": replay_id,
+                "step": step,
+                "total_steps": total_steps,
+                "phase": phase,
+            },
+        )
+
+    try:
+        runs, verdict, duration_ms = await execute_replay(
+            replay_id=replay_id,
+            session=session,
+            candidate_model=model,
+            candidate_prompt=str(candidate_prompt) if candidate_prompt else None,
+            progress=progress,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"agent replay runtime unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO replays
+           (replay_id, session_id, candidate_model, candidate_prompt_ref,
+            runs, verdict, created_at, duration_ms)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (
+            replay_id,
+            session_id,
+            model if candidate_model else None,
+            prompt_ref(str(candidate_prompt)) if candidate_prompt else None,
+            dumps(runs),
+            dumps(verdict),
+            now_ms(),
+            duration_ms,
+        ),
+    )
+    conn.commit()
+    return verdict
+
+
+@app.get("/api/agent-view/replay/{replay_id}")
+def replay_agent_view(replay_id: str) -> dict[str, Any]:
+    conn = get_conn()
+    row = conn.execute(
+        """SELECT r.*, s.trace_id
+           FROM replays r JOIN sessions s ON s.session_id=r.session_id
+           WHERE r.replay_id=?""",
+        (replay_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, f"replay {replay_id} not found")
+    data = row_to_dict(row, json_fields=["verdict"])
+    assert data is not None
+    verdict = data["verdict"]
+    trace_id = data.get("trace_id")
+    signoz_url = os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
+    return {
+        "view": "replay",
+        "id": replay_id,
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "data": verdict,
+        "links": {
+            "human_view": f"/time-machine/{replay_id}",
+            "signoz_trace": f"{signoz_url}/trace/{trace_id}" if trace_id else None,
+            "self": f"/api/agent-view/replay/{replay_id}",
+        },
+        "hints": {
+            "raw_evidence": (
+                f"SigNoz MCP: signoz_get_trace_details(trace_id='{trace_id}'), "
+                "signoz_search_logs(...)"
+                if trace_id
+                else "Replay evidence is SQLite-primary; no trace_id was recorded."
+            )
+        },
+    }
 
 
 @app.post("/api/signal")
