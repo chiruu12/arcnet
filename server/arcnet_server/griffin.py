@@ -173,8 +173,11 @@ def evaluate_series(
     }
     _CACHE["anomalies"] = ([anomaly] + list(_CACHE.get("anomalies") or []))[:20]
 
-    # Signal bus (source=griffin) — kill for token burn / tool loops
-    kind = "kill" if metric in ("arcnet.tokens.total", "arcnet.cost.usd", "arcnet.tool.calls") else "note"
+    # Signal bus (source=griffin) — agent-scoped note (docs/07). Griffin series
+    # carry no session attribution; a null-session kill would broadcast to every
+    # live session of the agent. Kills stay session-scoped (runner/HQ posts them).
+    kind = "note"
+    severity = "critical" if metric in ("arcnet.tokens.total", "arcnet.cost.usd", "arcnet.tool.calls") else "warn"
     signal_id = f"sig_{secrets.token_hex(4)}"
     conn = get_conn()
     conn.execute(
@@ -186,7 +189,7 @@ def evaluate_series(
             None,
             agent_id,
             kind,
-            "critical" if kind == "kill" else "warn",
+            severity,
             f"griffin MAD outlier on {series_id} z={result.get('z')}",
             None,
             f"observed={result['observed']} forecast={result['forecast']} band=[{result['band_lo']},{result['band_hi']}]",
