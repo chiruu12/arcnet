@@ -128,6 +128,7 @@ PYTHONPATH="sdk:agents" uv run python -m unittest agents.tests.test_s1_fixture
 
 # Boundaries + lockfile
 uv run python scripts/check_import_boundaries.py
+uv run python scripts/tests/test_check_import_boundaries.py
 uv lock --check
 
 # Frontend
