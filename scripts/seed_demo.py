@@ -12,11 +12,14 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import sqlite3
+import sys
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "server"))
+
+from arcnet_server.db import connect, init_db  # noqa: E402
 
 BACKGROUND_AGENTS = [
     ("agent_l", "Agent L", "fleet background — kb sync", "internal"),
@@ -30,8 +33,8 @@ def main() -> int:
     parser.add_argument("--sessions", type=int, default=9, help="sessions per background agent")
     args = parser.parse_args()
 
-    args.db.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(args.db))
+    conn = connect(args.db)
+    init_db(conn)
     rng = random.Random(1997)
     now = int(time.time() * 1000)
     hour = 60 * 60 * 1000
