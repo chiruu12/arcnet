@@ -254,7 +254,8 @@ def list_sessions(
     where, params = _session_filters(scenario=scenario, agent_id=agent_id, model=model)
     q = (
         "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, "
-        "started_at, ended_at, (transcript IS NOT NULL) AS has_transcript FROM sessions WHERE 1=1"
+        "agent_version, started_at, ended_at, (transcript IS NOT NULL) AS has_transcript "
+        "FROM sessions WHERE 1=1"
         f"{where} ORDER BY started_at DESC, session_id DESC LIMIT ? OFFSET ?"
     )
     params.extend([limit, offset])

@@ -65,6 +65,30 @@ class WebhookHardenTests(unittest.TestCase):
     def test_empty_object_is_204(self) -> None:
         self.assertEqual(self.client.post("/webhooks/signoz", json={}).status_code, 204)
 
+    def test_webhook_secret_required_when_configured(self) -> None:
+        prev = os.environ.get("ARCNET_WEBHOOK_SECRET")
+        os.environ["ARCNET_WEBHOOK_SECRET"] = "test-secret-xyz"
+        try:
+            denied = self.client.post("/webhooks/signoz", json={})
+            self.assertEqual(denied.status_code, 401)
+            ok = self.client.post(
+                "/webhooks/signoz",
+                headers={"X-ArcNet-Webhook-Secret": "test-secret-xyz"},
+                json={},
+            )
+            self.assertEqual(ok.status_code, 204)
+            bearer = self.client.post(
+                "/webhooks/signoz",
+                headers={"Authorization": "Bearer test-secret-xyz"},
+                json={},
+            )
+            self.assertEqual(bearer.status_code, 204)
+        finally:
+            if prev is None:
+                os.environ.pop("ARCNET_WEBHOOK_SECRET", None)
+            else:
+                os.environ["ARCNET_WEBHOOK_SECRET"] = prev
+
 
 class SignozStatusTests(unittest.TestCase):
     @classmethod

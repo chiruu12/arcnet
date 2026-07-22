@@ -522,8 +522,29 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
         # id may be a session_id or an agent_id
         if not repository.session_or_agent_exists(conn, id):
             raise HTTPException(404, f"no agent or session '{id}'")
-        data = {"sources": repository.sources_for_ref(conn, id)}
+        data = read_models.agent_sources_data(conn, ref_id=id)
         return read_models.envelope("sources", id, data, trace_id=None, human_view=f"/sources/{id}")
+    if view == "dashboards":
+        # Thin status twin — not embedded charts. Prefer SigNoz UI / MCP for depth.
+        status = _signoz_status_payload()
+        data = {
+            "signoz": status,
+            "note": (
+                "HQ dashboards are a launcher + status probe. "
+                "Use SigNoz UI deep-links or SigNoz MCP for query depth."
+            ),
+            "links": {
+                "signoz_ui": status.get("signoz_url"),
+                "status_api": "/api/signoz/status",
+            },
+        }
+        return read_models.envelope(
+            "dashboards",
+            id,
+            data,
+            trace_id=None,
+            human_view="/dashboards",
+        )
     raise HTTPException(404, f"unknown agent-view '{view}'")
 
 
@@ -651,7 +672,22 @@ def _clip_id(value: Any, *, default: str | None = None) -> str | None:
 
 @app.post("/webhooks/signoz")
 async def signoz_webhook(request: Request):
-    """SigNoz alert webhook — dedupe + map labels → Signal (docs/12)."""
+    """SigNoz alert webhook — dedupe + map labels → Signal (docs/12).
+
+    Local-by-design in v1. Optional shared secret: set ARCNET_WEBHOOK_SECRET and
+    send header ``X-ArcNet-Webhook-Secret`` (or ``Authorization: Bearer …``).
+    When the env is empty, any caller who can reach :8000 can inject signals —
+    bind to localhost in production-ish deploys.
+    """
+    expected = os.getenv("ARCNET_WEBHOOK_SECRET", "").strip()
+    if expected:
+        got = (request.headers.get("x-arcnet-webhook-secret") or "").strip()
+        if not got:
+            auth = (request.headers.get("authorization") or "").strip()
+            if auth.lower().startswith("bearer "):
+                got = auth[7:].strip()
+        if not got or not secrets.compare_digest(got, expected):
+            raise HTTPException(401, "invalid or missing webhook secret")
     try:
         body = await request.json()
     except Exception as exc:  # noqa: BLE001
@@ -795,6 +831,11 @@ def _signoz_dashboard_map(url: str, key: str) -> dict[str, str | None]:
 @app.get("/api/signoz/status")
 def signoz_status() -> dict[str, Any]:
     """Seam probe: UI reachability + authenticated Query Range smoke (docs/04)."""
+    return _signoz_status_payload()
+
+
+def _signoz_status_payload() -> dict[str, Any]:
+    """Shared SigNoz probe for /api/signoz/status and agent-view/dashboards."""
     url = os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
     key = os.getenv("SIGNOZ_API_KEY", "").strip()
     ui_ok = False
