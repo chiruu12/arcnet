@@ -692,10 +692,19 @@ def webhook_seen_recently(conn: sqlite3.Connection, fingerprint: str, *, window_
 def insert_webhook_event(
     conn: sqlite3.Connection, fingerprint: str, status: str, payload: Any
 ) -> None:
-    conn.execute(
-        "INSERT INTO webhook_events (fingerprint, status, payload, received_at) VALUES (?,?,?,?)",
-        (fingerprint, status, dumps(payload), now_ms()),
-    )
+    # PK is (fingerprint, received_at) — bump ms on collision so same-ms bursts don't 500
+    ts = now_ms()
+    blob = dumps(payload)
+    for _ in range(8):
+        try:
+            conn.execute(
+                "INSERT INTO webhook_events (fingerprint, status, payload, received_at) "
+                "VALUES (?,?,?,?)",
+                (fingerprint, status, blob, ts),
+            )
+            return
+        except sqlite3.IntegrityError:
+            ts += 1
 
 
 # ---------------------------------------------------------------- agent_versions (HQ Agent)
