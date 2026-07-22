@@ -11,7 +11,7 @@ Then the two pillars nobody else builds at the **agent-session** level:
 - **Agent-view** — every datum has a machine-optimal twin (`GET /api/agent-view/{view}/{id}`), so the coding agents you already run (Claude Code, Codex, Cursor) can read the fleet's health and incidents in *their* format and improve the agents.
 - **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the transcript, **same guardrail**) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray. (LangSmith and Braintrust replay a *call* or a dataset example against a new model; ArcNet replays the **whole recorded agent session** — goal, tools, and trust checks live.)
 
-See `docs/08-vision-v2.md` for the full concept and `docs/03-plan.md` for the build plan.
+See **[`docs/14-product-guide.md`](docs/14-product-guide.md)** for what ArcNet is, how to run it, how to use each HQ view, and a frontend DONE/LEFT audit. Concept: `docs/08-vision-v2.md`. Build plan: `docs/03-plan.md`. Demo narration: `docs/06-demo-script.md`.
 
 ## Provenance disclosure
 
@@ -111,7 +111,7 @@ Hand it to Claude Code with the SigNoz MCP connected and it pulls the traces and
 
 ## Screenshots
 
-> Screenshot capture is pending the SigNoz container stack (deferred during a resource pause). Slots reserved:
+> Human capture still pending (SigNoz stack + provision are available — see `docs/14-product-guide.md` §10). Slots:
 >
 > 1. Fleet Health — trust posture across the fleet, forward-facing flagged
 > 2. Time Machine — Edgar baseline `[EXPLOITED]` vs candidate `[RESISTED]` with the verdict terminal
@@ -152,15 +152,17 @@ uv run python scripts/phase4_g4_check.py
 ## Limitations (honest)
 
 - **No auth** — localhost demo surface by design; not auth theater.
-- **Docker-dependent depth is deferred, not shown broken**: SigNoz dashboards/alerts, live MCP
-  handoff test, and README screenshots wait on the container stack. Everything demoable here
-  (replay, signals, Case Files, HQ) is SQLite-primary and Docker-free.
+- **SQLite-primary demo is the default** (`./scripts/run-demo.sh`). SigNoz (Docker) is optional
+  depth: dashboards/alerts provision when a service-account key is present; live MCP stdio
+  handoff remains PARTIAL. README screenshots and the submission video are still human tasks
+  (`docs/14-product-guide.md` §10).
 - **Griffin** runs the MAD statistical baseline unless a TabPFN token is provided; narration
   says so.
 - Temp-0 replay is variance reduction, not determinism — hence the 3-run majority and the
   honest `inconclusive` verdict.
 - APIs return epoch-millisecond timestamps (documented drift from `docs/12`'s ISO-8601 note;
   a versioned post-v1 API converts).
+- Full usage + HQ audit: [`docs/14-product-guide.md`](docs/14-product-guide.md).
 
 ## Status
 
