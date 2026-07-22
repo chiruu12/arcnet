@@ -18,8 +18,14 @@ export type HashState = {
   model?: string;
 };
 
-export function parseHash(raw: string = window.location.hash): HashState {
-  const trimmed = raw.replace(/^#/, "");
+export function parseHash(raw?: string): HashState {
+  const source =
+    raw !== undefined
+      ? raw
+      : typeof window !== "undefined"
+        ? window.location.hash
+        : "";
+  const trimmed = source.replace(/^#/, "");
   const [path, query = ""] = trimmed.split("?");
   const view = VIEWS.has(path as View) ? (path as View) : "fleet_health";
   const params = new URLSearchParams(query);

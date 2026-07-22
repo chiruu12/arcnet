@@ -20,6 +20,18 @@ jobs:
       - name: Server unit tests
         run: PYTHONPATH=sdk:server uv run python -m unittest discover -s server/tests -v
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install Python deps
+        run: uv sync --all-packages
+      - name: Path-to-95 e2e (scratch DB)
+        run: PYTHONPATH=sdk:server uv run python scripts/e2e_path_to_95.py
+
   hq:
     runs-on: ubuntu-latest
     defaults:
@@ -39,3 +51,23 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+
+  hq-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: hq/pnpm-lock.yaml
+      - name: Install + test
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test
