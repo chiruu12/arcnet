@@ -32,8 +32,9 @@ export function FleetHealth({ mode }: { mode: Mode }) {
         agents · trust posture · threats · cost · griffin anomalies. forward_facing flagged red.
       </p>
       {err && <Seam error={err} />}
+      {!err && !fleet && <p className="lede">loading…</p>}
       {fleet && fleet.length === 0 && (
-        <Empty hint="no agents registered — run scripts/run-demo.sh to seed a demo fleet" />
+        <Empty hint="no agents registered — run ./scripts/run-demo.sh to seed a demo fleet" />
       )}
       {fleet && fleet.length > 0 && (
         <div className="grid">

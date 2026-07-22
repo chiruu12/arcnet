@@ -61,7 +61,7 @@ export function Signals({ mode }: { mode: Mode }) {
       </p>
       {err && <Seam error={err} />}
       {signals && signals.length === 0 && (
-        <Empty hint="no signals yet — trigger a scenario (scripts/run_scenario.py) or run-demo.sh" />
+        <Empty hint="no signals yet — ./scripts/run-demo.sh, or PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1" />
       )}
       {signals && signals.length > 0 && (
         <table className="data-table">

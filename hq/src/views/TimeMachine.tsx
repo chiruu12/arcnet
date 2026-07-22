@@ -158,7 +158,7 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       </div>
 
       {sessions && sessions.length === 0 && (
-        <Empty hint="no recorded sessions — run scripts/record_scenario.py or run-demo.sh first" />
+        <Empty hint="no recorded sessions — ./scripts/run-demo.sh seeds hero transcripts (S1 Edgar, S4 Worms)" />
       )}
 
       {session && (
