@@ -16,6 +16,19 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
     {
+        "name": "signoz_evidence",
+        "description": "Bounded SigNoz evidence for a session (span names/ids; MCP hang fallback).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "server_url": {"type": "string"},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "fleet_overview",
         "description": "Fleet health rows from ArcNet server.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
@@ -150,6 +163,7 @@ TOOLS: list[dict[str, Any]] = [
                 "reason": {"type": "string"},
                 "from_model": {"type": "string"},
                 "task_type": {"type": "string"},
+                "session_id": {"type": "string"},
                 "server_url": {"type": "string"},
             },
             "required": ["agent_id", "to_model", "reason"],
@@ -170,7 +184,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "apply_model_change",
-        "description": "Human-gated model apply. Requires confirm=true; records version bump.",
+        "description": "Human-gated model apply. Requires confirm=true; records version bump. Sets agentos_reload_required.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -194,6 +208,8 @@ def _handle_tool(name: str, args: dict[str, Any]) -> Any:
     server_url = args.get("server_url")
     if name == "signoz_status":
         return hq_tools.signoz_status(server_url=server_url)
+    if name == "signoz_evidence":
+        return hq_tools.signoz_evidence(args["session_id"], server_url=server_url)
     if name == "fleet_overview":
         return hq_tools.fleet_overview(server_url=server_url)
     if name == "agent_signals":
@@ -230,6 +246,7 @@ def _handle_tool(name: str, args: dict[str, Any]) -> Any:
             args["reason"],
             from_model=args.get("from_model"),
             task_type=args.get("task_type"),
+            session_id=args.get("session_id"),
             server_url=server_url,
         )
     if name == "list_model_proposals":

@@ -845,6 +845,12 @@ def apply_agent_model(
         "version": row,
         "proposal": proposal,
         "applied": True,
+        "agentos_reload_required": True,
+        "agentos_reload_instructions": (
+            "SQLite agents.model + version row updated; the live AgentOS process "
+            "still serves the previous model until restarted. ArcNet does not "
+            "auto-restart AgentOS — operator or coding agent must reload."
+        ),
     }
 
 
