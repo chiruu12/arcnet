@@ -2,7 +2,7 @@
 
 The **HQ Agent** is the overall maintenance / enhancement layer: help operators keep agents working, surface problems honestly, and propose improvements — without silently mutating production.
 
-Related: [`04`](04-signoz-integration.md) · [`05`](05-unplug-integration.md) · [`07`](07-griffin-anomaly.md) · [`12`](12-data-api.md) · [`17`](17-product-rework-plan.md).
+Related: [`04`](04-signoz-integration.md) · [`05`](05-unplug-integration.md) · [`07`](07-griffin-anomaly.md) · [`12`](12-data-api.md) · [`17`](17-product-rework-plan.md) · [`19-path-to-95.md`](19-path-to-95.md) (WS3 reliability + overall ~95% path).
 
 ---
 
@@ -209,5 +209,5 @@ HQ Agent is **forward_facing-ish for tool outputs it ingests** (signals, reasons
 - Griffin runtime estimator = **MAD** (median/MAD robust z-score). TabFM failed latency budget; TabPFN needs token.
 - Model explore = **recommendations only** (live OpenAI list when `OPENAI_API_KEY` set; still exploration-only).
 - SigNoz seasonal anomaly ≠ Griffin; both can coexist with different jobs.
-- **Checklist-done ≠ robust-done.** HQ Agent slices 1–3 exist as a maintenance scaffold (~55% of the operator bar). Still missing: version-first cascade, reliable propose→diagnose→apply with evidence, judge-depth SigNoz, useful Griffin without seed files. See [`17`](17-product-rework-plan.md) honesty table (~**48%** overall product robustness).
+- **Checklist-done ≠ robust-done.** HQ Agent slices 1–3 exist as a maintenance scaffold (~55% of the operator bar). Still missing: version-first cascade, reliable propose→diagnose→apply with evidence, judge-depth SigNoz, useful Griffin without seed files, honest AgentOS reload after apply-model. See [`17`](17-product-rework-plan.md) honesty table (~**48%** overall) and execution plan [`19`](19-path-to-95.md) **WS3**.
 - Webhook: optional `ARCNET_WEBHOOK_SECRET` (`X-ArcNet-Webhook-Secret` / Bearer). Empty secret = localhost-trust model — document and bind carefully.
