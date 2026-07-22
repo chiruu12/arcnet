@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
 
-from arcnet_server.db import connect, init_db  # noqa: E402
+from arcnet_server.db import connect, default_db_path, init_db  # noqa: E402
 
 BACKGROUND_AGENTS = [
     ("agent_l", "Agent L", "fleet background — kb sync", "internal"),
@@ -29,11 +29,17 @@ BACKGROUND_AGENTS = [
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed demo fleet history")
-    parser.add_argument("--db", type=Path, default=ROOT / "data" / "arcnet.db")
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=None,
+        help="SQLite path (default: ARCNET_DB_PATH or data/arcnet.db)",
+    )
     parser.add_argument("--sessions", type=int, default=9, help="sessions per background agent")
     args = parser.parse_args()
 
-    conn = connect(args.db)
+    db_path = args.db or default_db_path()
+    conn = connect(db_path)
     init_db(conn)
     rng = random.Random(1997)
     now = int(time.time() * 1000)
@@ -91,7 +97,7 @@ def main() -> int:
         t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
         for t in ("agents", "sessions")
     }
-    print(f"seeded demo fleet into {args.db} — {counts}")
+    print(f"seeded demo fleet into {db_path} — {counts}")
     return 0
 
 
