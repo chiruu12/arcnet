@@ -119,3 +119,8 @@ Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-flee
 **Expected:** Exhaustive execution plan from ~48% → ~95% with measurable exit criteria, workstreams, waves; no product feature implement in the plan PR.
 **Actual:** `docs/19-path-to-95.md` + `docs/plans/path-to-95-acceptance.md`; links from README / 15 / 16 / 17 / 18. PR #13 not merged into plan base (Greptile: live catalog failures must fall back). Branch `plan-path-to-95`.
 
+## 2026-07-22 — Wave A path-to-95 (in progress)
+
+**Expected:** WS4 version filters + pinpoint; WS2 write secret; WS1 version-first cascade; WS8 Unplug matrix stub; WS5.P0 already on main.
+**Actual:** Sessions `agent_version`/`version_id` + `X-Total-Count`; enriched `version_pinpoint`; `ARCNET_WRITE_SECRET`; HQ cascade Agent→version→model→session; seed baseline versions; Unplug matrix stub in docs/18.
+
