@@ -13,11 +13,40 @@ const NAV: { group: string; items: View[] }[] = [
   { group: "// improve", items: ["time_machine", "case_files", "dashboards"] },
 ];
 
+const VIEWS = new Set<View>([
+  "fleet_health",
+  "signals",
+  "sources_trust",
+  "time_machine",
+  "case_files",
+  "dashboards",
+]);
+
+function viewFromHash(): View {
+  const raw = window.location.hash.replace(/^#/, "").split("?")[0];
+  return VIEWS.has(raw as View) ? (raw as View) : "fleet_health";
+}
+
 export function App() {
-  const [view, setView] = useState<View>("fleet_health");
+  const [view, setView] = useState<View>(() =>
+    typeof window !== "undefined" ? viewFromHash() : "fleet_health",
+  );
   const [mode, setMode] = useState<Mode>("human");
   const [apiUp, setApiUp] = useState<boolean | null>(null);
   const [miniFleet, setMiniFleet] = useState<{ id: string; hot: boolean }[]>([]);
+
+  useEffect(() => {
+    const onHash = () => setView(viewFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => {
+    const next = `#${view}`;
+    if (window.location.hash.replace(/^#/, "").split("?")[0] !== view) {
+      window.location.hash = next;
+    }
+  }, [view]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +106,7 @@ export function App() {
             {view}
             {apiUp === null ? " · connecting" : apiUp ? " · live" : " · api_down"}
           </div>
-          <span className="tag">demo</span>
+          <span className="tag">local</span>
           <div className="toggle" role="group" aria-label="view mode">
             <button className={mode === "human" ? "on" : ""} onClick={() => setMode("human")}>
               human_view

@@ -42,6 +42,12 @@ export type SessionRow = {
   has_transcript: number;
 };
 
+export type AgentModelRow = {
+  model: string;
+  session_count: number;
+  latest_started_at: number | null;
+};
+
 export type SignalRow = {
   signal_id: string;
   session_id: string | null;

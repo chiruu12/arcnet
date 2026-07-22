@@ -1,14 +1,14 @@
 # ArcNet
 
-**The control plane for a self-improving agent fleet.** Observability + active defense for AI-native systems, built on [SigNoz](https://signoz.io).
+**Make your agents work properly — and enhance them.** Observability + active defense for AI-native systems, built on [SigNoz](https://signoz.io).
 
 > *Agents that watch themselves — and get better.*
 
-ArcNet watches every agent in your fleet — its behavior, its cost, and **the trust of everything it ingests**. Attacks come in through untrusted sources (scraped pages, tool outputs), so [unplug-ai](https://pypi.org/project/unplug-ai/) tags every source's trust level, filters the untrusted ones before they reach the model, and flags forward-facing agents as higher-risk. When something slips through, ArcNet traces it (OpenTelemetry → SigNoz), alerts on it, and **signals the agent to self-correct** ([Agno](https://www.agno.com) guardrails + run cancellation).
+ArcNet is the enhancement layer for agent fleets: it watches behavior, cost, and **the trust of everything an agent ingests**. Attacks come in through untrusted sources (scraped pages, tool outputs), so [unplug-ai](https://pypi.org/project/unplug-ai/) tags every source's trust level, filters the untrusted ones before they reach the model, and flags forward-facing agents as higher-risk. When something slips through, ArcNet traces it (OpenTelemetry → SigNoz), alerts on it, and **signals the agent to self-correct** ([Agno](https://www.agno.com) guardrails + run cancellation).
 
-Then the two pillars nobody else builds at the **agent-session** level:
+Then the two pillars that close the improve loop at the **agent-session** level:
 
-- **Agent-view** — every datum has a machine-optimal twin (`GET /api/agent-view/{view}/{id}`), so the coding agents you already run (Claude Code, Codex, Cursor) can read the fleet's health and incidents in *their* format and improve the agents.
+- **Agent-view** — every datum has a machine-optimal twin (`GET /api/agent-view/{view}/{id}`), so the coding agents you already run (Claude Code, Codex, Cursor) can read fleet health, signals, and incidents in *their* format and improve the agents.
 - **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the transcript, **same guardrail**) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray. (LangSmith and Braintrust replay a *call* or a dataset example against a new model; ArcNet replays the **whole recorded agent session** — goal, tools, and trust checks live.)
 
 See **[`docs/16-product-review-brief.md`](docs/16-product-review-brief.md)** for the review brief (§11 founder decisions). **[`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md)** is the R1–R3 productization plan. **[`docs/14-product-guide.md`](docs/14-product-guide.md)** covers what ArcNet is, how to run it, how to use each HQ view, and a frontend DONE/LEFT audit. **[`docs/15-product-map.md`](docs/15-product-map.md)** is the full built-surface map (system diagrams, HQ↔API inventory, DONE/GAP, verification matrix, iteration backlog). Concept: `docs/08-vision-v2.md`. Build plan: `docs/03-plan.md`. Demo narration: `docs/06-demo-script.md`.
@@ -56,13 +56,13 @@ cp .env.example .env         # fill OPENAI_API_KEY
 uv sync --all-packages
 cd hq && pnpm install && cd ..
 
-# 3. One-command demo (SQLite-primary — no Docker required)
+# 3. Bring up local stack (SQLite-primary — no Docker required)
 ./scripts/run-demo.sh
 # → HQ UI    http://localhost:5173
 # → API      http://127.0.0.1:8000/api/fleet
 ```
 
-`run-demo.sh` seeds Griffin's anomaly baselines and the background fleet, starts the ArcNet server and the agent replay runtime, then serves the HQ UI. The recorded hero incidents ship in the demo history; hit `replay.run()` in the Time Machine (needs `OPENAI_API_KEY`) to re-derive the counterfactual live, or export any incident as a Case File.
+`run-demo.sh` seeds Griffin baselines and a sample fleet, starts the ArcNet server and the agent replay runtime, then serves HQ. Recorded hero incidents ship in history; hit `replay.run()` in the Time Machine (needs `OPENAI_API_KEY`) to re-derive a counterfactual live, or export any incident as a Case File.
 
 ### Optional: SigNoz depth (Docker)
 
@@ -78,12 +78,12 @@ python deploy/provision/setup.py     # dashboards + v5 alert rules
 ## Architecture & model boundaries
 
 ```
-agents (AgentOS demo fleet) ──▶ sdk (arcnet: OTel + UnplugGuardrail + signals + replay harness)
+agents (AgentOS sample fleet) ──▶ sdk (arcnet: OTel + UnplugGuardrail + signals + replay harness)
         │                              │ OTLP
         │ POST /api/*                  ▼
         └────────▶ server (FastAPI + SQLite) ◀──── SigNoz webhook (optional)
                     │  repository → read models → thin routes
-                    ├─ human APIs  → hq (React dashboards)
+                    ├─ human APIs  → hq (React)
                     └─ agent APIs  → /api/agent-view/* + Case File → coding agents
 ```
 
@@ -146,13 +146,13 @@ uv run python scripts/phase4_g4_check.py
 | Creativity & Innovation | Time Machine (whole-session counterfactual replay, guard live) + agent-view (machine twin of every panel). Prior art named honestly: LangSmith/Braintrust replay calls/datasets, not sessions. |
 | Technical Excellence | OpenInference semconv (real emitted keys), repository → read models → thin routes, idiomatic Agno guardrails/hooks, SQLite-primary replay, tests in `sdk/tests` + `server/tests`. |
 | Best Use of SigNoz | OTLP traces/metrics/logs, 3 provisioned dashboards + v5 alert rules + webhook → signal bus, SigNoz MCP in the Case File handoff (`deploy/`). |
-| User Experience | Six-view HQ in the Unplug design language, `human_view ⇄ agent_view` toggle, one-command demo. |
+| User Experience | Six-view HQ, cascading agent→model→session pickers, `human_view ⇄ agent_view` toggle, local bring-up script. |
 | Presentation Quality | `docs/06-demo-script.md`, this README, `docs/02-architecture.md` diagrams. |
 
 ## Limitations (honest)
 
-- **No auth** — localhost demo surface by design; not auth theater.
-- **SQLite-primary demo is the default** (`./scripts/run-demo.sh`). SigNoz (Docker) is optional
+- **No auth** — localhost surface by design; not auth theater.
+- **SQLite-primary local path is the default** (`./scripts/run-demo.sh`). SigNoz (Docker) is optional
   depth: dashboards/alerts provision when a service-account key is present; live MCP stdio
   handoff remains PARTIAL. README screenshots and the submission video are still human tasks
   (`docs/14-product-guide.md` §10).
@@ -163,9 +163,10 @@ uv run python scripts/phase4_g4_check.py
 - APIs return epoch-millisecond timestamps (documented drift from `docs/12`'s ISO-8601 note;
   a versioned post-v1 API converts).
 - Full usage + HQ audit: [`docs/14-product-guide.md`](docs/14-product-guide.md).
+- Productization roadmap: [`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md).
 
 ## Status
 
-Built for the **Agents of SigNoz** hackathon (WeMakeDevs × SigNoz, July 20–26 2026), Track 1: AI & Agent Observability. Build log with honest gate outcomes: `docs/log.md`.
+Built for the **Agents of SigNoz** hackathon (WeMakeDevs × SigNoz, July 20–26 2026), Track 1: AI & Agent Observability — and kept as a real product after the event. Build log: `docs/log.md`.
 
 Licensed under [Apache-2.0](LICENSE). unplug-ai provenance disclosure above.

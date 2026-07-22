@@ -1,5 +1,6 @@
 import type {
   AgentEnvelope,
+  AgentModelRow,
   FleetRow,
   SessionRow,
   SignalRow,
@@ -49,16 +50,33 @@ export type SignozStatus = {
 
 export const api = {
   fleet: () => getJSON<FleetRow[]>("/api/fleet"),
-  sessions: (params?: { scenario?: string; agent_id?: string }) => {
+  agentModels: (agentId: string) =>
+    getJSON<AgentModelRow[]>(`/api/agents/${encodeURIComponent(agentId)}/models`),
+  sessions: (params?: {
+    scenario?: string;
+    agent_id?: string;
+    model?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
     const q = new URLSearchParams();
     if (params?.scenario) q.set("scenario", params.scenario);
     if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.model) q.set("model", params.model);
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
     return getJSON<SessionRow[]>(`/api/sessions${qs ? `?${qs}` : ""}`);
   },
   replays: (sessionId?: string) =>
     getJSON<ReplayRow[]>(`/api/replays${sessionId ? `?session_id=${sessionId}` : ""}`),
-  signals: () => getJSON<SignalRow[]>("/api/signals"),
+  signals: (params?: { agent_id?: string; session_id?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.session_id) q.set("session_id", params.session_id);
+    const qs = q.toString();
+    return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);
+  },
   sources: () => getJSON<SourceRow[]>("/api/sources"),
   agentView: (view: string, id: string) =>
     getJSON<AgentEnvelope>(`/api/agent-view/${view}/${encodeURIComponent(id)}`),
