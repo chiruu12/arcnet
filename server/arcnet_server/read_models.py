@@ -77,10 +77,12 @@ def envelope(
         },
         "hints": {
             "raw_evidence": (
-                f"SigNoz MCP: signoz_get_trace_details(trace_id='{trace_id}'), "
-                "signoz_search_logs(...)"
+                f"SigNoz: links.signoz_trace + GET /api/signoz/evidence?session_id={id_}. "
+                f"MCP: signoz_get_trace_details(trace_id='{trace_id}') — if MCP stdio hangs, "
+                "prefer the evidence endpoint / Query Range curl (docs/04)."
                 if trace_id
-                else "Evidence is SQLite-primary; no trace_id was recorded for this record."
+                else "Evidence is SQLite-primary; no trace_id was recorded for this record. "
+                "MCP hang fallback: Case File + /api/signoz/status only."
             )
         },
     }

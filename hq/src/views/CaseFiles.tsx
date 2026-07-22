@@ -511,6 +511,18 @@ export function CaseFiles({
               <span>related_replay</span>
               <span>{data.related_replay_id ?? "—"}</span>
             </div>
+            <div className="stat-row">
+              <span>signoz_trace</span>
+              <span>
+                {envelope?.links?.signoz_trace ? (
+                  <a href={envelope.links.signoz_trace} target="_blank" rel="noreferrer">
+                    open_trace
+                  </a>
+                ) : (
+                  <span className="dim">no trace_id — MCP/evidence N/A</span>
+                )}
+              </span>
+            </div>
           </div>
           <div className={`col ${rc ? "exploited" : ""}`}>
             <h3>root_cause</h3>

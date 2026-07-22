@@ -808,8 +808,13 @@ async def signoz_webhook(request: Request):
 
 @app.get("/api/griffin/status")
 def griffin_status() -> dict[str, Any]:
-    from arcnet_server.griffin import cache_snapshot
+    """Griffin MAD status — warmth, estimator, last anomaly, series source (Wave B)."""
+    from arcnet_server.griffin import cache_snapshot, ensure_series_warm
 
+    try:
+        ensure_series_warm(get_conn)
+    except Exception:  # noqa: BLE001
+        pass
     return cache_snapshot()
 
 
@@ -877,6 +882,158 @@ def _signoz_dashboard_map(url: str, key: str) -> dict[str, str | None]:
 def signoz_status() -> dict[str, Any]:
     """Seam probe: UI reachability + authenticated Query Range smoke (docs/04)."""
     return _signoz_status_payload()
+
+
+@app.get("/api/signoz/evidence")
+def signoz_evidence(session_id: str = Query(..., min_length=1)) -> dict[str, Any]:
+    """Bounded SigNoz evidence for a session — ids/spans/token counts only (Wave B).
+
+    No full payloads. Degrades honestly when API key missing or Query Range fails.
+    """
+    return _signoz_evidence_payload(session_id.strip())
+
+
+def _signoz_evidence_payload(session_id: str) -> dict[str, Any]:
+    url = os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
+    key = os.getenv("SIGNOZ_API_KEY", "").strip()
+    conn = get_conn()
+    sess = repository.get_session(conn, session_id)
+    if sess is None:
+        raise HTTPException(404, f"session {session_id} not found")
+    trace_id = sess.get("trace_id")
+    out: dict[str, Any] = {
+        "session_id": session_id,
+        "agent_id": sess.get("agent_id"),
+        "trace_id": trace_id,
+        "signoz_url": url,
+        "api_key_present": bool(key),
+        "links": {
+            "signoz_trace": f"{url}/trace/{trace_id}" if trace_id else None,
+            "status": "/api/signoz/status",
+        },
+        "spans": [],
+        "truncated": False,
+        "note": None,
+        "mcp_fallback": (
+            "If SigNoz MCP stdio hangs, use this endpoint + Case File links.signoz_trace "
+            "and Query Range curl — do not block on MCP."
+        ),
+    }
+    if not key:
+        out["note"] = "SIGNOZ_API_KEY empty — SQLite session metadata only"
+        usage = sess.get("usage") if isinstance(sess.get("usage"), dict) else {}
+        if usage:
+            out["usage_excerpt"] = {
+                k: usage.get(k)
+                for k in ("total_tokens", "prompt_tokens", "completion_tokens", "cost_usd")
+                if k in usage
+            }
+        return out
+    if not trace_id:
+        out["note"] = "no trace_id on session — cannot query SigNoz spans"
+        return out
+    end = now_ms()
+    start = end - 7 * 24 * 60 * 60 * 1000  # 7d window
+    # Prefer filter on arcnet.session_id; fall back to trace id attribute if present
+    expression = f"traceID = '{trace_id}'"
+    payload = {
+        "start": start,
+        "end": end,
+        "requestType": "raw",
+        "compositeQuery": {
+            "queries": [
+                {
+                    "type": "builder_query",
+                    "spec": {
+                        "name": "A",
+                        "signal": "traces",
+                        "stepInterval": 60,
+                        "disabled": False,
+                        "filter": {"expression": expression},
+                        "limit": 8,
+                        "offset": 0,
+                        "order": [{"key": {"name": "timestamp"}, "direction": "desc"}],
+                        "having": {"expression": ""},
+                        "selectFields": [
+                            {
+                                "name": "name",
+                                "fieldDataType": "string",
+                                "signal": "traces",
+                                "fieldContext": "span",
+                            },
+                            {
+                                "name": "durationNano",
+                                "fieldDataType": "float64",
+                                "signal": "traces",
+                                "fieldContext": "span",
+                            },
+                        ],
+                    },
+                }
+            ]
+        },
+    }
+    try:
+        r = httpx.post(
+            f"{url}/api/v5/query_range",
+            headers={"SIGNOZ-API-KEY": key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=10.0,
+        )
+        if r.status_code >= 400:
+            out["note"] = f"query_range status={r.status_code}"
+            out["query_ok"] = False
+            return out
+        body = r.json()
+        spans = _extract_bounded_spans(body, max_spans=8)
+        out["spans"] = spans
+        out["query_ok"] = True
+        out["truncated"] = len(spans) >= 8
+        out["note"] = "bounded span names + durations only — no payloads"
+    except Exception as exc:  # noqa: BLE001
+        out["query_ok"] = False
+        out["note"] = f"query_range failed: {str(exc)[:200]}"
+    return out
+
+
+def _extract_bounded_spans(body: Any, *, max_spans: int = 8) -> list[dict[str, Any]]:
+    """Pull span name/duration pointers from Query Range JSON — never full attrs."""
+    spans: list[dict[str, Any]] = []
+
+    def walk(node: Any) -> None:
+        if len(spans) >= max_spans:
+            return
+        if isinstance(node, dict):
+            name = node.get("name") or node.get("spanName")
+            dur = node.get("durationNano") or node.get("duration_ns") or node.get("duration")
+            if isinstance(name, str) and name:
+                entry: dict[str, Any] = {"name": name[:120]}
+                if dur is not None:
+                    try:
+                        entry["duration_ns"] = int(dur)
+                    except (TypeError, ValueError):
+                        pass
+                # Avoid dumping nested payloads
+                spans.append(entry)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(body)
+    # Dedupe by name keeping first
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for s in spans:
+        n = s.get("name") or ""
+        if n in seen:
+            continue
+        seen.add(n)
+        out.append(s)
+        if len(out) >= max_spans:
+            break
+    return out
 
 
 def _signoz_status_payload() -> dict[str, Any]:
@@ -950,4 +1107,8 @@ def _signoz_status_payload() -> dict[str, Any]:
         "query_range_ok": query_ok,
         "query_note": query_note,
         "dashboards": dashboards,
+        "mcp_note": (
+            "SigNoz MCP stdio may hang (G5 PARTIAL). Prefer /api/signoz/evidence "
+            "+ Case File links.signoz_trace / Query Range when MCP is unhealthy."
+        ),
     }
