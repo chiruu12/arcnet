@@ -7,6 +7,7 @@ const VIEWS = new Set<View>([
   "time_machine",
   "case_files",
   "dashboards",
+  "hq_agent",
 ]);
 
 export type HashState = {

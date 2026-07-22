@@ -89,6 +89,17 @@ export type SignozStatus = {
   };
 };
 
+export type AgentVersionRow = {
+  version_id: string;
+  agent_id: string;
+  version: string;
+  model: string | null;
+  model_version: string | null;
+  source_ref: string | null;
+  notes: string | null;
+  created_at: number | null;
+};
+
 export const api = {
   fleet: () => getJSON<FleetRow[]>("/api/fleet"),
   agentModels: (agentId: string) =>
@@ -120,13 +131,20 @@ export const api = {
   },
   replays: (sessionId?: string) =>
     getJSON<ReplayRow[]>(`/api/replays${sessionId ? `?session_id=${sessionId}` : ""}`),
-  signals: (params?: { agent_id?: string; session_id?: string }) => {
+  signals: (params?: { agent_id?: string; session_id?: string; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.agent_id) q.set("agent_id", params.agent_id);
     if (params?.session_id) q.set("session_id", params.session_id);
+    if (params?.limit != null) q.set("limit", String(params.limit));
     const qs = q.toString();
     return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);
   },
+  agentVersions: (agentId: string) =>
+    getJSON<AgentVersionRow[]>(`/api/agents/${encodeURIComponent(agentId)}/versions`),
+  agentVersionTimeline: (agentId: string) =>
+    getJSON<{ agent_id: string; current_model: string | null; versions: AgentVersionRow[] }>(
+      `/api/agents/${encodeURIComponent(agentId)}/versions/timeline`,
+    ),
   sources: (params?: { agent_id?: string; session_id?: string }) => {
     const q = new URLSearchParams();
     if (params?.agent_id) q.set("agent_id", params.agent_id);
