@@ -101,6 +101,9 @@ def tool_recommend_models(task_type: str, constraints_json: str = "{}") -> str:
         constraints = {}
     if not isinstance(constraints, dict):
         constraints = {}
+    # Default TM evidence to this agent's ArcNet deployment (not bare localhost)
+    if not constraints.get("server_url"):
+        constraints = {**constraints, "server_url": _server()}
     return json.dumps(hq_tools.recommend_models(task_type, constraints=constraints))
 
 

@@ -996,6 +996,22 @@ def _signoz_evidence_payload(session_id: str) -> dict[str, Any]:
     return out
 
 
+def _is_span_like(node: dict[str, Any]) -> bool:
+    """True only for real span rows — not query/column metadata with a bare name."""
+    name = node.get("name") or node.get("spanName")
+    if not isinstance(name, str) or not name.strip():
+        return False
+    has_dur = any(
+        node.get(k) is not None for k in ("durationNano", "duration_ns", "duration")
+    )
+    has_id = any(
+        isinstance(node.get(k), str) and node.get(k)
+        for k in ("spanId", "span_id", "spanID", "traceId", "trace_id", "traceID")
+    )
+    # SigNoz span rows carry duration and/or ids; named metadata alone is not a span
+    return has_dur or has_id
+
+
 def _extract_bounded_spans(body: Any, *, max_spans: int = 8) -> list[dict[str, Any]]:
     """Pull span name/duration pointers from Query Range JSON — never full attrs."""
     spans: list[dict[str, Any]] = []
@@ -1004,15 +1020,26 @@ def _extract_bounded_spans(body: Any, *, max_spans: int = 8) -> list[dict[str, A
         if len(spans) >= max_spans:
             return
         if isinstance(node, dict):
-            name = node.get("name") or node.get("spanName")
-            dur = node.get("durationNano") or node.get("duration_ns") or node.get("duration")
-            if isinstance(name, str) and name:
-                entry: dict[str, Any] = {"name": name[:120]}
+            if _is_span_like(node):
+                name = node.get("name") or node.get("spanName")
+                dur = (
+                    node.get("durationNano")
+                    or node.get("duration_ns")
+                    or node.get("duration")
+                )
+                entry: dict[str, Any] = {"name": str(name)[:120]}
                 if dur is not None:
                     try:
                         entry["duration_ns"] = int(dur)
                     except (TypeError, ValueError):
                         pass
+                sid = (
+                    node.get("spanId")
+                    or node.get("span_id")
+                    or node.get("spanID")
+                )
+                if isinstance(sid, str) and sid:
+                    entry["span_id"] = sid[:64]
                 # Avoid dumping nested payloads
                 spans.append(entry)
             for v in node.values():
