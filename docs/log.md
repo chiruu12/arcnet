@@ -107,5 +107,10 @@ Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-flee
 ## HQ Agent slices 2–3 — Wed Jul 22
 
 **Expected:** Case File / replay tools; proposal inbox polish; human-gated apply-model; session→version pin.
-**Actual:** `case_file_view` + `replay_compare` tools; HQ proposal inbox with refresh / prep_apply / confirm checkbox; `POST /api/agents/{id}/apply-model` (`confirm: true` required) bumps model + registers version + optional proposal `status=applied`; `session_id` on version create/apply pins `sessions.agent_version`. TabPFN still deferred (no `TABPFN_TOKEN` work this pass).
+**Actual:** `case_file_view` + `replay_compare` tools; HQ proposal inbox with refresh / prep_apply / confirm checkbox; `POST /api/agents/{id}/apply-model` (`confirm: true` required) bumps model + registers version + optional proposal `status=applied`; `session_id` on version create/apply pins `sessions.agent_version`. TabPFN still deferred (no `TABPFN_TOKEN` work this pass). Merged as PR #12 after Greptile P1s (atomic apply + agent ownership).
+
+## Robustness pass 1 — Wed Jul 22
+
+**Expected:** Brutal re-score vs product readiness; kill ~92% narrative; harden highest-impact gaps.
+**Actual:** Overall **~48%** robust. Hardened: apply-model transaction + ownership; check `version_pinpoint`; bounded sources + dashboards agent-view; HQ apply session pin + clearer errors; model explore live-when-key; optional `ARCNET_WEBHOOK_SECRET`; GitHub CI; tests. Docs/17–18 honesty tables replace checklist inflation.
 
