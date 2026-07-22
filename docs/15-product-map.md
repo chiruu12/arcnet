@@ -5,6 +5,7 @@ Use this before iterating frontend/dashboards view-by-view.
 
 | Related | Role |
 |---|---|
+| [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — comment by section; open questions + backlog reorder |
 | [`14-product-guide.md`](14-product-guide.md) | How to run / use / verify HQ |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire/storage contract |
 | [`13-phase6-api-read-models.md`](13-phase6-api-read-models.md) | Human vs agent read-model split |
@@ -392,6 +393,7 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 
 ## Related
 
+- Review brief: [`16-product-review-brief.md`](16-product-review-brief.md)
 - Usage guide: [`14-product-guide.md`](14-product-guide.md)
 - Wire contract: [`12-data-api.md`](12-data-api.md)
 - Build log: [`log.md`](log.md)

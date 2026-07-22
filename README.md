@@ -11,7 +11,7 @@ Then the two pillars nobody else builds at the **agent-session** level:
 - **Agent-view** — every datum has a machine-optimal twin (`GET /api/agent-view/{view}/{id}`), so the coding agents you already run (Claude Code, Codex, Cursor) can read the fleet's health and incidents in *their* format and improve the agents.
 - **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the transcript, **same guardrail**) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray. (LangSmith and Braintrust replay a *call* or a dataset example against a new model; ArcNet replays the **whole recorded agent session** — goal, tools, and trust checks live.)
 
-See **[`docs/14-product-guide.md`](docs/14-product-guide.md)** for what ArcNet is, how to run it, how to use each HQ view, and a frontend DONE/LEFT audit. **[`docs/15-product-map.md`](docs/15-product-map.md)** is the full built-surface map (system diagrams, HQ↔API inventory, DONE/GAP, verification matrix, iteration backlog). Concept: `docs/08-vision-v2.md`. Build plan: `docs/03-plan.md`. Demo narration: `docs/06-demo-script.md`.
+See **[`docs/16-product-review-brief.md`](docs/16-product-review-brief.md)** for a short human review brief (comment by section). **[`docs/14-product-guide.md`](docs/14-product-guide.md)** covers what ArcNet is, how to run it, how to use each HQ view, and a frontend DONE/LEFT audit. **[`docs/15-product-map.md`](docs/15-product-map.md)** is the full built-surface map (system diagrams, HQ↔API inventory, DONE/GAP, verification matrix, iteration backlog). Concept: `docs/08-vision-v2.md`. Build plan: `docs/03-plan.md`. Demo narration: `docs/06-demo-script.md`.
 
 ## Provenance disclosure
 
@@ -44,7 +44,7 @@ Both hero replays are **live model runs, verified stable across 3× replay** (`s
 | `server/` | Signal bus (SSE), Time Machine, agent-view, Case File exporter, Griffin anomaly watcher, SigNoz webhook | FastAPI, SQLite |
 | `hq/` | ArcNet UI — fleet_health · signals · sources_trust · time_machine · case_files · dashboards, with a global `human_view ⇄ agent_view` toggle | React + Vite |
 | `deploy/` | Self-hosted SigNoz + MCP server + provisioned dashboards & alerts | Docker Compose |
-| `docs/` | Product, architecture, plan, integrations, Time Machine + Bug Suite specs, data & API contract, product map, build log | — |
+| `docs/` | Product, architecture, plan, integrations, Time Machine + Bug Suite specs, data & API contract, product map, review brief, build log | — |
 
 ## Quick start
 
