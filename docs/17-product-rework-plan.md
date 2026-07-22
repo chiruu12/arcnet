@@ -113,11 +113,11 @@ Skills package (proposed path: `skills/arcnet-model-explore/` or repo `mcp/model
 | `compare_replay_verdicts` | `{session_id}` or `{scenario}` | Which candidate models won which dimensions |
 | `fetch_provider_catalog` | `{provider}` | Newest/reliable ids (cached; no secrets in spans) |
 
-### This-pass deliverable (if time)
+### This-pass deliverable
 
 - Spec above stays in this doc.
-- Optional stub: `skills/arcnet-model-explore/SKILL.md` + MCP tool list JSON (no live catalog crawler).
-- Prefer finishing R1/R2 over half-built explorers.
+- Scaffold shipped: `skills/arcnet-model-explore/SKILL.md` + `mcp-tools.json` (tool shapes only; no live catalog crawler).
+- Prefer finishing R1/R2 over half-built explorers — **done for this PR**.
 
 ### Acceptance criteria (full R3 — later PR)
 
