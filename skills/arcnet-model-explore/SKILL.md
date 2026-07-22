@@ -26,10 +26,14 @@ from arcnet.model_explore import (
 )
 
 list_task_types()
-rec = recommend_models("injection_resist", constraints={"max_cost_usd": 0.1})
+rec = recommend_models(
+    "injection_resist",
+    constraints={"max_cost_usd": 0.1, "session_id": "s_ecfdb55d"},  # TM evidence when present
+)
 fetch_provider_catalog("openai", live=False)  # curated snapshot; live=True lists OpenAI models only
-# compare_replay_verdicts("s_…")  # needs arcnet-server
+# compare_replay_verdicts("s_…")  # needs arcnet-server — returns evidence_refs + dimension_winners
 record_recommendation_note(task_type="injection_resist", recommendations=rec["recommendations"])
+# Optional loop: ARCNET_MODEL_EXPLORE_LOOP=1 → recommend+record note only (never apply/kill)
 ```
 
 Default Time Machine candidate in HQ is `gpt-4o` (editable). Bound spend: do not call live catalog in loops; snapshot is enough for recommendations.

@@ -20,7 +20,10 @@
             "type": "object",
             "properties": {
               "max_cost_usd": { "type": "number" },
-              "provider": { "type": "string" }
+              "provider": { "type": "string" },
+              "session_id": { "type": "string" },
+              "live": { "type": "boolean" },
+              "server_url": { "type": "string" }
             },
             "additionalProperties": false
           }
