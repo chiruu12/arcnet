@@ -2,9 +2,9 @@
 
 - `agno-dashboard.json` — official SigNoz Agno dashboard template.
 - `dashboard-fleet-ops.json` / `dashboard-threats-trust.json` / `dashboard-cost-tokens.json` — ArcNet custom dashboards (v5 widgets; OpenInference + `arcnet.*` keys from `docs/04`). Threats dashboard includes a ClickHouse SQL panel.
-- `alerts.json` — threshold alert rules in **v5 `queries` format** + webhook channel stub. Eval intervals recorded in `meta`.
+- `alerts.json` — threshold alert rules in **v5 `queries` format** + webhook channel stub. Eval intervals recorded in `meta`. On SigNoz `v0.133`, `POST /api/v1/rules` wants the **flat** condition (`op`/`matchType` numeric codes + `preferredChannels`); nested `thresholds.spec` is rejected.
 - `alert-seasonal-anomaly.json` — native seasonal anomaly rule (**screenshot artifact only**; ≥5m windows).
-- `setup.py` — validates JSON; with `SIGNOZ_API_KEY` set, POSTs channel + dashboards + rules to SigNoz.
+- `setup.py` — validates JSON; with `SIGNOZ_API_KEY` set, inspect-first POSTs channel + dashboards + rules (skips existing names; dedupes duplicate dashboard titles).
 
 ```bash
 # validate only (no key)

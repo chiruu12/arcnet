@@ -1,7 +1,9 @@
 {
   "meta": {
     "eval_interval": "1m",
-    "notes": "v5 queries format only (never builderQueries). Inline fast-path handles on-camera steer; these alerts are system-of-record. Labels carry session_id/agent_id/arcnet_kind for webhook attribution.",
+    "notes": "v5 queries format only (never builderQueries). SigNoz v0.133 POST /api/v1/rules accepts the flat condition shape (op/matchType numeric codes + preferredChannels). Named enums + nested thresholds.spec are rejected on this pin. Inline fast-path handles on-camera steer; these alerts are system-of-record. Labels carry session_id/agent_id/arcnet_kind for webhook attribution.",
+    "op_codes": { "1": "above", "2": "below" },
+    "match_type_codes": { "1": "at_least_once", "2": "all_the_time" },
     "for_windows": {
       "threat_detected": "0s (fire immediately on >0 in 1m window)",
       "cost_burn": "45s sustained (lets Griffin fire first on S4)",
@@ -23,9 +25,9 @@
       "severity": "critical",
       "rule_type": "threshold_rule",
       "version": "v5",
-      "schema_version": "v2alpha1",
       "description": "Unplug guard detected a threat (current: {{$value}}). Labels map to ArcNet session/agent.",
       "summary": "ArcNet threat detected",
+      "preferred_channels": ["arcnet-webhook"],
       "labels": {
         "arcnet_kind": "threat",
         "team": "arcnet"
@@ -58,18 +60,9 @@
           ]
         },
         "selectedQueryName": "A",
-        "thresholds": {
-          "kind": "basic",
-          "spec": [
-            {
-              "name": "critical",
-              "op": "above",
-              "matchType": "atleast_once",
-              "target": 0,
-              "channels": ["arcnet-webhook"]
-            }
-          ]
-        }
+        "op": "1",
+        "matchType": "1",
+        "target": 0
       },
       "evaluation": {
         "kind": "rolling",
@@ -82,9 +75,9 @@
       "severity": "warning",
       "rule_type": "threshold_rule",
       "version": "v5",
-      "schema_version": "v2alpha1",
       "description": "Cost burn elevated (S4 Worms). for: ~45s so Griffin anomaly can fire first.",
       "summary": "ArcNet cost burn",
+      "preferred_channels": ["arcnet-webhook"],
       "labels": {
         "arcnet_kind": "cost_burn",
         "team": "arcnet"
@@ -117,18 +110,9 @@
           ]
         },
         "selectedQueryName": "A",
-        "thresholds": {
-          "kind": "basic",
-          "spec": [
-            {
-              "name": "warning",
-              "op": "above",
-              "matchType": "all_the_times",
-              "target": 0.05,
-              "channels": ["arcnet-webhook"]
-            }
-          ]
-        }
+        "op": "1",
+        "matchType": "2",
+        "target": 0.05
       },
       "evaluation": {
         "kind": "rolling",
@@ -141,9 +125,9 @@
       "severity": "critical",
       "rule_type": "threshold_rule",
       "version": "v5",
-      "schema_version": "v2alpha1",
       "description": "Tool-call rate suggests a runaway loop.",
       "summary": "ArcNet tool-call loop",
+      "preferred_channels": ["arcnet-webhook"],
       "labels": {
         "arcnet_kind": "kill",
         "team": "arcnet"
@@ -176,18 +160,9 @@
           ]
         },
         "selectedQueryName": "A",
-        "thresholds": {
-          "kind": "basic",
-          "spec": [
-            {
-              "name": "critical",
-              "op": "above",
-              "matchType": "atleast_once",
-              "target": 20,
-              "channels": ["arcnet-webhook"]
-            }
-          ]
-        }
+        "op": "1",
+        "matchType": "1",
+        "target": 20
       },
       "evaluation": {
         "kind": "rolling",
@@ -200,9 +175,9 @@
       "severity": "warning",
       "rule_type": "threshold_rule",
       "version": "v5",
-      "schema_version": "v2alpha1",
       "description": "Agent run p99 latency high (trace duration_nano / 1e6 ≈ ms).",
       "summary": "ArcNet p99 latency",
+      "preferred_channels": ["arcnet-webhook"],
       "labels": {
         "arcnet_kind": "note",
         "team": "arcnet"
@@ -231,18 +206,9 @@
           ]
         },
         "selectedQueryName": "A",
-        "thresholds": {
-          "kind": "basic",
-          "spec": [
-            {
-              "name": "warning",
-              "op": "above",
-              "matchType": "all_the_times",
-              "target": 30000000000,
-              "channels": ["arcnet-webhook"]
-            }
-          ]
-        }
+        "op": "1",
+        "matchType": "2",
+        "target": 30000000000
       },
       "evaluation": {
         "kind": "rolling",
@@ -255,9 +221,9 @@
       "severity": "warning",
       "rule_type": "threshold_rule",
       "version": "v5",
-      "schema_version": "v2alpha1",
       "description": "Error span rate elevated (includes guard blocks with ERROR status).",
       "summary": "ArcNet error rate",
+      "preferred_channels": ["arcnet-webhook"],
       "labels": {
         "arcnet_kind": "note",
         "team": "arcnet"
@@ -284,18 +250,9 @@
           ]
         },
         "selectedQueryName": "A",
-        "thresholds": {
-          "kind": "basic",
-          "spec": [
-            {
-              "name": "warning",
-              "op": "above",
-              "matchType": "atleast_once",
-              "target": 3,
-              "channels": ["arcnet-webhook"]
-            }
-          ]
-        }
+        "op": "1",
+        "matchType": "1",
+        "target": 3
       },
       "evaluation": {
         "kind": "rolling",
@@ -308,9 +265,9 @@
       "severity": "critical",
       "rule_type": "threshold_rule",
       "version": "v5",
-      "schema_version": "v2alpha1",
       "description": "Griffin outlier metric fired.",
       "summary": "Griffin anomaly",
+      "preferred_channels": ["arcnet-webhook"],
       "labels": {
         "arcnet_kind": "griffin",
         "team": "arcnet"
@@ -343,18 +300,9 @@
           ]
         },
         "selectedQueryName": "A",
-        "thresholds": {
-          "kind": "basic",
-          "spec": [
-            {
-              "name": "critical",
-              "op": "above",
-              "matchType": "atleast_once",
-              "target": 0,
-              "channels": ["arcnet-webhook"]
-            }
-          ]
-        }
+        "op": "1",
+        "matchType": "1",
+        "target": 0
       },
       "evaluation": {
         "kind": "rolling",
