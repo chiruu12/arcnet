@@ -279,6 +279,7 @@ Inventory of `hq/` as of this guide (live APIs only — Phase 3 mock route remov
 
 | Doc | Role |
 |---|---|
+| [`15-product-map.md`](15-product-map.md) | **Full built-surface map** — HQ↔API diagrams, DONE/GAP inventories, verification matrix, iteration backlog |
 | [`01-product.md`](01-product.md) | Feature tiers / loop spec |
 | [`02-architecture.md`](02-architecture.md) | Full architecture |
 | [`06-demo-script.md`](06-demo-script.md) | Camera script |
