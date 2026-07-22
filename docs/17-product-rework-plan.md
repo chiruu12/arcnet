@@ -7,7 +7,8 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 | [`16-product-review-brief.md`](16-product-review-brief.md) §11 | Founder decisions (authoritative) |
 | [`15-product-map.md`](15-product-map.md) | Built inventory + gaps |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire contract — **additive only** |
-| [`18-hq-agent.md`](18-hq-agent.md) | **Next phase** — HQ Agent maintenance layer (SigNoz reuse, MAD Griffin, versions, proposals) |
+| [`18-hq-agent.md`](18-hq-agent.md) | HQ Agent maintenance layer (SigNoz reuse, MAD Griffin, versions, proposals) |
+| [`19-path-to-95.md`](19-path-to-95.md) | **Execution plan** — ~48% → ~95% robustness (waves + workstreams); approve before implement |
 
 **Standing constraints:** product-core never imports `agents/`/`scripts/`; Unplug in-process; no full tool outputs in agent contexts; local SigNoz path only; YAGNI on model-explorer fleet / auto-remediation.
 
@@ -201,6 +202,8 @@ Acceptance criteria above measure **surface existence**, not production-usable r
 ### Robustness pass 1 (this branch)
 
 Shipped: atomic apply-model + ownership checks; check `version_pinpoint`; bounded sources + dashboards agent-view; HQ session pin on apply; live model catalog when key present; webhook secret; CI; tests for the above.
+
+**Next:** [`19-path-to-95.md`](19-path-to-95.md) — ordered waves WS1–WS12 to reach ~95% with measurable exit criteria (not checklist inflation). Acceptance appendix: [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md).
 
 ---
 

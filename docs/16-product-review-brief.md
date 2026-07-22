@@ -231,6 +231,7 @@ Reorder freely. Acceptance criteria live in the map §6.
 |---|---|
 | [`17-product-rework-plan.md`](17-product-rework-plan.md) | Phased productization plan (R1–R3 + HQ Agent) after founder review |
 | [`18-hq-agent.md`](18-hq-agent.md) | HQ Agent maintenance layer — SigNoz reuse, MAD Griffin, versions, proposals |
+| [`19-path-to-95.md`](19-path-to-95.md) | ~48% → ~95% robustness execution plan (waves WS1–WS12) |
 | [`14-product-guide.md`](14-product-guide.md) | How to run, use each view, verify |
 | [`15-product-map.md`](15-product-map.md) | Full DONE/PARTIAL/GAP inventory, check matrix, validation notes |
 | [`01-product.md`](01-product.md) | Feature tiers / loop spec |

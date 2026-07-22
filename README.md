@@ -11,7 +11,7 @@ Then the two pillars that close the improve loop at the **agent-session** level:
 - **Agent-view** — every datum has a machine-optimal twin (`GET /api/agent-view/{view}/{id}`), so the coding agents you already run (Claude Code, Codex, Cursor) can read fleet health, signals, and incidents in *their* format and improve the agents.
 - **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the transcript, **same guardrail**) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray. (LangSmith and Braintrust replay a *call* or a dataset example against a new model; ArcNet replays the **whole recorded agent session** — goal, tools, and trust checks live.)
 
-See **[`docs/16-product-review-brief.md`](docs/16-product-review-brief.md)** for the review brief (§11 founder decisions). **[`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md)** is the R1–R3 productization plan. **[`docs/14-product-guide.md`](docs/14-product-guide.md)** covers what ArcNet is, how to run it, how to use each HQ view, and a frontend DONE/LEFT audit. **[`docs/15-product-map.md`](docs/15-product-map.md)** is the full built-surface map (system diagrams, HQ↔API inventory, DONE/GAP, verification matrix, iteration backlog). Concept: `docs/08-vision-v2.md`. Build plan: `docs/03-plan.md`. Demo narration: `docs/06-demo-script.md`.
+See **[`docs/16-product-review-brief.md`](docs/16-product-review-brief.md)** for the review brief (§11 founder decisions). **[`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md)** is the R1–R3 productization plan (honest ~48% scorecard). **[`docs/19-path-to-95.md`](docs/19-path-to-95.md)** is the execution plan to ~95% production-usable robustness (approve before implement). **[`docs/14-product-guide.md`](docs/14-product-guide.md)** covers what ArcNet is, how to run it, how to use each HQ view, and a frontend DONE/LEFT audit. **[`docs/15-product-map.md`](docs/15-product-map.md)** is the full built-surface map (system diagrams, HQ↔API inventory, DONE/GAP, verification matrix, iteration backlog). Concept: `docs/08-vision-v2.md`. Build plan: `docs/03-plan.md`. Demo narration: `docs/06-demo-script.md`.
 
 ## Provenance disclosure
 
@@ -164,6 +164,7 @@ uv run python scripts/phase4_g4_check.py
   a versioned post-v1 API converts).
 - Full usage + HQ audit: [`docs/14-product-guide.md`](docs/14-product-guide.md).
 - Productization roadmap: [`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md).
+- Path to ~95% robustness: [`docs/19-path-to-95.md`](docs/19-path-to-95.md).
 
 ## Status
 

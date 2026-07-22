@@ -114,3 +114,8 @@ Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-flee
 **Expected:** Brutal re-score vs product readiness; kill ~92% narrative; harden highest-impact gaps.
 **Actual:** Overall **~48%** robust. Hardened: apply-model transaction + ownership; check `version_pinpoint`; bounded sources + dashboards agent-view; HQ apply session pin + clearer errors; model explore live-when-key; optional `ARCNET_WEBHOOK_SECRET`; GitHub CI; tests. Docs/17–18 honesty tables replace checklist inflation.
 
+## Path to ~95% — plan only
+
+**Expected:** Exhaustive execution plan from ~48% → ~95% with measurable exit criteria, workstreams, waves; no product feature implement in the plan PR.
+**Actual:** `docs/19-path-to-95.md` + `docs/plans/path-to-95-acceptance.md`; links from README / 15 / 16 / 17 / 18. PR #13 not merged into plan base (Greptile: live catalog failures must fall back). Branch `plan-path-to-95`.
+

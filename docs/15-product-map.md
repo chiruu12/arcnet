@@ -7,6 +7,7 @@ Use this before iterating frontend/dashboards view-by-view.
 |---|---|
 | [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — §11 founder decisions; open questions closed |
 | [`17-product-rework-plan.md`](17-product-rework-plan.md) | **Productization plan** R1–R3 (framing, API, HQ IA, model explore) |
+| [`19-path-to-95.md`](19-path-to-95.md) | **Path to ~95%** robustness — execution waves after honest ~48% scorecard |
 | [`14-product-guide.md`](14-product-guide.md) | How to run / use / verify HQ |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire/storage contract |
 | [`13-phase6-api-read-models.md`](13-phase6-api-read-models.md) | Human vs agent read-model split |
@@ -422,6 +423,7 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 
 - Review brief: [`16-product-review-brief.md`](16-product-review-brief.md) (§11 founder decisions)
 - Rework plan: [`17-product-rework-plan.md`](17-product-rework-plan.md)
+- Path to ~95%: [`19-path-to-95.md`](19-path-to-95.md)
 - Usage guide: [`14-product-guide.md`](14-product-guide.md)
 - Wire contract: [`12-data-api.md`](12-data-api.md)
 - Build log: [`log.md`](log.md)
