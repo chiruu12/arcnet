@@ -1,7 +1,7 @@
 {
   "name": "arcnet-hq-agent",
-  "version": "0.1.0",
-  "description": "HQ Agent tools — fleet, SigNoz status, Griffin MAD, versions, model proposals.",
+  "version": "0.2.0",
+  "description": "HQ Agent tools — fleet, SigNoz, Griffin MAD, Case File/replay, versions, proposals, human-gated apply.",
   "tools": [
     {
       "name": "signoz_status",
@@ -26,6 +26,26 @@
     {
       "name": "session_check",
       "description": "Compact session diagnosis (no full tool outputs).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["session_id"],
+        "properties": { "session_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "case_file_view",
+      "description": "Bounded Case File / incident envelope for a session.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["session_id"],
+        "properties": { "session_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "replay_compare",
+      "description": "Bounded Time Machine verdict summaries for a session.",
       "inputSchema": {
         "type": "object",
         "required": ["session_id"],
@@ -77,7 +97,7 @@
     },
     {
       "name": "register_agent_version",
-      "description": "Register a deployed agent version after a real change.",
+      "description": "Register a deployed agent version after a real change. Optional session_id pins session→version.",
       "inputSchema": {
         "type": "object",
         "required": ["agent_id", "version"],
@@ -88,6 +108,7 @@
           "model_version": { "type": "string" },
           "source_ref": { "type": "string" },
           "notes": { "type": "string" },
+          "session_id": { "type": "string" },
           "server_url": { "type": "string" }
         },
         "additionalProperties": false
@@ -116,6 +137,25 @@
       "inputSchema": {
         "type": "object",
         "properties": { "agent_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "apply_model_change",
+      "description": "Human-gated model apply. Requires confirm=true; records version bump.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["agent_id", "model", "version", "confirm"],
+        "properties": {
+          "agent_id": { "type": "string" },
+          "model": { "type": "string" },
+          "version": { "type": "string" },
+          "confirm": { "type": "boolean" },
+          "session_id": { "type": "string" },
+          "proposal_signal_id": { "type": "string" },
+          "notes": { "type": "string" },
+          "server_url": { "type": "string" }
+        },
         "additionalProperties": false
       }
     }

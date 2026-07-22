@@ -151,6 +151,26 @@ export const api = {
     getJSON<{ agent_id: string; current_model: string | null; versions: AgentVersionRow[] }>(
       `/api/agents/${encodeURIComponent(agentId)}/versions/timeline`,
     ),
+  applyModel: (
+    agentId: string,
+    body: {
+      confirm: true;
+      model: string;
+      version: string;
+      model_version?: string;
+      source_ref?: string;
+      notes?: string;
+      session_id?: string;
+      proposal_signal_id?: string;
+    },
+  ) =>
+    postJSON<{
+      agent_id: string;
+      model: string;
+      version: AgentVersionRow;
+      proposal: SignalRow | null;
+      applied: boolean;
+    }>(`/api/agents/${encodeURIComponent(agentId)}/apply-model`, body),
   sources: (params?: { agent_id?: string; session_id?: string }) => {
     const q = new URLSearchParams();
     if (params?.agent_id) q.set("agent_id", params.agent_id);
