@@ -24,6 +24,7 @@ _CACHE: dict[str, Any] = {
     "estimator": "mad",
     "status": "cold",
     "series": {},
+    "proxy_series": {},  # sqlite_proxy only — never written to seed path
     "series_source": None,  # seed | sqlite_proxy | signoz | None
     "last_cycle_ms": None,
     "last_evaluate_ms": None,
@@ -220,27 +221,33 @@ def derive_sqlite_proxy_series(get_conn: Callable) -> dict[str, list[dict[str, f
     return buckets
 
 
+def active_series() -> dict[str, list[dict[str, float]]]:
+    """Series used for evaluate: seed file wins; else in-memory sqlite proxy."""
+    seeded = load_series()
+    if seeded:
+        return seeded
+    proxy = _CACHE.get("proxy_series")
+    return proxy if isinstance(proxy, dict) else {}
+
+
 def ensure_series_warm(get_conn: Callable) -> str:
-    """Load series preferring seed file, else SQLite proxy. Returns source label."""
+    """Load series preferring seed file, else SQLite proxy. Returns source label.
+
+    Proxy snapshots stay in-memory only so warm-up never freezes into a seed file
+    that would skip later SQLite refreshes and mislabel Fleet Health as seed.
+    """
     seeded = load_series()
     if seeded:
         _CACHE["series_source"] = "seed"
         return "seed"
     proxy = derive_sqlite_proxy_series(get_conn)
     if proxy:
-        # Merge into seed path only in-memory for evaluate; do not overwrite seed file
-        path = _series_path()
-        if not path.exists():
-            save_series(proxy)
-            _CACHE["series_source"] = "sqlite_proxy"
-            return "sqlite_proxy"
-        # Seed file empty dict edge — write proxy
-        if not seeded:
-            save_series(proxy)
-            _CACHE["series_source"] = "sqlite_proxy"
-            return "sqlite_proxy"
-    _CACHE["series_source"] = _CACHE.get("series_source") or None
-    return _CACHE.get("series_source") or "none"
+        _CACHE["proxy_series"] = proxy
+        _CACHE["series_source"] = "sqlite_proxy"
+        return "sqlite_proxy"
+    _CACHE["proxy_series"] = {}
+    _CACHE["series_source"] = None
+    return "none"
 
 
 def evaluate_series(
@@ -250,17 +257,24 @@ def evaluate_series(
     observed: float | None = None,
 ) -> dict[str, Any]:
     """Judge one series; on outlier emit signal source=griffin + update cache."""
-    if not load_series().get(series_id):
+    if not active_series().get(series_id):
         ensure_series_warm(get_conn)
-    series = load_series()
+    source = _CACHE.get("series_source") or ensure_series_warm(get_conn)
+    series = active_series()
     points = series.get(series_id) or []
     values = [float(p["v"]) for p in points]
     if observed is not None:
         values = values + [float(observed)]
-        # Persist spike point for UI
+        # Persist spike only for intentional seed files — never promote proxy→seed
         points = list(points) + [{"t": time.time(), "v": float(observed)}]
-        series[series_id] = points[-500:]
-        save_series(series)
+        if source == "seed":
+            seeded = load_series()
+            seeded[series_id] = points[-500:]
+            save_series(seeded)
+        else:
+            proxy = dict(_CACHE.get("proxy_series") or {})
+            proxy[series_id] = points[-500:]
+            _CACHE["proxy_series"] = proxy
 
     metric = series_id.split("|", 1)[0]
     agent_id = series_id.split("|", 1)[1] if "|" in series_id else "agent_j"
@@ -279,7 +293,7 @@ def evaluate_series(
     _CACHE["estimator"] = "mad"
     _CACHE["model"] = "mad"
     if not _CACHE.get("series_source"):
-        _CACHE["series_source"] = "seed" if _series_path().exists() else "sqlite_proxy"
+        _CACHE["series_source"] = source if source != "none" else None
 
     if not result.get("outlier"):
         return {
@@ -383,7 +397,7 @@ async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
     while True:
         try:
             ensure_series_warm(get_conn)
-            series = load_series()
+            series = active_series()
             if not series:
                 _CACHE["status"] = "cold"
             for sid in ALLOWLIST:
