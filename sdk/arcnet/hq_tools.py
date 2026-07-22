@@ -168,14 +168,11 @@ def list_model_proposals(
     server_url: str | None = None,
     limit: int = 30,
 ) -> list[dict[str, Any]]:
-    q = f"/api/signals?limit={limit}&offset=0"
+    # Filter at the API so newer non-hq_agent signals cannot hide proposals.
+    q = f"/api/signals?source=hq_agent&limit={limit}&offset=0"
     if agent_id:
         q += f"&agent_id={agent_id}"
     rows = _get(q, server_url=server_url)
     if not isinstance(rows, list):
         return []
-    return [
-        r
-        for r in rows
-        if isinstance(r, dict) and str(r.get("source") or "").lower() == "hq_agent"
-    ]
+    return [r for r in rows if isinstance(r, dict)]

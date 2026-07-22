@@ -131,10 +131,16 @@ export const api = {
   },
   replays: (sessionId?: string) =>
     getJSON<ReplayRow[]>(`/api/replays${sessionId ? `?session_id=${sessionId}` : ""}`),
-  signals: (params?: { agent_id?: string; session_id?: string; limit?: number }) => {
+  signals: (params?: {
+    agent_id?: string;
+    session_id?: string;
+    source?: string;
+    limit?: number;
+  }) => {
     const q = new URLSearchParams();
     if (params?.agent_id) q.set("agent_id", params.agent_id);
     if (params?.session_id) q.set("session_id", params.session_id);
+    if (params?.source) q.set("source", params.source);
     if (params?.limit != null) q.set("limit", String(params.limit));
     const qs = q.toString();
     return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);

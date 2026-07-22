@@ -148,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /api/sessions?scenario=&agent_id=&model=&limit=&offset=` | query | session index rows + `has_transcript`; **no** transcript. `model` filter **additive**. Pagination headers **additive** |
 | `GET /api/sessions/{id}?include=transcript` | path | session row (+ full transcript only when asked — it's big) |
 | `GET /api/agents/{agent_id}/models` | path | `[{model, session_count, latest_started_at}]` — distinct models for cascade pickers (**additive**) |
-| `GET /api/signals?session_id=&agent_id=&limit=&offset=` | query | `[signal row]` + pagination headers; `agent_id` filter **additive** |
+| `GET /api/signals?session_id=&agent_id=&source=&limit=&offset=` | query | `[signal row]` + pagination headers; `agent_id` / `source` filters **additive** |
 | `GET /api/replays?session_id=&limit=&offset=` | query | replay index (no `runs` blob) + pagination headers (**additive**) |
 | `POST /api/replay` | `{session_id, candidate_model?, candidate_prompt?}` (exactly one candidate) | the verdict object (`10`) — synchronous; progress streams over SSE |
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |

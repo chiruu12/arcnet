@@ -472,6 +472,7 @@ def count_signals(
     *,
     session_id: str | None = None,
     agent_id: str | None = None,
+    source: str | None = None,
 ) -> int:
     q = "SELECT COUNT(*) FROM signals WHERE 1=1"
     params: list[Any] = []
@@ -481,6 +482,9 @@ def count_signals(
     if agent_id:
         q += " AND agent_id = ?"
         params.append(agent_id)
+    if source:
+        q += " AND source = ?"
+        params.append(source)
     row = conn.execute(q, params).fetchone()
     return int(row[0] if row else 0)
 
@@ -490,6 +494,7 @@ def list_signals(
     *,
     session_id: str | None = None,
     agent_id: str | None = None,
+    source: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
@@ -502,6 +507,9 @@ def list_signals(
     if agent_id:
         q += " AND agent_id = ?"
         params.append(agent_id)
+    if source:
+        q += " AND source = ?"
+        params.append(source)
     q += " ORDER BY created_at DESC, signal_id DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()

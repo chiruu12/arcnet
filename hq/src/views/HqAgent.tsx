@@ -17,12 +17,12 @@ export function HqAgent() {
     setProposals(null);
     setVersions(null);
     Promise.all([
-      api.signals({ agent_id: agentId, limit: 40 }),
+      api.signals({ agent_id: agentId, source: "hq_agent", limit: 40 }),
       api.agentVersions(agentId),
     ])
       .then(([sigs, vers]) => {
         if (cancelled) return;
-        setProposals(sigs.filter((s) => s.source === "hq_agent"));
+        setProposals(sigs);
         setVersions(vers);
         setErr(null);
       })

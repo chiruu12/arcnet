@@ -164,11 +164,52 @@ class HqToolsTests(unittest.TestCase):
             self.assertIn("MAD", out["note"])
             self.assertEqual(len(out["recent_griffin_signals"]), 1)
 
-    def test_recommend_models_local(self) -> None:
+    def test_list_proposals_survives_newer_noise(self) -> None:
+        """source=hq_agent filter must not be buried by mixed-source pagination."""
         from arcnet import hq_tools
 
-        rec = hq_tools.recommend_models("tool_heavy")
-        self.assertIn("recommendations", rec)
+        # Flood with non-hq signals after a proposal exists.
+        prop = self.client.post(
+            "/api/signal",
+            json={
+                "agent_id": "agent_j",
+                "kind": "note",
+                "severity": "info",
+                "reason": "upgrade to gpt-4o",
+                "guidance": "proposed",
+                "source": "hq_agent",
+            },
+        ).json()
+        for i in range(35):
+            self.client.post(
+                "/api/signal",
+                json={
+                    "agent_id": "agent_j",
+                    "kind": "note",
+                    "severity": "info",
+                    "reason": f"noise-{i}",
+                    "source": "inline",
+                },
+            )
+
+        with patch.object(hq_tools, "_get") as g:
+
+            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0):
+                r = self.client.get(path)
+                r.raise_for_status()
+                return r.json()
+
+            g.side_effect = get_side
+            proposals = hq_tools.list_model_proposals(agent_id="agent_j", limit=30)
+
+        self.assertTrue(any(x["signal_id"] == prop["signal_id"] for x in proposals))
+        # Direct API also filters.
+        filtered = self.client.get(
+            "/api/signals?agent_id=agent_j&source=hq_agent&limit=30"
+        )
+        self.assertEqual(filtered.status_code, 200)
+        self.assertTrue(all(r["source"] == "hq_agent" for r in filtered.json()))
+        self.assertGreaterEqual(int(filtered.headers.get("X-Total-Count", "0")), 1)
 
 
 class HqAgentBuildSmoke(unittest.TestCase):

@@ -277,16 +277,20 @@ def list_signals(
     response: Response,
     session_id: str | None = None,
     agent_id: str | None = None,
+    source: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
     conn = get_conn()
-    total = repository.count_signals(conn, session_id=session_id, agent_id=agent_id)
+    total = repository.count_signals(
+        conn, session_id=session_id, agent_id=agent_id, source=source
+    )
     _page_headers(response, total=total, limit=limit, offset=offset)
     return repository.list_signals(
         conn,
         session_id=session_id,
         agent_id=agent_id,
+        source=source,
         limit=limit,
         offset=offset,
     )
