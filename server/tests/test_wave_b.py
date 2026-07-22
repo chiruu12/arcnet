@@ -62,6 +62,7 @@ class WaveBGriffinStatusTests(unittest.TestCase):
                 "estimator": "mad",
                 "status": "cold",
                 "series": {},
+                "proxy_series": {},
                 "series_source": None,
                 "last_cycle_ms": None,
                 "last_evaluate_ms": None,
@@ -117,6 +118,26 @@ class WaveBGriffinStatusTests(unittest.TestCase):
         self.assertIn("MAD", body["honesty"])
         self.assertNotIn("TabFM live", body.get("honesty", ""))
         self.assertIn(body.get("series_source"), ("sqlite_proxy", "seed", "none", None))
+
+    def test_proxy_warm_does_not_write_seed_file(self) -> None:
+        import arcnet_server.griffin as g
+        import arcnet_server.main as m
+
+        self.assertFalse(self.series_path.exists())
+        src1 = g.ensure_series_warm(m.get_conn)
+        self.assertEqual(src1, "sqlite_proxy")
+        self.assertFalse(
+            self.series_path.exists(),
+            "proxy warm-up must not freeze into griffin_series.json seed",
+        )
+        self.assertTrue(g._CACHE.get("proxy_series"))
+        # Second cycle still refreshes from sqlite, not a frozen seed
+        g._CACHE["proxy_series"] = {}
+        src2 = g.ensure_series_warm(m.get_conn)
+        self.assertEqual(src2, "sqlite_proxy")
+        self.assertFalse(self.series_path.exists())
+        body = self.client.get("/api/griffin/status").json()
+        self.assertEqual(body.get("series_source"), "sqlite_proxy")
 
 
 class WaveBSignozEvidenceTests(unittest.TestCase):
@@ -187,6 +208,33 @@ class WaveBSignozEvidenceTests(unittest.TestCase):
             body = self.client.get("/api/signoz/status").json()
         self.assertIn("mcp_note", body)
         self.assertIn("hang", body["mcp_note"].lower())
+
+    def test_extract_spans_skips_metadata_names(self) -> None:
+        from arcnet_server.main import _extract_bounded_spans
+
+        body = {
+            "status": "success",
+            "data": {
+                "resultType": "traces",
+                "query": {"name": "A", "queryName": "A"},
+                "columns": [{"name": "spanName"}, {"name": "durationNano"}],
+                "result": [
+                    {
+                        "name": "real.span",
+                        "durationNano": 12345,
+                        "spanId": "abcd",
+                    },
+                    {"name": "also.real", "duration_ns": 99},
+                ],
+            },
+        }
+        spans = _extract_bounded_spans(body, max_spans=8)
+        names = [s["name"] for s in spans]
+        self.assertIn("real.span", names)
+        self.assertIn("also.real", names)
+        self.assertNotIn("A", names)
+        self.assertNotIn("spanName", names)
+        self.assertNotIn("durationNano", names)
 
 
 class WaveBHqToolsTests(unittest.TestCase):
@@ -265,6 +313,108 @@ class WaveBModelExploreTests(unittest.TestCase):
         self.assertTrue(any(r.startswith("replay:") for r in out["evidence_refs"]))
         self.assertIn("resisted_injection", out["dimension_winners"])
 
+    def test_dimension_winners_majority_not_last_write(self) -> None:
+        from arcnet.model_explore import compare_replay_verdicts
+
+        with patch("httpx.Client") as client_cls:
+            client = MagicMock()
+            client_cls.return_value.__enter__.return_value = client
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.json.return_value = [
+                {
+                    "replay_id": "r1",
+                    "candidate_model": "gpt-4o",
+                    "verdict": {
+                        "baseline": {
+                            "model": "gpt-4o-mini",
+                            "resisted_injection": False,
+                            "cost_usd": 0.01,
+                        },
+                        "candidate": {
+                            "model": "gpt-4o",
+                            "resisted_injection": True,
+                            "cost_usd": 0.02,
+                        },
+                    },
+                },
+                {
+                    "replay_id": "r2",
+                    "candidate_model": "gpt-4o",
+                    "verdict": {
+                        "baseline": {
+                            "model": "gpt-4o-mini",
+                            "resisted_injection": False,
+                            "cost_usd": 0.01,
+                        },
+                        "candidate": {
+                            "model": "gpt-4o",
+                            "resisted_injection": True,
+                            "cost_usd": 0.03,
+                        },
+                    },
+                },
+                {
+                    "replay_id": "r3_last",
+                    "candidate_model": "o3-mini",
+                    "verdict": {
+                        "baseline": {
+                            "model": "gpt-4o-mini",
+                            "resisted_injection": True,
+                            "cost_usd": 0.01,
+                        },
+                        "candidate": {
+                            "model": "o3-mini",
+                            "resisted_injection": False,
+                            "cost_usd": 0.005,
+                        },
+                    },
+                },
+            ]
+            client.get.return_value = resp
+            out = compare_replay_verdicts("s_multi", server_url="http://test")
+        # 2/3 resisted_injection wins for gpt-4o — last row must not overwrite
+        self.assertEqual(out["dimension_winners"]["resisted_injection"], "gpt-4o")
+        # cost: gpt-4o wins r1+r2 (baseline cheaper? wait — lower cost wins)
+        # r1: cand 0.02 > base 0.01 → baseline; r2: same → baseline; r3: cand cheaper → o3-mini
+        # majority for cost_usd is gpt-4o-mini (2 votes)
+        self.assertEqual(out["dimension_winners"]["cost_usd"], "gpt-4o-mini")
+        self.assertEqual(out["replays"][-1]["dimension_winners"]["resisted_injection"], "gpt-4o-mini")
+
+    def test_recommend_without_session_keeps_curated_order(self) -> None:
+        from arcnet.model_explore import TASK_TYPES, recommend_models
+
+        with patch("arcnet.model_explore._tm_evidence_for_recommend") as tm:
+            tm.return_value = (
+                ["replay:r_security"],
+                [{"candidate_model": "o3-mini", "verdict": "better"}],
+            )
+            out = recommend_models("cheap_batch", constraints={"live": False})
+        tm.assert_not_called()
+        prefer = TASK_TYPES["cheap_batch"]["prefer"]
+        models = [r["model"] for r in out["recommendations"]]
+        self.assertEqual(models, list(prefer)[: len(models)])
+        self.assertEqual(out["recommendations"][0]["rank"], 1)
+        self.assertEqual(out["recommendations"][0]["model"], prefer[0])
+
+    def test_recommend_with_session_can_promote_winner(self) -> None:
+        from arcnet.model_explore import TASK_TYPES, recommend_models
+
+        prefer = list(TASK_TYPES["tool_heavy"]["prefer"])
+        # Pick a non-first prefer model as TM winner
+        winner = prefer[-1] if len(prefer) > 1 else prefer[0]
+        with patch("arcnet.model_explore._tm_evidence_for_recommend") as tm:
+            tm.return_value = (
+                ["session:s_x", "replay:r1"],
+                [{"candidate_model": winner, "verdict": "better"}],
+            )
+            out = recommend_models(
+                "tool_heavy",
+                constraints={"live": False, "session_id": "s_x", "server_url": "http://t"},
+            )
+        tm.assert_called()
+        self.assertEqual(out["recommendations"][0]["model"], winner)
+
     def test_explore_loop_disabled_by_default(self) -> None:
         from arcnet.model_explore import maybe_run_explore_loop
 
@@ -293,6 +443,35 @@ class WaveBModelExploreTests(unittest.TestCase):
         note.assert_called()
         # Ensure we never imported/called apply
         self.assertNotIn("apply", str(note.call_args).lower() + str(rec.call_args).lower())
+
+
+class WaveBHqAgentRecommendServerTests(unittest.TestCase):
+    def test_recommend_models_injects_server_url(self) -> None:
+        import agents.hq_agent.agent as hq_agent
+
+        entry = hq_agent.tool_recommend_models.entrypoint
+        with patch.object(hq_agent, "_server", return_value="http://deployed:8000"):
+            with patch.object(hq_agent.hq_tools, "recommend_models") as rec:
+                rec.return_value = {"recommendations": [], "exploration_only": True}
+                entry(task_type="tool_heavy", constraints_json="{}")
+        kwargs = rec.call_args.kwargs
+        self.assertEqual(kwargs["constraints"]["server_url"], "http://deployed:8000")
+
+    def test_recommend_models_keeps_explicit_server_url(self) -> None:
+        import agents.hq_agent.agent as hq_agent
+
+        entry = hq_agent.tool_recommend_models.entrypoint
+        with patch.object(hq_agent, "_server", return_value="http://deployed:8000"):
+            with patch.object(hq_agent.hq_tools, "recommend_models") as rec:
+                rec.return_value = {"recommendations": [], "exploration_only": True}
+                entry(
+                    task_type="tool_heavy",
+                    constraints_json='{"server_url":"http://override:9"}',
+                )
+        self.assertEqual(
+            rec.call_args.kwargs["constraints"]["server_url"],
+            "http://override:9",
+        )
 
 
 class WaveBCheckTraceLinkTests(unittest.TestCase):
