@@ -160,8 +160,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /export/case-file/{session_id}` | path | zip: `case-file.md` + `case-file.json` |
 | `GET /api/signoz/status` | — | `{signoz_url, ui_reachable, api_key_present, query_range_ok, query_note, dashboards: {fleet_ops, threats_trust, cost_tokens, agno}}` — dashboard ids from `SIGNOZ_DASHBOARD_*` env or title resolve (**additive** `dashboards`) |
 | `GET /api/agents/{agent_id}/versions?limit=&offset=` | path + page | `[agent_version row]` + pagination headers (**additive** HQ Agent) |
-| `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?}` | created version row (**additive**) |
+| `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?, session_id?}` | created version row; optional `session_id` pins `sessions.agent_version` to the new `version_id` (**additive**) |
 | `GET /api/agents/{agent_id}/versions/timeline` | path | `{agent_id, versions[], current_model?}` (**additive**) |
+| `POST /api/agents/{agent_id}/apply-model` | `{confirm: true, model, version, model_version?, source_ref?, notes?, session_id?, proposal_signal_id?}` | bumps `agents.model`, registers version, optional session pin + marks proposal `status=applied`. **Requires `confirm: true`** (human-gated; **additive**) |
 
 **Pagination convention (additive, 2026-07-22):** list bodies remain JSON **arrays** so existing HQ/clients keep working. Clients that need totals read `X-Total-Count` (and echo `X-Limit` / `X-Offset`). `offset` defaults to `0`; `limit` keeps prior defaults/caps.
 
@@ -169,7 +170,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 
 **SDK session tools (additive client):** `arcnet.hq.check_session` / `signals_view` / `session_view` / `incident_view` / `sources_view` — thin wrappers over agent-view envelopes (no full tool dumps).
 
-**HQ Agent tools (additive client, docs/18):** `arcnet.hq_tools` — `signoz_status`, `fleet_overview`, `agent_signals`, `session_check`, `griffin_anomalies` (MAD-labeled), `list_agent_models`, `recommend_models`, `agent_version_timeline`, `register_agent_version`, `propose_model_change`, `list_model_proposals`. Proposals write `signals` with `source=hq_agent`; they do **not** auto-apply.
+**HQ Agent tools (additive client, docs/18):** `arcnet.hq_tools` — `signoz_status`, `fleet_overview`, `agent_signals`, `session_check`, `case_file_view`, `replay_compare`, `griffin_anomalies` (MAD-labeled), `list_agent_models`, `recommend_models`, `agent_version_timeline`, `register_agent_version` (optional `session_id` pin), `propose_model_change`, `list_model_proposals`, `apply_model_change` (requires `confirm=True`). Proposals write `signals` with `source=hq_agent`; apply is human-gated.
 
 ### Agent-view envelope (every view, same wrapper)
 

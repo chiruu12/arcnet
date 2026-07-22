@@ -159,6 +159,10 @@ Full design: [`18-hq-agent.md`](18-hq-agent.md).
 - [x] HQ tools return bounded JSON; import boundary green.
 - [x] HQ agent wires Unplug like other fleet agents.
 - [x] Propose-model writes `source=hq_agent` note — does not auto-apply.
+- [x] Case File / replay tools on HQ agent (`case_file_view`, `replay_compare`).
+- [x] Proposal inbox uses `source=hq_agent` filter + human-gated apply UI.
+- [x] `POST /api/agents/{id}/apply-model` requires `confirm: true` and records version bump.
+- [x] Optional `session_id` on version register / apply pins `sessions.agent_version`.
 
 ---
 

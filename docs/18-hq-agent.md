@@ -119,13 +119,16 @@ Each tool returns **bounded JSON** (no full tool outputs / transcripts).
 | `fleet_overview` | — | fleet rows (health) | `GET /api/fleet` |
 | `agent_signals` | `{agent_or_session_id}` | signals envelope | `GET /api/agent-view/signals/{id}` |
 | `session_check` | `{session_id}` | check envelope | `GET /api/agent-view/check/{id}` |
-| `griffin_anomalies` | — | MAD cache snapshot + recent griffin signals | `GET /api/griffin/status` + signals filter |
+| `case_file_view` | `{session_id}` | Case File / incident envelope | `GET /api/agent-view/incident/{id}` |
+| `replay_compare` | `{session_id}` | bounded replay verdict summaries | `GET /api/replays?session_id=` via `model_explore` |
+| `griffin_anomalies` | — | MAD cache snapshot + recent griffin signals | `GET /api/griffin/status` + signals `source=griffin` |
 | `list_agent_models` | `{agent_id}` | `[{model, session_count, …}]` | `GET /api/agents/{id}/models` |
 | `recommend_models` | `{task_type, constraints?}` | ranked candidates | `arcnet.model_explore` (local) |
 | `agent_version_timeline` | `{agent_id}` | version rows newest-first | `GET /api/agents/{id}/versions` |
-| `register_agent_version` | `{agent_id, version, model, …}` | created row | `POST /api/agents/{id}/versions` |
+| `register_agent_version` | `{agent_id, version, model, …, session_id?}` | created row; optional session pin | `POST /api/agents/{id}/versions` |
 | `propose_model_change` | `{agent_id, from_model?, to_model, reason}` | proposal signal | `POST /api/signal` (`source=hq_agent`) |
-| `list_model_proposals` | `{agent_id?}` | recent hq_agent notes | `GET /api/signals?…` |
+| `list_model_proposals` | `{agent_id?}` | recent hq_agent notes | `GET /api/signals?source=hq_agent` |
+| `apply_model_change` | `{agent_id, model, version, confirm:true, …}` | applied model + version | `POST /api/agents/{id}/apply-model` |
 
 Optional later: thin `signoz_query` proxy — only if status/query_note is insufficient; prefer SigNoz MCP for deep queries.
 
@@ -158,8 +161,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | Route | In | Out |
 |---|---|---|
 | `GET /api/agents/{agent_id}/versions?limit=&offset=` | path + page | `[version row]` + pagination headers |
-| `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?}` | created row |
+| `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?, session_id?}` | created row; optional `session_id` sets `sessions.agent_version = version_id` |
 | `GET /api/agents/{agent_id}/versions/timeline` | path | `{agent_id, versions[], current_model?}` |
+| `POST /api/agents/{agent_id}/apply-model` | `{confirm: true, model, version, …, session_id?, proposal_signal_id?}` | bumps agent model + version; marks proposal applied when linked |
 
 ---
 
@@ -169,9 +173,10 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 2. **Candidates** — curated snapshot via `model_explore` (live catalog optional, not looped).
 3. **Recommend** — `recommend_models(task_type)` → ranked list + reasons (exploration only).
 4. **Propose** — `propose_model_change` writes a `note` signal (`source=hq_agent`) with guidance; operators / coding agents apply.
-5. **Register** — after a real deploy, `register_agent_version` records the new `(version, model, source_ref)`.
+5. **Apply (human-gated)** — `POST /api/agents/{id}/apply-model` with `confirm: true` bumps `agents.model` and registers a version. HQ UI proposal inbox has prep_apply + confirm checkbox.
+6. **Register** — after a real deploy, `register_agent_version` records the new `(version, model, source_ref)`; optional `session_id` pins `sessions.agent_version`.
 
-Never auto-apply model swaps without an explicit future apply endpoint (not in this slice).
+Never auto-apply model swaps without explicit `confirm: true` on the apply endpoint.
 
 ---
 
@@ -190,10 +195,10 @@ HQ Agent is **forward_facing-ish for tool outputs it ingests** (signals, reasons
 
 | Slice | Ship | Status |
 |---|---|---|
-| **0** | This doc + docs/17 pointer | **this PR** |
-| **1** | `hq_tools` + version registry APIs + Agno HQ agent + Unplug + thin UI + skill/MCP + tests | **this PR** |
-| **2** | Richer Case File / replay comparison in tools; proposal inbox polish | next |
-| **3** | Optional explicit `POST /api/agents/{id}/apply-model` (human-gated) | later |
+| **0** | This doc + docs/17 pointer | **done** |
+| **1** | `hq_tools` + version registry APIs + Agno HQ agent + Unplug + thin UI + skill/MCP + tests | **done** (PR #11) |
+| **2** | Richer Case File / replay comparison in tools; proposal inbox polish; `source=` signal filter | **done** (this PR) |
+| **3** | Explicit `POST /api/agents/{id}/apply-model` (human-gated) + session→version pin | **done** (this PR) |
 | **4** | TabPFN behind `TABPFN_TOKEN` (still not TabFM unless latency budget met) | later |
 
 ---
