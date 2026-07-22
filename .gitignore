@@ -22,3 +22,4 @@ docs/_phase0_*.json
 .pnpm-store/
 deploy/mcp/bin/
 hq/tsconfig.tsbuildinfo
+.signoz-local-admin

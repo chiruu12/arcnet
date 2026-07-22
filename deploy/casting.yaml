@@ -9,3 +9,7 @@ spec:
   signoz:
     spec:
       image: signoz/signoz:v0.133.0
+      env:
+        SIGNOZ_USER_ROOT_ENABLED: "true"
+        SIGNOZ_USER_ROOT_EMAIL: arcnet@example.com
+        SIGNOZ_USER_ROOT_ORG_NAME: arcnet
