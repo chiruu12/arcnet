@@ -21,9 +21,13 @@ logger = logging.getLogger("arcnet.griffin")
 # In-memory forecast cache for UI sparkline (docs/12: not a table)
 _CACHE: dict[str, Any] = {
     "model": "mad",
+    "estimator": "mad",
     "status": "cold",
     "series": {},
+    "series_source": None,  # seed | sqlite_proxy | signoz | None
     "last_cycle_ms": None,
+    "last_evaluate_ms": None,
+    "last_anomaly": None,
     "anomalies": [],
 }
 
@@ -121,7 +125,122 @@ def _median(xs: list[float]) -> float:
 
 
 def cache_snapshot() -> dict[str, Any]:
-    return dict(_CACHE)
+    """Enriched Griffin status for HQ MAD strip (Wave B)."""
+    snap = dict(_CACHE)
+    snap["estimator"] = "mad"
+    snap["model"] = "mad"
+    series = snap.get("series") if isinstance(snap.get("series"), dict) else {}
+    warmth: dict[str, Any] = {}
+    ready_n = 0
+    warming_n = 0
+    for sid, meta in series.items():
+        if not isinstance(meta, dict):
+            continue
+        st = meta.get("status") or "cold"
+        warmth[sid] = {
+            "status": st,
+            "n": meta.get("n"),
+            "outlier": bool(meta.get("outlier")),
+            "updated_ms": meta.get("updated_ms"),
+            "z": meta.get("z"),
+        }
+        if st == "ready":
+            ready_n += 1
+        elif st == "warming":
+            warming_n += 1
+    anomalies = list(snap.get("anomalies") or [])
+    last = snap.get("last_anomaly")
+    if last is None and anomalies:
+        last = anomalies[0]
+    overall = snap.get("status") or "cold"
+    if ready_n > 0:
+        overall = "ready"
+    elif warming_n > 0:
+        overall = "warming"
+    elif series:
+        overall = snap.get("status") or "warming"
+    else:
+        overall = "cold" if not snap.get("series_source") else "warming"
+    snap["status"] = overall
+    snap["warmth"] = warmth
+    snap["series_count"] = len(series)
+    snap["ready_count"] = ready_n
+    snap["warming_count"] = warming_n
+    snap["last_anomaly"] = last
+    snap["honesty"] = (
+        "Griffin estimator = MAD (median/MAD robust z-score). "
+        "TabFM not live; TabPFN optional behind TABPFN_TOKEN."
+    )
+    return snap
+
+
+def derive_sqlite_proxy_series(get_conn: Callable) -> dict[str, list[dict[str, float]]]:
+    """Crude per-session usage series from SQLite — honest ``sqlite_proxy`` source.
+
+    Not a substitute for OTLP metrics; high noise floor + warming gates apply.
+    """
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT agent_id, started_at, usage FROM sessions
+           WHERE usage IS NOT NULL AND started_at IS NOT NULL
+           ORDER BY started_at DESC LIMIT 200"""
+    ).fetchall()
+    buckets: dict[str, list[dict[str, float]]] = {}
+    for row in rows:
+        agent_id = row[0] or "unknown"
+        t = float(row[1] or 0) / 1000.0  # ms → s for seed-compatible shape
+        usage_raw = row[2]
+        try:
+            usage = json.loads(usage_raw) if isinstance(usage_raw, str) else (usage_raw or {})
+        except json.JSONDecodeError:
+            usage = {}
+        if not isinstance(usage, dict):
+            usage = {}
+        tokens = usage.get("total_tokens") or usage.get("tokens") or usage.get("prompt_tokens")
+        cost = usage.get("cost_usd") or usage.get("cost")
+        tools = usage.get("tool_calls") or usage.get("tools")
+        mapping = [
+            ("arcnet.tokens.total", tokens),
+            ("arcnet.cost.usd", cost),
+            ("arcnet.tool.calls", tools),
+        ]
+        for metric, val in mapping:
+            if val is None:
+                continue
+            try:
+                v = float(val)
+            except (TypeError, ValueError):
+                continue
+            sid = f"{metric}|{agent_id}"
+            buckets.setdefault(sid, []).append({"t": t, "v": v})
+    # Chronological + cap
+    for sid, pts in list(buckets.items()):
+        pts.sort(key=lambda p: p["t"])
+        buckets[sid] = pts[-120:]
+    return buckets
+
+
+def ensure_series_warm(get_conn: Callable) -> str:
+    """Load series preferring seed file, else SQLite proxy. Returns source label."""
+    seeded = load_series()
+    if seeded:
+        _CACHE["series_source"] = "seed"
+        return "seed"
+    proxy = derive_sqlite_proxy_series(get_conn)
+    if proxy:
+        # Merge into seed path only in-memory for evaluate; do not overwrite seed file
+        path = _series_path()
+        if not path.exists():
+            save_series(proxy)
+            _CACHE["series_source"] = "sqlite_proxy"
+            return "sqlite_proxy"
+        # Seed file empty dict edge — write proxy
+        if not seeded:
+            save_series(proxy)
+            _CACHE["series_source"] = "sqlite_proxy"
+            return "sqlite_proxy"
+    _CACHE["series_source"] = _CACHE.get("series_source") or None
+    return _CACHE.get("series_source") or "none"
 
 
 def evaluate_series(
@@ -131,6 +250,8 @@ def evaluate_series(
     observed: float | None = None,
 ) -> dict[str, Any]:
     """Judge one series; on outlier emit signal source=griffin + update cache."""
+    if not load_series().get(series_id):
+        ensure_series_warm(get_conn)
     series = load_series()
     points = series.get(series_id) or []
     values = [float(p["v"]) for p in points]
@@ -146,20 +267,39 @@ def evaluate_series(
     floor = NOISE_FLOOR.get(metric, 1.0)
     result = mad_judge(values, observed=observed, noise_floor=floor)
 
+    now_ms = int(time.time() * 1000)
     _CACHE["series"][series_id] = {
         **result,
         "sparkline": values[-60:],
-        "updated_ms": int(time.time() * 1000),
+        "updated_ms": now_ms,
     }
-    _CACHE["last_cycle_ms"] = int(time.time() * 1000)
+    _CACHE["last_cycle_ms"] = now_ms
+    _CACHE["last_evaluate_ms"] = now_ms
     _CACHE["status"] = result["status"]
+    _CACHE["estimator"] = "mad"
+    _CACHE["model"] = "mad"
+    if not _CACHE.get("series_source"):
+        _CACHE["series_source"] = "seed" if _series_path().exists() else "sqlite_proxy"
 
     if not result.get("outlier"):
-        return {"series_id": series_id, **result, "fired": False}
+        return {
+            "series_id": series_id,
+            **result,
+            "fired": False,
+            "estimator": "mad",
+            "series_source": _CACHE.get("series_source"),
+        }
 
-    now = int(time.time() * 1000)
+    now = now_ms
     if now - _last_fire.get(series_id, 0) < COOLDOWN_MS:
-        return {"series_id": series_id, **result, "fired": False, "cooldown": True}
+        return {
+            "series_id": series_id,
+            **result,
+            "fired": False,
+            "cooldown": True,
+            "estimator": "mad",
+            "series_source": _CACHE.get("series_source"),
+        }
 
     _last_fire[series_id] = now
     anomaly = {
@@ -170,8 +310,10 @@ def evaluate_series(
         "forecast": result["forecast"],
         "z": result.get("z"),
         "ts_ms": now,
+        "fingerprint": f"{series_id}:{result.get('z')}:{now}",
     }
     _CACHE["anomalies"] = ([anomaly] + list(_CACHE.get("anomalies") or []))[:20]
+    _CACHE["last_anomaly"] = anomaly
 
     # Signal bus (source=griffin) — agent-scoped note (docs/07). Griffin series
     # carry no session attribution; a null-session kill would broadcast to every
@@ -225,13 +367,22 @@ def evaluate_series(
     except Exception:  # noqa: BLE001
         logger.debug("otel anomaly emit skipped", exc_info=True)
 
-    return {"series_id": series_id, **result, "fired": True, "signal_id": signal_id, "signal": row}
+    return {
+        "series_id": series_id,
+        **result,
+        "fired": True,
+        "signal_id": signal_id,
+        "signal": row,
+        "estimator": "mad",
+        "series_source": _CACHE.get("series_source"),
+    }
 
 
 async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
     logger.info("griffin loop start cadence=%.1fs model=mad", cadence_s)
     while True:
         try:
+            ensure_series_warm(get_conn)
             series = load_series()
             if not series:
                 _CACHE["status"] = "cold"
@@ -239,6 +390,7 @@ async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
                 if sid in series:
                     evaluate_series(get_conn, series_id=sid, observed=None)
             _CACHE["model"] = "mad"
+            _CACHE["estimator"] = "mad"
         except Exception:  # noqa: BLE001
             logger.exception("griffin cycle failed")
         await asyncio.sleep(cadence_s)
