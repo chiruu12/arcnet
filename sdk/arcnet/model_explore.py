@@ -192,6 +192,10 @@ def recommend_models(
         return {
             "task_type": task_type,
             "recommendations": [],
+            "evidence_refs": [],
+            "evidence_refs_empty_reason": (
+                f"unknown task_type; known={list(TASK_TYPES)}"
+            ),
             "error": f"unknown task_type; known={list(TASK_TYPES)}",
             "exploration_only": True,
         }
@@ -273,7 +277,7 @@ def recommend_models(
         ranked.sort(key=lambda r: (0 if r["model"] in tm_winners else 1, r["rank"]))
         for i, row in enumerate(ranked):
             row["rank"] = i + 1
-    return {
+    out: dict[str, Any] = {
         "task_type": task_type,
         "constraints": {**constraints, "live_resolved": live},
         "catalog_source": catalog.get("source"),
@@ -282,6 +286,12 @@ def recommend_models(
         "tm_evidence": tm_notes,
         "exploration_only": True,
     }
+    if not ranked:
+        out["evidence_refs"] = []
+        out["evidence_refs_empty_reason"] = (
+            "no recommendations after prefer-list / cost filters"
+        )
+    return out
 
 
 def compare_replay_verdicts(
