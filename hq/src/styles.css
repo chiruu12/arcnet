@@ -609,3 +609,43 @@ a.btn {
   color: var(--text-2);
   padding: 3px 8px;
 }
+
+.mini-row.clickable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.mini-row.clickable:hover,
+.mini-row.clickable.active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.agent.clickable {
+  cursor: pointer;
+}
+
+.agent.clickable:hover {
+  border-color: var(--accent-border);
+}
+
+.btn.ghost {
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.btn.ghost:hover {
+  color: var(--text);
+  border-color: var(--accent-border);
+}

@@ -3,7 +3,15 @@ import { api } from "../api";
 import { AgentJson, Empty, Seam } from "../components";
 import type { FleetRow, Mode } from "../types";
 
-export function FleetHealth({ mode }: { mode: Mode }) {
+export function FleetHealth({
+  mode,
+  onOpenAgent,
+  onOpenSignals,
+}: {
+  mode: Mode;
+  onOpenAgent?: (agentId: string) => void;
+  onOpenSignals?: (agentId: string) => void;
+}) {
   const [fleet, setFleet] = useState<FleetRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -29,12 +37,13 @@ export function FleetHealth({ mode }: { mode: Mode }) {
       <p className="eyebrow">{"// observe"}</p>
       <h1>fleet_health</h1>
       <p className="lede">
-        agents · trust posture · threats · cost · griffin anomalies. forward_facing flagged red.
+        agents · trust posture · threats · cost · griffin anomalies. click an agent to open its
+        case_files cascade; hot agents also deep-link to signals.
       </p>
       {err && <Seam error={err} />}
       {!err && !fleet && <p className="lede">loading…</p>}
       {fleet && fleet.length === 0 && (
-        <Empty hint="no agents registered — start the server and run an instrumented agent (or ./scripts/run-demo.sh to seed)" />
+        <Empty hint="no agents registered — start the server and run an instrumented agent (or seed with ./scripts/run-demo.sh)" />
       )}
       {fleet && fleet.length > 0 && (
         <div className="grid">
@@ -43,7 +52,16 @@ export function FleetHealth({ mode }: { mode: Mode }) {
             return (
               <article
                 key={a.agent_id}
-                className={`agent ${a.exposure === "forward_facing" ? "forward" : ""}`}
+                className={`agent clickable ${a.exposure === "forward_facing" ? "forward" : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenAgent?.(a.agent_id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onOpenAgent?.(a.agent_id);
+                  }
+                }}
               >
                 <h3>
                   <span className={`dot ${hot ? "danger" : "ok"}`} />
@@ -72,6 +90,18 @@ export function FleetHealth({ mode }: { mode: Mode }) {
                     </span>
                   </div>
                 ))}
+                {hot && onOpenSignals && (
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenSignals(a.agent_id);
+                    }}
+                  >
+                    open_signals()
+                  </button>
+                )}
               </article>
             );
           })}

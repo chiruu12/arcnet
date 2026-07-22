@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, subscribeBus, type ReplayRow } from "../api";
 import { AgentJson, Empty, Seam, money, ts } from "../components";
-import type { AgentModelRow, FleetRow, Mode, SessionRow, Verdict } from "../types";
+import type { AgentModelRow, CascadeLink, FleetRow, Mode, SessionRow, Verdict } from "../types";
 
 type Progress = { step: number; total_steps: number; phase: string } | null;
 
 const HERO_SESSIONS = ["s_2af44726", "s_ecfdb55d"];
 const DEFAULT_CANDIDATE = "gpt-4o";
 
-function preferHero(sessions: SessionRow[]): string {
+function preferHero(sessions: SessionRow[], prefer?: string): string {
+  if (prefer && sessions.some((s) => s.session_id === prefer)) return prefer;
   for (const id of HERO_SESSIONS) {
     if (sessions.some((s) => s.session_id === id)) return id;
   }
@@ -39,19 +40,36 @@ const DIMENSIONS: [string, (v: unknown) => string][] = [
   ["exfil_attempts", String],
 ];
 
-export function TimeMachine({ mode }: { mode: Mode }) {
+export function TimeMachine({
+  mode,
+  deepLink,
+  onDeepLinkChange,
+}: {
+  mode: Mode;
+  deepLink?: CascadeLink;
+  onDeepLinkChange?: (next: CascadeLink) => void;
+}) {
   const [fleet, setFleet] = useState<FleetRow[] | null>(null);
-  const [agentId, setAgentId] = useState("");
+  const [agentId, setAgentId] = useState(deepLink?.agent ?? "");
   const [models, setModels] = useState<AgentModelRow[]>([]);
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(deepLink?.model ?? "");
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(deepLink?.session ?? "");
   const [candidate, setCandidate] = useState(DEFAULT_CANDIDATE);
   const [replays, setReplays] = useState<ReplayRow[]>([]);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Progress>(null);
   const [err, setErr] = useState<string | null>(null);
+  const preferSession = useRef(deepLink?.session);
+  const preferModel = useRef(deepLink?.model);
+
+  useEffect(() => {
+    if (!deepLink?.agent || deepLink.agent === agentId) return;
+    preferSession.current = deepLink.session;
+    preferModel.current = deepLink.model;
+    setAgentId(deepLink.agent);
+  }, [deepLink?.agent, deepLink?.session, deepLink?.model, agentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +78,14 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       .then((f) => {
         if (cancelled) return;
         setFleet(f);
-        if (f.length > 0) setAgentId((cur) => cur || f[0].agent_id);
+        if (f.length === 0) return;
+        setAgentId((cur) => {
+          if (cur && f.some((a) => a.agent_id === cur)) return cur;
+          if (deepLink?.agent && f.some((a) => a.agent_id === deepLink.agent)) {
+            return deepLink.agent;
+          }
+          return f[0].agent_id;
+        });
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -74,6 +99,7 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       cancelled = true;
       unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from deepLink
   }, []);
 
   useEffect(() => {
@@ -83,7 +109,6 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       return;
     }
     let cancelled = false;
-    setModel("");
     setSelected("");
     setSessions(null);
     api
@@ -91,7 +116,11 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       .then((rows) => {
         if (cancelled) return;
         setModels(rows);
-        setModel(rows[0]?.model ?? "");
+        const want = preferModel.current;
+        preferModel.current = undefined;
+        const next =
+          want && rows.some((r) => r.model === want) ? want : (rows[0]?.model ?? "");
+        setModel(next);
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -114,7 +143,9 @@ export function TimeMachine({ mode }: { mode: Mode }) {
         if (cancelled) return;
         const replayable = all.filter((s) => s.has_transcript);
         setSessions(replayable);
-        setSelected(preferHero(replayable));
+        const want = preferSession.current;
+        preferSession.current = undefined;
+        setSelected(preferHero(replayable, want));
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -145,6 +176,23 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       cancelled = true;
     };
   }, [selected]);
+
+  useEffect(() => {
+    if (!onDeepLinkChange || !agentId) return;
+    const next = {
+      agent: agentId,
+      model: model || undefined,
+      session: selected || undefined,
+    };
+    if (
+      deepLink?.agent === next.agent &&
+      deepLink?.model === next.model &&
+      deepLink?.session === next.session
+    ) {
+      return;
+    }
+    onDeepLinkChange(next);
+  }, [agentId, model, selected, onDeepLinkChange, deepLink?.agent, deepLink?.model, deepLink?.session]);
 
   const session = useMemo(
     () => sessions?.find((s) => s.session_id === selected) ?? null,
@@ -201,7 +249,14 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       <div className="control-bar">
         <label>
           agent
-          <select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+          <select
+            value={agentId}
+            onChange={(e) => {
+              preferModel.current = undefined;
+              preferSession.current = undefined;
+              setAgentId(e.target.value);
+            }}
+          >
             {(fleet ?? []).map((a) => (
               <option key={a.agent_id} value={a.agent_id}>
                 {a.agent_id}
@@ -213,7 +268,10 @@ export function TimeMachine({ mode }: { mode: Mode }) {
           model
           <select
             value={model}
-            onChange={(e) => setModel(e.target.value)}
+            onChange={(e) => {
+              preferSession.current = undefined;
+              setModel(e.target.value);
+            }}
             disabled={models.length === 0}
           >
             {models.length === 0 && <option value="">no sessions</option>}
