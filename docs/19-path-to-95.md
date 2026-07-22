@@ -1,8 +1,9 @@
 # ArcNet — Path to ~95% production-usable robustness
 
-**Status:** Wave A **in progress** — foundations PR on `wave-a-path-to-95`.  
+**Status:** Wave B **in progress** — enhancement loop on `wave-b-path-to-95` (after Wave A PR #15).  
 **Baseline:** honest **~48%** (founder-critical re-score 2026-07-22, [`17`](17-product-rework-plan.md)).  
-**Target:** **~95%** = real enhancement layer operators and coding agents can trust — not checklist theater.
+**Target:** **~95%** = real enhancement layer operators and coding agents can trust — not checklist theater.  
+**After Wave A (measured est.):** **~62–68** — version-first cascade, write secret, pinpoint, catalog fallback. **Do not claim 95%.**
 
 | Related | Role |
 |---|---|
@@ -673,21 +674,21 @@ Calendar is **not** the constraint. Waves are ordered so execution can start imm
 
 | Area | Start | After A | After B | After C (target) |
 |---|---:|---:|---:|---:|
-| Positioning | 58 | | | 92 |
-| HQ frontend | 55 | ~70 | | 94 |
-| Human APIs | 58 | ~72 | | 93 |
-| Agent APIs | 64 | | | 94 |
-| HQ Agent | 56 | | | 93 |
-| Version pinpoint | 52 | ~78 | | 95 |
-| Model explore | 50 | ~62 (P0) | | 92 |
-| Griffin | 46 | | | 90 |
-| SigNoz | 54 | | | 92 |
-| Unplug | 68 | ~72 (matrix stub) | | 94 |
-| Tests/CI/e2e | 48 | ~55 (FE cascade unit) | | 95 |
-| **Overall (excl. WS11)** | **~48** | **~62–68 est.** | ~85–90 est. | **~95** |
+| Positioning | 58 | ~60 | ~62 | 92 |
+| HQ frontend | 55 | ~70 | ~78 | 94 |
+| Human APIs | 58 | ~72 | ~74 | 93 |
+| Agent APIs | 64 | ~68 | ~78 | 94 |
+| HQ Agent | 56 | ~60 | ~78 | 93 |
+| Version pinpoint | 52 | ~78 | ~80 | 95 |
+| Model explore | 50 | ~62 (P0) | ~76 | 92 |
+| Griffin | 46 | ~48 | ~72 | 90 |
+| SigNoz | 54 | ~58 | ~76 | 92 |
+| Unplug | 68 | ~72 (matrix stub) | ~74 | 94 |
+| Tests/CI/e2e | 48 | ~55 (FE cascade unit) | ~60 | 95 |
+| **Overall (excl. WS11)** | **~48** | **~62–68 est.** | **~74–80 est.** | **~95** |
 | Hackathon assets (track) | 35 | — | — | track |
 
-Estimates are planning aids — **measured** scores replace them.
+Wave B estimates assume WS3/5/6/7 landed with tests; **WS9 e2e still open** → overall stays well below 95. Measured scores replace estimates when exit criteria pass.
 
 ### 5.3 Definition of “done enough to claim 95%”
 

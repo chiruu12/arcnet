@@ -91,6 +91,29 @@ export type SignozStatus = {
     cost_tokens?: string | null;
     agno?: string | null;
   };
+  mcp_note?: string;
+};
+
+export type GriffinStatus = {
+  estimator: string;
+  model?: string;
+  status: string;
+  series_count?: number;
+  ready_count?: number;
+  warming_count?: number;
+  series_source?: string | null;
+  last_anomaly?: {
+    series_id?: string;
+    agent_id?: string;
+    metric?: string;
+    z?: number;
+    ts_ms?: number;
+    fingerprint?: string;
+  } | null;
+  last_evaluate_ms?: number | null;
+  warmth?: Record<string, { status?: string; n?: number; outlier?: boolean }>;
+  honesty?: string;
+  anomalies?: unknown[];
 };
 
 export type AgentVersionRow = {
@@ -180,6 +203,8 @@ export const api = {
       version: AgentVersionRow;
       proposal: SignalRow | null;
       applied: boolean;
+      agentos_reload_required?: boolean;
+      agentos_reload_instructions?: string;
     }>(`/api/agents/${encodeURIComponent(agentId)}/apply-model`, body),
   sources: (params?: { agent_id?: string; session_id?: string }) => {
     const q = new URLSearchParams();
@@ -194,6 +219,16 @@ export const api = {
     postJSON<Verdict>("/api/replay", { session_id, candidate_model }),
   caseFileUrl: (sessionId: string) => `${BASE}/export/case-file/${sessionId}`,
   signozStatus: () => getJSON<SignozStatus>("/api/signoz/status"),
+  griffinStatus: () => getJSON<GriffinStatus>("/api/griffin/status"),
+  signozEvidence: (sessionId: string) =>
+    getJSON<{
+      session_id: string;
+      trace_id: string | null;
+      links: { signoz_trace: string | null };
+      spans: { name: string; duration_ns?: number }[];
+      note: string | null;
+      mcp_fallback?: string;
+    }>(`/api/signoz/evidence?session_id=${encodeURIComponent(sessionId)}`),
 };
 
 export type BusEvent = {

@@ -124,3 +124,8 @@ Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-flee
 **Expected:** WS4 version filters + pinpoint; WS2 write secret; WS1 version-first cascade; WS8 Unplug matrix stub; WS5.P0 already on main.
 **Actual:** Sessions `agent_version`/`version_id` + `X-Total-Count`; enriched `version_pinpoint`; `ARCNET_WRITE_SECRET`; HQ cascade Agent→version→model→session; seed baseline versions; Unplug matrix stub in docs/18.
 
+## 2026-07-22 — Wave B path-to-95 (in progress)
+
+**Expected:** WS3 HQ Agent reliability; WS5 empirical TM-tied explore; WS6 Griffin MAD UX; WS7 SigNoz evidence; cheap WS10 strips. Stay honest (~48% baseline, Griffin=MAD, no TabFM, no 95% claim).
+**Actual:** `hq_tools` timeouts + `{ok:false,error,tool}`; propose `evidence_refs`; apply `agentos_reload_required` + HQ banner; proposal pin_session path + pinpoint; recommend/compare TM evidence; optional `ARCNET_MODEL_EXPLORE_LOOP`; griffin status warmth/source + Fleet MAD strip; `GET /api/signoz/evidence`; Case File `signoz_trace`; MCP hang fallback documented. Overall est. **~74–80** after Wave B (WS9 e2e still open).
+
