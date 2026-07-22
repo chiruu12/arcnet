@@ -54,6 +54,7 @@ jobs:
 
   hq-test:
     runs-on: ubuntu-latest
+    needs: [hq]
     defaults:
       run:
         working-directory: hq

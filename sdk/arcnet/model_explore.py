@@ -286,10 +286,25 @@ def recommend_models(
         "tm_evidence": tm_notes,
         "exploration_only": True,
     }
-    if not ranked:
-        out["evidence_refs"] = []
+    # Top-level evidence_refs always present (union of row refs, or empty reason).
+    top_refs: list[str] = []
+    seen: set[str] = set()
+    for row in ranked:
+        for r in row.get("evidence_refs") or []:
+            s = str(r)
+            if s not in seen:
+                seen.add(s)
+                top_refs.append(s)
+            if len(top_refs) >= 12:
+                break
+        if len(top_refs) >= 12:
+            break
+    out["evidence_refs"] = top_refs
+    if not top_refs:
         out["evidence_refs_empty_reason"] = (
             "no recommendations after prefer-list / cost filters"
+            if not ranked
+            else "recommendations present but no evidence_refs collected"
         )
     return out
 

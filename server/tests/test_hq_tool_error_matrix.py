@@ -285,6 +285,8 @@ class EvidenceRefsContractTests(unittest.TestCase):
 
         out = recommend_models("injection_resist", constraints={"live": False})
         self.assertTrue(out.get("recommendations"))
+        self.assertIn("evidence_refs", out)
+        self.assertTrue(out["evidence_refs"])
         for row in out["recommendations"]:
             self.assertIn("evidence_refs", row)
             self.assertIsInstance(row["evidence_refs"], list)
