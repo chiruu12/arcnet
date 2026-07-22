@@ -152,10 +152,10 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /api/replays?session_id=&limit=&offset=` | query | replay index (no `runs` blob) + pagination headers (**additive**) |
 | `POST /api/replay` | `{session_id, candidate_model?, candidate_prompt?}` (exactly one candidate) | the verdict object (`10`) — synchronous; progress streams over SSE |
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |
-| `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources, signals, check` | agent-view envelope (below). **`signals` + `check` additive** |
+| `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources, signals, check, dashboards` | agent-view envelope (below). **`signals` + `check` + bounded `sources` + `dashboards` additive** |
 | `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons) | created signal row |
 | `GET /signals/stream?session_id=` | query (omit = firehose) | SSE (events below) |
-| `POST /webhooks/signoz` | SigNoz alert payload | 204 |
+| `POST /webhooks/signoz` | SigNoz alert payload; optional `ARCNET_WEBHOOK_SECRET` (`X-ArcNet-Webhook-Secret` / Bearer) | 204 (401 if secret set and wrong) |
 | `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated row (server relays to AgentOS) |
 | `GET /export/case-file/{session_id}` | path | zip: `case-file.md` + `case-file.json` |
 | `GET /api/signoz/status` | — | `{signoz_url, ui_reachable, api_key_present, query_range_ok, query_note, dashboards: {fleet_ops, threats_trust, cost_tokens, agno}}` — dashboard ids from `SIGNOZ_DASHBOARD_*` env or title resolve (**additive** `dashboards`) |
@@ -196,7 +196,11 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 **Additive agent views:**
 
 - `signals` (`id` = `agent_id` or `session_id`): `{signals: [{signal_id, kind, severity, reason_excerpt, guidance_excerpt, source, status, session_id, agent_id, created_at}], truncated}` — excerpts only.
-- `check` (`id` = `session_id`): compact session inspection `{session: {…meta…}, counts: {threats, signals, sources, timeline_steps}, top_threat, active_signals: […bounded…], links}` — no full tool outputs.
+- `check` (`id` = `session_id`): compact session inspection including **`version_pinpoint`** (`pin`, `pinned_version`, `fleet_current_model`, `recent_versions`, `narrative`) — no full tool outputs.
+- `sources` (`id` = agent or session): bounded `{sources: [{…, findings_excerpt}], truncated}` — not raw findings dumps.
+- `dashboards` (`id` opaque, e.g. `status`): SigNoz status probe twin + deep-link hints (not embedded charts).
+
+Session list rows also expose optional **`agent_version`** (additive column) when pinned.
 
 ### SSE events (`/signals/stream`)
 
