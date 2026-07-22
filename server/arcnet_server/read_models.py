@@ -357,11 +357,19 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
         current_model = (agent or {}).get("model")
 
     session_model = session.get("model")
+    pinned_session_matches = bool(pin and pinned_version)
     pinpoint_bits: list[str] = []
     if pinned_version:
         pinpoint_bits.append(
             f"session pinned to version {pinned_version.get('version')} "
-            f"(model={pinned_version.get('model')})"
+            f"(version_id={pinned_version.get('version_id')}, "
+            f"model={pinned_version.get('model')}"
+            + (
+                f", source_ref={pinned_version.get('source_ref')}"
+                if pinned_version.get("source_ref")
+                else ""
+            )
+            + ")"
         )
     elif pin:
         pinpoint_bits.append(f"session agent_version={pin} (no matching registry row)")
@@ -405,6 +413,14 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
         "has_transcript": bool(session.get("transcript")),
         "version_pinpoint": {
             "pin": pin,
+            "version_id": (pinned_version or {}).get("version_id") if pinned_version else None,
+            "version": (pinned_version or {}).get("version") if pinned_version else None,
+            "model": (pinned_version or {}).get("model") if pinned_version else None,
+            "model_version": (pinned_version or {}).get("model_version") if pinned_version else None,
+            "source_ref": (pinned_version or {}).get("source_ref") if pinned_version else None,
+            "notes": (pinned_version or {}).get("notes") if pinned_version else None,
+            "created_at": (pinned_version or {}).get("created_at") if pinned_version else None,
+            "pinned_session_matches": pinned_session_matches,
             "pinned_version": pinned_version,
             "fleet_current_model": current_model,
             "recent_versions": timeline_slice,

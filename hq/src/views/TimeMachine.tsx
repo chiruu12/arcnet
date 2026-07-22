@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, subscribeBus, type ReplayRow } from "../api";
+import { api, subscribeBus, type AgentVersionRow, type ReplayRow } from "../api";
+import {
+  cascadeReducer,
+  emptyCascade,
+  preferHeroSession,
+  preferVersion,
+  type CascadeState,
+} from "../cascade";
 import { AgentJson, Empty, Seam, money, ts } from "../components";
 import type { AgentModelRow, CascadeLink, FleetRow, Mode, SessionRow, Verdict } from "../types";
 
@@ -7,14 +14,6 @@ type Progress = { step: number; total_steps: number; phase: string } | null;
 
 const HERO_SESSIONS = ["s_2af44726", "s_ecfdb55d"];
 const DEFAULT_CANDIDATE = "gpt-4o";
-
-function preferHero(sessions: SessionRow[], prefer?: string): string {
-  if (prefer && sessions.some((s) => s.session_id === prefer)) return prefer;
-  for (const id of HERO_SESSIONS) {
-    if (sessions.some((s) => s.session_id === id)) return id;
-  }
-  return sessions[0]?.session_id ?? "";
-}
 
 function badgeFor(run: Record<string, unknown>, isBaseline: boolean): { label: string; cls: string } {
   if ("resisted_injection" in run) {
@@ -50,26 +49,65 @@ export function TimeMachine({
   onDeepLinkChange?: (next: CascadeLink) => void;
 }) {
   const [fleet, setFleet] = useState<FleetRow[] | null>(null);
-  const [agentId, setAgentId] = useState(deepLink?.agent ?? "");
+  const [cascade, setCascade] = useState<CascadeState>(() => ({
+    ...emptyCascade(),
+    agentId: deepLink?.agent ?? "",
+    versionId: deepLink?.version ?? "",
+    model: deepLink?.model ?? "",
+    sessionId: deepLink?.session ?? "",
+  }));
+  const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
   const [models, setModels] = useState<AgentModelRow[]>([]);
-  const [model, setModel] = useState(deepLink?.model ?? "");
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [selected, setSelected] = useState(deepLink?.session ?? "");
+  const [versionHasNoPins, setVersionHasNoPins] = useState(false);
   const [candidate, setCandidate] = useState(DEFAULT_CANDIDATE);
   const [replays, setReplays] = useState<ReplayRow[]>([]);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Progress>(null);
   const [err, setErr] = useState<string | null>(null);
-  const preferSession = useRef(deepLink?.session);
-  const preferModel = useRef(deepLink?.model);
+  const prefer = useRef({
+    version: deepLink?.version,
+    model: deepLink?.model,
+    session: deepLink?.session,
+  });
+
+  const { agentId, versionId, model, sessionId, lane } = cascade;
 
   useEffect(() => {
-    if (!deepLink?.agent || deepLink.agent === agentId) return;
-    preferSession.current = deepLink.session;
-    preferModel.current = deepLink.model;
-    setAgentId(deepLink.agent);
-  }, [deepLink?.agent, deepLink?.session, deepLink?.model, agentId]);
+    if (!deepLink?.agent) return;
+    prefer.current = {
+      version: deepLink.version,
+      model: deepLink.model,
+      session: deepLink.session,
+    };
+    if (deepLink.agent !== agentId) {
+      setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: deepLink.agent! }));
+      return;
+    }
+    setCascade((s) => {
+      let next = s;
+      const wantV = deepLink.version ?? "";
+      const wantM = deepLink.model;
+      if (wantV && (wantV !== s.versionId || (wantM !== undefined && wantM !== s.model))) {
+        const row = (versions ?? []).find((v) => v.version_id === wantV);
+        next = cascadeReducer(next, {
+          type: "set_version",
+          versionId: wantV,
+          model: wantM !== undefined ? wantM : (row?.model ?? ""),
+        });
+      } else if (!wantV && wantM !== undefined && wantM !== s.model) {
+        next = cascadeReducer(next, { type: "set_unversioned", model: wantM });
+      } else if (wantM !== undefined && wantM !== next.model && wantV === next.versionId) {
+        next = cascadeReducer(next, { type: "set_model", model: wantM });
+      }
+      const wantS = deepLink.session ?? "";
+      if (wantS !== next.sessionId) {
+        next = cascadeReducer(next, { type: "set_session", sessionId: wantS });
+      }
+      return next;
+    });
+  }, [deepLink?.agent, deepLink?.version, deepLink?.model, deepLink?.session, agentId, versions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,12 +117,13 @@ export function TimeMachine({
         if (cancelled) return;
         setFleet(f);
         if (f.length === 0) return;
-        setAgentId((cur) => {
-          if (cur && f.some((a) => a.agent_id === cur)) return cur;
-          if (deepLink?.agent && f.some((a) => a.agent_id === deepLink.agent)) {
-            return deepLink.agent;
-          }
-          return f[0].agent_id;
+        setCascade((cur) => {
+          if (cur.agentId && f.some((a) => a.agent_id === cur.agentId)) return cur;
+          const nextId =
+            deepLink?.agent && f.some((a) => a.agent_id === deepLink.agent)
+              ? deepLink.agent
+              : f[0].agent_id;
+          return cascadeReducer(cur, { type: "set_agent", agentId: nextId });
         });
       })
       .catch((e: unknown) => {
@@ -104,23 +143,43 @@ export function TimeMachine({
 
   useEffect(() => {
     if (!agentId) {
+      setVersions([]);
       setModels([]);
-      setModel("");
       return;
     }
     let cancelled = false;
-    setSelected("");
     setSessions(null);
-    api
-      .agentModels(agentId)
-      .then((rows) => {
+    Promise.all([api.agentVersions(agentId), api.agentModels(agentId)])
+      .then(([vers, mods]) => {
         if (cancelled) return;
-        setModels(rows);
-        const want = preferModel.current;
-        preferModel.current = undefined;
-        const next =
-          want && rows.some((r) => r.model === want) ? want : (rows[0]?.model ?? "");
-        setModel(next);
+        setVersions(vers);
+        setModels(mods);
+        const wantV = prefer.current.version;
+        const wantM = prefer.current.model;
+        prefer.current.version = undefined;
+        prefer.current.model = undefined;
+        if (vers.length === 0) {
+          const m =
+            wantM && mods.some((r) => r.model === wantM) ? wantM : (mods[0]?.model ?? "");
+          setCascade((s) => cascadeReducer(s, { type: "set_unversioned", model: m }));
+          return;
+        }
+        const vid = preferVersion(
+          vers.map((v) => v.version_id),
+          wantV,
+        );
+        const row = vers.find((v) => v.version_id === vid);
+        const nextModel =
+          wantM && mods.some((r) => r.model === wantM)
+            ? wantM
+            : (row?.model ?? mods[0]?.model ?? "");
+        setCascade((s) =>
+          cascadeReducer(s, {
+            type: "set_version",
+            versionId: vid,
+            model: nextModel || undefined,
+          }),
+        );
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -133,19 +192,40 @@ export function TimeMachine({
   useEffect(() => {
     if (!agentId || !model) {
       setSessions([]);
-      setSelected("");
+      setCascade((s) => (s.sessionId ? cascadeReducer(s, { type: "set_session", sessionId: "" }) : s));
       return;
     }
     let cancelled = false;
+    const params: {
+      agent_id: string;
+      model: string;
+      agent_version?: string;
+    } = { agent_id: agentId, model };
+    if (lane === "versioned" && versionId) {
+      params.agent_version = versionId;
+    }
     api
-      .sessions({ agent_id: agentId, model })
-      .then((all) => {
+      .sessions(params)
+      .then(async (all) => {
         if (cancelled) return;
-        const replayable = all.filter((s) => s.has_transcript);
+        let rows = all;
+        let noPins = false;
+        if (rows.length === 0 && params.agent_version) {
+          rows = await api.sessions({ agent_id: agentId, model });
+          noPins = true;
+        }
+        if (cancelled) return;
+        const replayable = rows.filter((s) => s.has_transcript);
+        setVersionHasNoPins(noPins);
         setSessions(replayable);
-        const want = preferSession.current;
-        preferSession.current = undefined;
-        setSelected(preferHero(replayable, want));
+        const want = prefer.current.session;
+        prefer.current.session = undefined;
+        const next = preferHeroSession(
+          replayable.map((r) => r.session_id),
+          HERO_SESSIONS,
+          want,
+        );
+        setCascade((cur) => cascadeReducer(cur, { type: "set_session", sessionId: next }));
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -153,17 +233,17 @@ export function TimeMachine({
     return () => {
       cancelled = true;
     };
-  }, [agentId, model]);
+  }, [agentId, versionId, model, lane]);
 
   useEffect(() => {
-    if (!selected) {
+    if (!sessionId) {
       setReplays([]);
       setVerdict(null);
       return;
     }
     let cancelled = false;
     api
-      .replays(selected)
+      .replays(sessionId)
       .then((r) => {
         if (cancelled) return;
         setReplays(r);
@@ -175,39 +255,51 @@ export function TimeMachine({
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!onDeepLinkChange || !agentId) return;
     const next = {
       agent: agentId,
+      version: versionId || undefined,
       model: model || undefined,
-      session: selected || undefined,
+      session: sessionId || undefined,
     };
     if (
       deepLink?.agent === next.agent &&
+      deepLink?.version === next.version &&
       deepLink?.model === next.model &&
       deepLink?.session === next.session
     ) {
       return;
     }
     onDeepLinkChange(next);
-  }, [agentId, model, selected, onDeepLinkChange, deepLink?.agent, deepLink?.model, deepLink?.session]);
+  }, [
+    agentId,
+    versionId,
+    model,
+    sessionId,
+    onDeepLinkChange,
+    deepLink?.agent,
+    deepLink?.version,
+    deepLink?.model,
+    deepLink?.session,
+  ]);
 
   const session = useMemo(
-    () => sessions?.find((s) => s.session_id === selected) ?? null,
-    [sessions, selected],
+    () => sessions?.find((s) => s.session_id === sessionId) ?? null,
+    [sessions, sessionId],
   );
 
   async function run() {
-    if (!selected || running) return;
+    if (!sessionId || running) return;
     setRunning(true);
     setErr(null);
     setProgress(null);
     try {
-      const v = await api.runReplay(selected, candidate.trim());
+      const v = await api.runReplay(sessionId, candidate.trim());
       setVerdict(v);
-      const r = await api.replays(selected);
+      const r = await api.replays(sessionId);
       setReplays(r);
     } catch (e: unknown) {
       setErr(String(e));
@@ -242,7 +334,7 @@ export function TimeMachine({
       </h1>
       <p className="lede">
         replay one recorded session against a candidate · tool_outputs=mocked · guard=identical ·
-        3 runs, majority verdict. pick agent → model → session.
+        3 runs, majority verdict. pick agent → version → model → session.
       </p>
       {err && <Seam error={err} />}
 
@@ -252,9 +344,8 @@ export function TimeMachine({
           <select
             value={agentId}
             onChange={(e) => {
-              preferModel.current = undefined;
-              preferSession.current = undefined;
-              setAgentId(e.target.value);
+              prefer.current = { version: undefined, model: undefined, session: undefined };
+              setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: e.target.value }));
             }}
           >
             {(fleet ?? []).map((a) => (
@@ -265,16 +356,61 @@ export function TimeMachine({
           </select>
         </label>
         <label>
+          version
+          <select
+            value={lane === "unversioned" ? "__unversioned__" : versionId}
+            onChange={(e) => {
+              prefer.current.session = undefined;
+              const v = e.target.value;
+              if (v === "__unversioned__") {
+                setCascade((s) =>
+                  cascadeReducer(s, {
+                    type: "set_unversioned",
+                    model: models.some((m) => m.model === s.model)
+                      ? s.model
+                      : (models[0]?.model ?? s.model),
+                  }),
+                );
+                return;
+              }
+              const row = (versions ?? []).find((x) => x.version_id === v);
+              setCascade((s) =>
+                cascadeReducer(s, {
+                  type: "set_version",
+                  versionId: v,
+                  model: row?.model ?? "",
+                }),
+              );
+            }}
+            disabled={versions === null}
+          >
+            {versions && versions.length === 0 && (
+              <option value="__unversioned__">unversioned / observed models</option>
+            )}
+            {(versions ?? []).map((v) => (
+              <option key={v.version_id} value={v.version_id}>
+                {v.version} · {v.model ?? "—"}
+              </option>
+            ))}
+            {versions && versions.length > 0 && (
+              <option value="__unversioned__">unversioned / observed models</option>
+            )}
+          </select>
+        </label>
+        <label>
           model
           <select
             value={model}
             onChange={(e) => {
-              preferSession.current = undefined;
-              setModel(e.target.value);
+              prefer.current.session = undefined;
+              setCascade((s) => cascadeReducer(s, { type: "set_model", model: e.target.value }));
             }}
-            disabled={models.length === 0}
+            disabled={models.length === 0 && !model}
           >
-            {models.length === 0 && <option value="">no sessions</option>}
+            {models.length === 0 && !model && <option value="">no sessions</option>}
+            {model && !models.some((m) => m.model === model) && (
+              <option value={model}>{model} · from version</option>
+            )}
             {models.map((m) => (
               <option key={m.model} value={m.model}>
                 {m.model} · {m.session_count}
@@ -285,8 +421,10 @@ export function TimeMachine({
         <label>
           session
           <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
+            value={sessionId}
+            onChange={(e) =>
+              setCascade((s) => cascadeReducer(s, { type: "set_session", sessionId: e.target.value }))
+            }
             disabled={!sessions || sessions.length === 0}
           >
             {(sessions ?? []).map((s) => (
@@ -300,7 +438,7 @@ export function TimeMachine({
           candidate_model
           <input value={candidate} onChange={(e) => setCandidate(e.target.value)} />
         </label>
-        <button className="btn" type="button" disabled={running || !selected} onClick={run}>
+        <button className="btn" type="button" disabled={running || !sessionId} onClick={run}>
           {running
             ? progress
               ? `replay.run() ${progress.phase} ${progress.step}/${progress.total_steps}`
@@ -309,8 +447,20 @@ export function TimeMachine({
         </button>
       </div>
 
+      {lane === "unversioned" && (
+        <p className="dim">
+          lane=unversioned — filtering by observed model only (no version pin).
+        </p>
+      )}
+      {versionHasNoPins && lane === "versioned" && (
+        <p className="dim">
+          no sessions pinned to this version yet — showing unpinned replayable sessions for model=
+          {model}.
+        </p>
+      )}
+
       {sessions && sessions.length === 0 && (
-        <Empty hint="no replayable sessions for this agent + model — pick another, or record a session with a transcript" />
+        <Empty hint="no replayable sessions for this agent + version/model — pick another, or record a session with a transcript" />
       )}
 
       {session && (
@@ -405,8 +555,8 @@ export function TimeMachine({
         </>
       )}
 
-      {!verdict && selected && (
-        <Empty hint={`no replay for ${selected} yet — hit replay.run() to compare models`} />
+      {!verdict && sessionId && (
+        <Empty hint={`no replay for ${sessionId} yet — hit replay.run() to compare models`} />
       )}
 
       {replays.length > 1 && (

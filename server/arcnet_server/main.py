@@ -24,6 +24,7 @@ from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
 _griffin_task: asyncio.Task | None = None
+_write_trust_logged = False
 
 WEBHOOK_DEDUPE_MS = 5 * 60 * 1000
 # Bound webhook-derived identifiers so a hostile/malformed alert cannot bloat SQLite.
@@ -45,10 +46,37 @@ def _page_headers(response: Response, *, total: int, limit: int, offset: int) ->
     response.headers["X-Offset"] = str(offset)
 
 
+def _require_write_secret(request: Request) -> None:
+    """When ARCNET_WRITE_SECRET is set, require matching header or Bearer token."""
+    expected = os.getenv("ARCNET_WRITE_SECRET", "").strip()
+    if not expected:
+        return
+    got = (request.headers.get("x-arcnet-write-secret") or "").strip()
+    if not got:
+        auth = (request.headers.get("authorization") or "").strip()
+        if auth.lower().startswith("bearer "):
+            got = auth[7:].strip()
+    if not got or not secrets.compare_digest(got, expected):
+        raise HTTPException(401, "invalid or missing write secret")
+
+
+def _log_localhost_trust_once() -> None:
+    global _write_trust_logged
+    if _write_trust_logged:
+        return
+    _write_trust_logged = True
+    if not os.getenv("ARCNET_WRITE_SECRET", "").strip():
+        print(
+            "localhost-trust: writes open — set ARCNET_WRITE_SECRET or bind to 127.0.0.1",
+            flush=True,
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _griffin_task
     get_conn()
+    _log_localhost_trust_once()
     # Griffin worker (MAD) — demo cadence when ARCNET_GRIFFIN_DEMO=1
     try:
         from arcnet_server.griffin import griffin_loop
@@ -106,12 +134,14 @@ def health() -> dict[str, str]:
 
 @app.post("/api/agents")
 async def upsert_agent(request: Request) -> dict[str, Any]:
+    _require_write_secret(request)
     body = await request.json()
     return repository.upsert_agent(get_conn(), body)
 
 
 @app.post("/api/sessions")
 async def upsert_session(request: Request) -> dict[str, Any]:
+    _require_write_secret(request)
     body = await request.json()
     conn = get_conn()
     repository.ensure_agent(
@@ -125,6 +155,7 @@ async def upsert_session(request: Request) -> dict[str, Any]:
 
 @app.post("/api/threats")
 async def post_threat(request: Request) -> dict[str, Any]:
+    _require_write_secret(request)
     body = await request.json()
     threat_id = body.get("threat_id") or _new_id("thr_")
     row = repository.insert_threat(get_conn(), threat_id, body)
@@ -134,6 +165,7 @@ async def post_threat(request: Request) -> dict[str, Any]:
 
 @app.post("/api/sources")
 async def post_source(request: Request) -> dict[str, Any]:
+    _require_write_secret(request)
     body = await request.json()
     source_id = body.get("source_id") or _new_id("src_")
     return repository.insert_source(get_conn(), source_id, body)
@@ -141,6 +173,7 @@ async def post_source(request: Request) -> dict[str, Any]:
 
 @app.post("/api/signal")
 async def post_signal(request: Request) -> dict[str, Any]:
+    _require_write_secret(request)
     body = await request.json()
     return _insert_signal(body)
 
@@ -166,13 +199,23 @@ def list_sessions(
     scenario: str | None = None,
     agent_id: str | None = None,
     model: str | None = None,
+    agent_version: str | None = None,
+    version_id: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
-    """Read-only session index for the UI (transcripts excluded — they're big)."""
+    """Read-only session index for the UI (transcripts excluded — they're big).
+
+    ``agent_version`` and ``version_id`` are aliases (additive) — both filter
+    ``sessions.agent_version`` (stores a pinned ``agent_versions.version_id``).
+    When both are set they must match.
+    """
+    pin = (version_id or agent_version or "").strip() or None
+    if version_id and agent_version and version_id.strip() != agent_version.strip():
+        raise HTTPException(400, "agent_version and version_id must match when both set")
     conn = get_conn()
     total = repository.count_sessions(
-        conn, scenario=scenario, agent_id=agent_id, model=model
+        conn, scenario=scenario, agent_id=agent_id, model=model, agent_version=pin
     )
     _page_headers(response, total=total, limit=limit, offset=offset)
     return repository.list_sessions(
@@ -180,6 +223,7 @@ def list_sessions(
         scenario=scenario,
         agent_id=agent_id,
         model=model,
+        agent_version=pin,
         limit=limit,
         offset=offset,
     )
@@ -246,6 +290,7 @@ def _require_hq_proposal_for_agent(conn: Any, proposal_signal_id: str, agent_id:
 
 @app.post("/api/agents/{agent_id}/versions")
 async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any]:
+    _require_write_secret(request)
     body = await request.json()
     if not isinstance(body, dict):
         raise HTTPException(400, "body must be a JSON object")

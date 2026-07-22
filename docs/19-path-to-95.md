@@ -1,6 +1,6 @@
 # ArcNet — Path to ~95% production-usable robustness
 
-**Status:** PLAN ONLY — awaiting founder approval before execution.  
+**Status:** Wave A **in progress** — foundations PR on `wave-a-path-to-95`.  
 **Baseline:** honest **~48%** (founder-critical re-score 2026-07-22, [`17`](17-product-rework-plan.md)).  
 **Target:** **~95%** = real enhancement layer operators and coding agents can trust — not checklist theater.
 
@@ -22,7 +22,7 @@
 - Exploration agents **recommend only** — never auto-mutate production without human gate (`confirm: true`).
 - Hackathon ship assets (WS11) **do not inflate** product robustness %.
 
-**Branch note:** This plan branched from `robustness-pass-1` (honest ~48% scorecard + pass-1 hardenings). PR #13 was **not** merged here — Greptile flagged live catalog failures escaping in `sdk/arcnet/model_explore.py` (fix lands in Wave A / WS5).
+**Branch note:** Catalog fallback (WS5.P0) landed on main as `116d619`. Wave A executes WS4 → WS2 → WS1 → WS8 start from updated main.
 
 ---
 
@@ -674,17 +674,17 @@ Calendar is **not** the constraint. Waves are ordered so execution can start imm
 | Area | Start | After A | After B | After C (target) |
 |---|---:|---:|---:|---:|
 | Positioning | 58 | | | 92 |
-| HQ frontend | 55 | | | 94 |
-| Human APIs | 58 | | | 93 |
+| HQ frontend | 55 | ~70 | | 94 |
+| Human APIs | 58 | ~72 | | 93 |
 | Agent APIs | 64 | | | 94 |
 | HQ Agent | 56 | | | 93 |
-| Version pinpoint | 52 | | | 95 |
-| Model explore | 50 | | | 92 |
+| Version pinpoint | 52 | ~78 | | 95 |
+| Model explore | 50 | ~62 (P0) | | 92 |
 | Griffin | 46 | | | 90 |
 | SigNoz | 54 | | | 92 |
-| Unplug | 68 | | | 94 |
-| Tests/CI/e2e | 48 | | | 95 |
-| **Overall (excl. WS11)** | **~48** | ~65–72 est. | ~85–90 est. | **~95** |
+| Unplug | 68 | ~72 (matrix stub) | | 94 |
+| Tests/CI/e2e | 48 | ~55 (FE cascade unit) | | 95 |
+| **Overall (excl. WS11)** | **~48** | **~62–68 est.** | ~85–90 est. | **~95** |
 | Hackathon assets (track) | 35 | — | — | track |
 
 Estimates are planning aids — **measured** scores replace them.

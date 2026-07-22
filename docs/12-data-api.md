@@ -145,7 +145,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /api/fleet` | — | `[{agent_id, name, role, exposure, model, last_seen, health: {sessions_24h, threats_24h, blocked_24h, cost_24h_usd, anomalies_24h, active_signals}}]` |
 | `GET /api/threats?since=&agent_id=&limit=&offset=` | query | `[threat row]` (newest first; default cap 200). Headers: `X-Total-Count`, `X-Limit`, `X-Offset` (**additive**) |
 | `GET /api/sources?agent_id=&session_id=&limit=&offset=` | query | `[source row]` + same pagination headers (**additive**) |
-| `GET /api/sessions?scenario=&agent_id=&model=&limit=&offset=` | query | session index rows + `has_transcript`; **no** transcript. `model` filter **additive**. Pagination headers **additive** |
+| `GET /api/sessions?scenario=&agent_id=&model=&agent_version=&version_id=&limit=&offset=` | query | session index rows + `has_transcript`; **no** transcript. `model` filter **additive**. `agent_version` / `version_id` (aliases) filter pinned `sessions.agent_version` (**additive** Wave A). Pagination headers **additive** (`X-Total-Count` reflects filters) |
 | `GET /api/sessions/{id}?include=transcript` | path | session row (+ full transcript only when asked — it's big) |
 | `GET /api/agents/{agent_id}/models` | path | `[{model, session_count, latest_started_at}]` — distinct models for cascade pickers (**additive**) |
 | `GET /api/signals?session_id=&agent_id=&source=&limit=&offset=` | query | `[signal row]` + pagination headers; `agent_id` / `source` filters **additive** |
@@ -153,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `POST /api/replay` | `{session_id, candidate_model?, candidate_prompt?}` (exactly one candidate) | the verdict object (`10`) — synchronous; progress streams over SSE |
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |
 | `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources, signals, check, dashboards` | agent-view envelope (below). **`signals` + `check` + bounded `sources` + `dashboards` additive** |
-| `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons) | created signal row |
+| `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons). Optional `ARCNET_WRITE_SECRET` (**additive** Wave A) | created signal row (401 if write secret set and wrong/missing) |
 | `GET /signals/stream?session_id=` | query (omit = firehose) | SSE (events below) |
 | `POST /webhooks/signoz` | SigNoz alert payload; optional `ARCNET_WEBHOOK_SECRET` (`X-ArcNet-Webhook-Secret` / Bearer) | 204 (401 if secret set and wrong) |
 | `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated row (server relays to AgentOS) |
@@ -166,7 +166,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 
 **Pagination convention (additive, 2026-07-22):** list bodies remain JSON **arrays** so existing HQ/clients keep working. Clients that need totals read `X-Total-Count` (and echo `X-Limit` / `X-Offset`). `offset` defaults to `0`; `limit` keeps prior defaults/caps.
 
-**HQ hash deep-links (additive, product surface):** `#view` with optional `?agent=&model=&session=` (e.g. `#case_files?agent=agent_j&model=gpt-4o-mini&session=s_ecfdb55d`).
+**Write abuse controls (additive, Wave A):** optional env `ARCNET_WRITE_SECRET`. When set, mutating ingest routes require header `X-ArcNet-Write-Secret` or `Authorization: Bearer …` (same pattern as the webhook secret). Covered routes: `POST /api/signal`, `POST /api/sessions`, `POST /api/threats`, `POST /api/sources`, `POST /api/agents`, `POST /api/agents/{id}/versions`. `POST /api/agents/{id}/apply-model` stays human-gated via `confirm: true` (not write-secret). When the env is **empty**, ArcNet logs once at boot `localhost-trust: writes open` — bind to `127.0.0.1` for any non-demo deploy. Webhook keeps separate `ARCNET_WEBHOOK_SECRET`.
+
+**HQ hash deep-links (additive, product surface):** `#view` with optional `?agent=&version=&model=&session=` (e.g. `#case_files?agent=agent_j&version=av_….&model=gpt-4o-mini&session=s_ecfdb55d`). Older `agent/model/session` links still work.
 
 **SDK session tools (additive client):** `arcnet.hq.check_session` / `signals_view` / `session_view` / `incident_view` / `sources_view` — thin wrappers over agent-view envelopes (no full tool dumps).
 
@@ -196,7 +198,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 **Additive agent views:**
 
 - `signals` (`id` = `agent_id` or `session_id`): `{signals: [{signal_id, kind, severity, reason_excerpt, guidance_excerpt, source, status, session_id, agent_id, created_at}], truncated}` — excerpts only.
-- `check` (`id` = `session_id`): compact session inspection including **`version_pinpoint`** (`pin`, `pinned_version`, `fleet_current_model`, `recent_versions`, `narrative`) — no full tool outputs.
+- `check` (`id` = `session_id`): compact session inspection including **`version_pinpoint`** (`pin`, `version_id`, `version`, `model`, `model_version`, `source_ref`, `notes`, `created_at`, `pinned_session_matches`, `pinned_version`, `fleet_current_model`, `recent_versions`, `narrative`) — no full tool outputs. Flat fields **additive**; `pinned_version` kept for compatibility.
 - `sources` (`id` = agent or session): bounded `{sources: [{…, findings_excerpt}], truncated}` — not raw findings dumps.
 - `dashboards` (`id` opaque, e.g. `status`): SigNoz status probe twin + deep-link hints (not embedded charts).
 

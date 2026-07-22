@@ -2,9 +2,11 @@
 """Seed demo fleet history in SQLite (Phase 5, docs/03).
 
 Adds the two background agents (Agent L, Agent O) with a day of clean internal
-sessions so Fleet Health reads like a fleet, not a single hero agent. All rows
-are deterministic (seeded RNG + fixed ids) and idempotent (INSERT OR REPLACE).
-Agent J's rows are real scenario recordings — this script never touches them.
+sessions so Fleet Health reads like a fleet, not a single hero agent. Registers
+baseline agent_versions (with honest source_ref placeholders) so HQ version-first
+cascade has something to pick. All rows are deterministic (seeded RNG + fixed ids)
+and idempotent (INSERT OR REPLACE). Agent J's scenario recordings are not rewritten;
+a baseline version row is registered if agent_j already exists.
 """
 
 from __future__ import annotations
@@ -25,6 +27,51 @@ BACKGROUND_AGENTS = [
     ("agent_l", "Agent L", "fleet background — kb sync", "internal"),
     ("agent_o", "Agent O", "fleet background — digest", "internal"),
 ]
+
+# Deterministic baseline versions for cascade pickers (Wave A / WS4).
+BASELINE_VERSIONS = [
+    ("agent_l", "av_demo_agent_l", "demo.baseline", "gpt-4o-mini", "agents/prompts/agent_l.md"),
+    ("agent_o", "av_demo_agent_o", "demo.baseline", "gpt-4o-mini", "agents/prompts/agent_o.md"),
+    ("agent_j", "av_demo_agent_j", "demo.baseline", "gpt-4o-mini", "agents/prompts/agent_j.md"),
+]
+
+
+def _ensure_baseline_version(
+    conn,
+    *,
+    agent_id: str,
+    version_id: str,
+    version: str,
+    model: str,
+    source_ref: str,
+    created_at: int,
+) -> None:
+    agent = conn.execute(
+        "SELECT agent_id, model FROM agents WHERE agent_id=?", (agent_id,)
+    ).fetchone()
+    if agent is None:
+        return
+    existing = conn.execute(
+        "SELECT version_id FROM agent_versions WHERE version_id=?", (version_id,)
+    ).fetchone()
+    if existing:
+        return
+    fleet_model = agent[1] or model
+    conn.execute(
+        """INSERT INTO agent_versions
+           (version_id, agent_id, version, model, model_version, source_ref, notes, created_at)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (
+            version_id,
+            agent_id,
+            version,
+            fleet_model,
+            None,
+            source_ref,
+            "seed_demo baseline — placeholder source_ref",
+            created_at,
+        ),
+    )
 
 
 def main() -> int:
@@ -70,11 +117,13 @@ def main() -> int:
                 "steps": rng.randint(2, 5),
                 "tool_errors": 0,
             }
+            # Pin first session of each background agent to baseline version_id.
+            pin = f"av_demo_{agent_id}" if i == 0 else None
             conn.execute(
                 """INSERT OR REPLACE INTO sessions
                    (session_id, agent_id, scenario, goal, model, temperature, status,
-                    outcome, usage, trace_id, transcript, started_at, ended_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    outcome, usage, trace_id, transcript, agent_version, started_at, ended_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     session_id,
                     agent_id,
@@ -87,15 +136,27 @@ def main() -> int:
                     json.dumps(usage),
                     None,
                     None,  # no transcript: replay honestly refuses demo-seeded sessions
+                    pin,
                     started,
                     started + usage["latency_ms"],
                 ),
             )
 
+    for agent_id, version_id, version, model, source_ref in BASELINE_VERSIONS:
+        _ensure_baseline_version(
+            conn,
+            agent_id=agent_id,
+            version_id=version_id,
+            version=version,
+            model=model,
+            source_ref=source_ref,
+            created_at=now - 24 * hour,
+        )
+
     conn.commit()
     counts = {
         t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-        for t in ("agents", "sessions")
+        for t in ("agents", "sessions", "agent_versions")
     }
     print(f"seeded demo fleet into {db_path} — {counts}")
     return 0

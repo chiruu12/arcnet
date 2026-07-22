@@ -214,6 +214,7 @@ def _session_filters(
     scenario: str | None = None,
     agent_id: str | None = None,
     model: str | None = None,
+    agent_version: str | None = None,
 ) -> tuple[str, list[Any]]:
     q = ""
     params: list[Any] = []
@@ -226,6 +227,10 @@ def _session_filters(
     if model:
         q += " AND model = ?"
         params.append(model)
+    if agent_version:
+        # sessions.agent_version stores version_id (or legacy version tag)
+        q += " AND agent_version = ?"
+        params.append(agent_version)
     return q, params
 
 
@@ -235,8 +240,11 @@ def count_sessions(
     scenario: str | None = None,
     agent_id: str | None = None,
     model: str | None = None,
+    agent_version: str | None = None,
 ) -> int:
-    where, params = _session_filters(scenario=scenario, agent_id=agent_id, model=model)
+    where, params = _session_filters(
+        scenario=scenario, agent_id=agent_id, model=model, agent_version=agent_version
+    )
     row = conn.execute(f"SELECT COUNT(*) FROM sessions WHERE 1=1{where}", params).fetchone()
     return int(row[0] if row else 0)
 
@@ -247,11 +255,14 @@ def list_sessions(
     scenario: str | None = None,
     agent_id: str | None = None,
     model: str | None = None,
+    agent_version: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
     """Index rows for pickers/lists — transcripts excluded by design (they're big)."""
-    where, params = _session_filters(scenario=scenario, agent_id=agent_id, model=model)
+    where, params = _session_filters(
+        scenario=scenario, agent_id=agent_id, model=model, agent_version=agent_version
+    )
     q = (
         "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, "
         "agent_version, started_at, ended_at, (transcript IS NOT NULL) AS has_transcript "

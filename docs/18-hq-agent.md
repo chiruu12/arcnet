@@ -189,6 +189,19 @@ HQ Agent is **forward_facing-ish for tool outputs it ingests** (signals, reasons
 3. Tool handlers treat remote text as **untrusted**: never paste full payloads into spans; prefer excerpts already bounded by agent-view APIs.
 4. Narrative in skill: prompt-injection defense is part of the maintenance layer, not optional.
 
+### Unplug coverage matrix (stub — Wave A / WS8)
+
+| Surface | Ingests untrusted text? | Checkpoint / bound | Status |
+|---|---|---|---|
+| Agent J + fleet clones | yes (retrieved / tool args) | `arcnet.init` + `build_guard_hooks` | wired |
+| HQ Agent (`agents/hq_agent`) | yes (signals, Case File excerpts) | init + guard hooks; tools use agent-view excerpts | wired |
+| `sdk/arcnet/hq_tools.py` | yes (HTTP JSON from server) | prefer agent-view; no full transcript dumps | audit continue Wave B |
+| Model explore MCP / skills | curated + live catalog ids | exploration-only; no Case File paste | partial |
+| SigNoz MCP stdio | remote tool output | hang/timeout documented; Case File fallback | PARTIAL |
+| `POST /api/signal` reason/guidance | operator/SDK text | write-secret optional; store only | n/a Unplug |
+
+Full matrix + truncation regression tests continue in Wave B (WS8). In-process Unplug only — no network hop on fail-closed path.
+
 ---
 
 ## Incremental delivery slices
