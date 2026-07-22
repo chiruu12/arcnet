@@ -249,7 +249,8 @@ export function CaseFiles({
               {sessions && sessions.length === 0 && <option value="">no sessions</option>}
               {(sessions ?? []).map((s) => (
                 <option key={s.session_id} value={s.session_id}>
-                  {s.session_id} · {s.scenario ?? "—"} · {s.status} · {ts(s.started_at)}
+                  {s.session_id} · {s.scenario ?? "—"} · {s.status}
+                  {s.agent_version ? ` · ver:${s.agent_version}` : ""} · {ts(s.started_at)}
                 </option>
               ))}
             </select>
@@ -259,11 +260,22 @@ export function CaseFiles({
               export_case_file()
             </a>
           )}
+          {selected && (
+            <a
+              className="btn ghost"
+              href={`#hq_agent?agent=${encodeURIComponent(agentId)}&session=${encodeURIComponent(selected)}`}
+            >
+              hq_agent · pin session
+            </a>
+          )}
         </div>
       )}
 
       {sessions && sessions.length === 0 && agentId && model && (
         <Empty hint="no sessions for this agent + model — pick another model or run a scenario" />
+      )}
+      {err && !fleet && (
+        <Empty hint="could not load fleet — is arcnet-server up on :8000?" />
       )}
 
       {data && (
@@ -278,6 +290,12 @@ export function CaseFiles({
               <span>agent</span>
               <span>
                 {data.agent?.agent_id ?? "—"} ({data.agent?.role ?? "—"})
+              </span>
+            </div>
+            <div className="stat-row">
+              <span>agent_version</span>
+              <span>
+                {(sessions ?? []).find((s) => s.session_id === selected)?.agent_version ?? "— unpinned"}
               </span>
             </div>
             <div className="stat-row">

@@ -166,6 +166,44 @@ Full design: [`18-hq-agent.md`](18-hq-agent.md).
 
 ---
 
+## Honesty: checklist ≠ product-ready
+
+Acceptance criteria above measure **surface existence**, not production-usable robustness. A founder-critical re-score (2026-07-22) put overall readiness near **~48%**, not the ~90% vibe that “all boxes checked” implies.
+
+| Area | Robustness (0–100) | Note |
+|---|---:|---|
+| Positioning / framing | 58 | Product tone better; hackathon/demo script still oversells |
+| HQ frontend | 55 | Cascade + hash + better apply errors; version-in-cascade still thin |
+| Human APIs | 58 | Pagination mostly; open write surface; optional webhook secret |
+| Agent APIs / tools | 64 | check/signals/incident/sources bounded; dashboards = status twin |
+| HQ Agent | 56 | Tools + Unplug + apply loop; still not a reliable ops agent |
+| Version timeline / pinpoint | 52 | Pin + check narrative landed; cascade still model-not-version first |
+| Model explore / sims | 50 | Live catalog when `OPENAI_API_KEY`; still exploration scaffold |
+| Griffin (MAD) | 46 | Honest MAD on seeded series — not production detection |
+| SigNoz | 54 | Provision + probe + links; HQ remains a launcher |
+| Unplug coverage | 68 | Fleet + HQ Agent wired |
+| Tests / CI | 48 | Unit tests + new CI workflow; no e2e |
+| Hackathon ship assets | 35 | Screenshots/video/checklist still open |
+
+**Overall ~48%** for production-usable robustness. Checklist completion for R1–R3/HQ slices ≠ “done product.”
+
+### Robustness backlog (impact order)
+
+1. Agent → **version** → session cascade (founder §11.8) — not just model from session history
+2. Auth / abuse surface for writes (`/api/signal`, sessions) beyond optional webhook secret
+3. Griffin useful without hand-seeded JSON; MAD strip in HQ
+4. SigNoz MCP reliability + judge-usable deep evidence (not link farm)
+5. Model explore tied to Time Machine verdicts (empirical, not prefer-list)
+6. HQ empty/error UX consistency across all views; FE tests
+7. E2E path: seed → cascade → case file → propose → apply → pin → check narrative
+8. Hackathon capture assets if still submitting
+
+### Robustness pass 1 (this branch)
+
+Shipped: atomic apply-model + ownership checks; check `version_pinpoint`; bounded sources + dashboards agent-view; HQ session pin on apply; live model catalog when key present; webhook secret; CI; tests for the above.
+
+---
+
 ## Priority vs old map §6
 
 | Old # | Area | R-phase |

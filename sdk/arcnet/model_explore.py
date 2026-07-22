@@ -84,34 +84,48 @@ def fetch_provider_catalog(
             "note": "OPENAI_API_KEY empty — returned curated snapshot",
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-    with httpx.Client(timeout=15.0) as client:
-        r = client.get(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
-        r.raise_for_status()
-        raw = r.json().get("data") or []
-    # Prefer chat/reasoning-ish ids; keep list bounded
-    ids = sorted(
-        {
-            m["id"]
-            for m in raw
-            if isinstance(m, dict)
-            and isinstance(m.get("id"), str)
-            and (
-                m["id"].startswith("gpt-")
-                or m["id"].startswith("o1")
-                or m["id"].startswith("o3")
-                or m["id"].startswith("o4")
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {key}"},
             )
+            r.raise_for_status()
+            payload = r.json()
+            if not isinstance(payload, dict):
+                raise ValueError("models response is not an object")
+            raw = payload.get("data") or []
+            if not isinstance(raw, list):
+                raise ValueError("models.data is not a list")
+        # Prefer chat/reasoning-ish ids; keep list bounded
+        ids = sorted(
+            {
+                m["id"]
+                for m in raw
+                if isinstance(m, dict)
+                and isinstance(m.get("id"), str)
+                and (
+                    m["id"].startswith("gpt-")
+                    or m["id"].startswith("o1")
+                    or m["id"].startswith("o3")
+                    or m["id"].startswith("o4")
+                )
+            }
+        )[:max_models]
+        return {
+            "provider": "openai",
+            "source": "openai_api",
+            "models": [{"id": i} for i in ids],
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-    )[:max_models]
-    return {
-        "provider": "openai",
-        "source": "openai_api",
-        "models": [{"id": i} for i in ids],
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    except Exception as exc:  # noqa: BLE001 — any provider/network/parse miss → curated
+        return {
+            "provider": "openai",
+            "source": "snapshot_fallback",
+            "models": _OPENAI_SNAPSHOT[:max_models],
+            "note": f"live catalog failed ({type(exc).__name__}); returned curated snapshot",
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
 
 
 def recommend_models(
@@ -119,7 +133,13 @@ def recommend_models(
     *,
     constraints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Rank candidates for a task type. Exploration only — no agent mutation."""
+    """Rank candidates for a task type. Exploration only — no agent mutation.
+
+    When ``constraints.live`` is True *or* omitted and ``OPENAI_API_KEY`` is set,
+    prefer the live OpenAI model list (still exploration-only; never mutates agents).
+    Provider/network/parse failures fall back to the curated snapshot instead of raising.
+    Explicit ``live=False`` keeps the curated snapshot.
+    """
     constraints = constraints or {}
     meta = TASK_TYPES.get(task_type)
     if meta is None:
@@ -127,10 +147,16 @@ def recommend_models(
             "task_type": task_type,
             "recommendations": [],
             "error": f"unknown task_type; known={list(TASK_TYPES)}",
+            "exploration_only": True,
         }
+    live_flag = constraints.get("live")
+    if live_flag is None:
+        live = bool(os.getenv("OPENAI_API_KEY", "").strip())
+    else:
+        live = bool(live_flag)
     catalog = fetch_provider_catalog(
         constraints.get("provider") or "openai",
-        live=False,
+        live=live,
     )
     by_id = {
         m["id"]: m
@@ -140,21 +166,31 @@ def recommend_models(
     max_cost = constraints.get("max_cost_usd")
     ranked: list[dict[str, Any]] = []
     for i, mid in enumerate(meta["prefer"]):
-        if mid not in by_id and mid not in meta["prefer"]:
-            continue
+        # Prefer curated order; include even if live catalog omitted notes.
+        if mid not in by_id and catalog.get("source") == "openai_api":
+            # Still recommend known prefer ids; evidence notes catalog miss.
+            pass
         if max_cost is not None and mid in ("o3-mini", "gpt-4.1") and float(max_cost) < 0.05:
             continue
+        notes = by_id.get(mid, {}).get("notes") or (
+            "in live catalog" if mid in by_id else "prefer list (may be newer than snapshot)"
+        )
         ranked.append(
             {
                 "model": mid,
                 "rank": i + 1,
-                "reason": f"{meta['label']}: prefer {mid} ({by_id.get(mid, {}).get('notes', 'catalog')})",
-                "evidence_refs": [f"task_type:{task_type}", f"catalog:{catalog.get('source')}"],
+                "reason": f"{meta['label']}: prefer {mid} ({notes})",
+                "evidence_refs": [
+                    f"task_type:{task_type}",
+                    f"catalog:{catalog.get('source')}",
+                    f"in_catalog:{mid in by_id}",
+                ],
             }
         )
     return {
         "task_type": task_type,
-        "constraints": constraints,
+        "constraints": {**constraints, "live_resolved": live},
+        "catalog_source": catalog.get("source"),
         "recommendations": ranked,
         "avoid_hint": meta["avoid_hint"],
         "exploration_only": True,

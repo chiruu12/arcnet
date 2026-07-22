@@ -197,8 +197,9 @@ HQ Agent is **forward_facing-ish for tool outputs it ingests** (signals, reasons
 |---|---|---|
 | **0** | This doc + docs/17 pointer | **done** |
 | **1** | `hq_tools` + version registry APIs + Agno HQ agent + Unplug + thin UI + skill/MCP + tests | **done** (PR #11) |
-| **2** | Richer Case File / replay comparison in tools; proposal inbox polish; `source=` signal filter | **done** (this PR) |
-| **3** | Explicit `POST /api/agents/{id}/apply-model` (human-gated) + session→version pin | **done** (this PR) |
+| **2** | Richer Case File / replay comparison in tools; proposal inbox polish; `source=` signal filter | **done** (PR #12) |
+| **3** | Explicit `POST /api/agents/{id}/apply-model` (human-gated) + session→version pin | **done** (PR #12) |
+| **3b** | Apply atomicity + cross-agent ownership; check version_pinpoint; HQ session pin UI | **done** (robustness-pass-1) |
 | **4** | TabPFN behind `TABPFN_TOKEN` (still not TabFM unless latency budget met) | later |
 
 ---
@@ -206,5 +207,7 @@ HQ Agent is **forward_facing-ish for tool outputs it ingests** (signals, reasons
 ## Honesty pins
 
 - Griffin runtime estimator = **MAD** (median/MAD robust z-score). TabFM failed latency budget; TabPFN needs token.
-- Model explore = **recommendations only**.
+- Model explore = **recommendations only** (live OpenAI list when `OPENAI_API_KEY` set; still exploration-only).
 - SigNoz seasonal anomaly ≠ Griffin; both can coexist with different jobs.
+- **Checklist-done ≠ robust-done.** HQ Agent slices 1–3 exist as a maintenance scaffold (~55% of the operator bar). Still missing: version-first cascade, reliable propose→diagnose→apply with evidence, judge-depth SigNoz, useful Griffin without seed files. See [`17`](17-product-rework-plan.md) honesty table (~**48%** overall product robustness).
+- Webhook: optional `ARCNET_WEBHOOK_SECRET` (`X-ArcNet-Webhook-Secret` / Bearer). Empty secret = localhost-trust model — document and bind carefully.

@@ -310,6 +310,7 @@ def agent_signals_data(
 def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dict[str, Any]:
     """Compact session inspection for coding agents — no full tool payloads."""
     session_id = session["session_id"]
+    agent_id = session.get("agent_id")
     threats = repository.threats_for_session(conn, session_id)
     signals = repository.list_signals(conn, session_id=session_id, limit=10)
     transcript = session.get("transcript") or {}
@@ -325,6 +326,55 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
         for s in signals
         if s.get("status") in ("pending", "delivered")
     ]
+
+    pin = session.get("agent_version")
+    pinned_version: dict[str, Any] | None = None
+    if pin:
+        pinned_version = repository.get_agent_version(conn, str(pin))
+        if pinned_version is None and agent_id:
+            # pin may be a version tag rather than version_id
+            for row in repository.list_agent_versions(conn, str(agent_id), limit=50, offset=0):
+                if row.get("version") == pin or row.get("version_id") == pin:
+                    pinned_version = row
+                    break
+
+    timeline_slice: list[dict[str, Any]] = []
+    if agent_id:
+        timeline_slice = [
+            {
+                "version_id": v.get("version_id"),
+                "version": v.get("version"),
+                "model": v.get("model"),
+                "created_at": v.get("created_at"),
+                "source_ref": v.get("source_ref"),
+            }
+            for v in repository.list_agent_versions(conn, str(agent_id), limit=5, offset=0)
+        ]
+
+    current_model = None
+    if agent_id:
+        agent = repository.get_agent(conn, str(agent_id))
+        current_model = (agent or {}).get("model")
+
+    session_model = session.get("model")
+    pinpoint_bits: list[str] = []
+    if pinned_version:
+        pinpoint_bits.append(
+            f"session pinned to version {pinned_version.get('version')} "
+            f"(model={pinned_version.get('model')})"
+        )
+    elif pin:
+        pinpoint_bits.append(f"session agent_version={pin} (no matching registry row)")
+    else:
+        pinpoint_bits.append("session has no agent_version pin")
+    if session_model and current_model and session_model != current_model:
+        pinpoint_bits.append(
+            f"session ran on {session_model}; fleet current_model is {current_model} — "
+            "regression may be post-session model drift"
+        )
+    elif session_model:
+        pinpoint_bits.append(f"session model={session_model}")
+
     return {
         "session": {
             k: session.get(k)
@@ -338,6 +388,7 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
                 "trace_id",
                 "started_at",
                 "ended_at",
+                "agent_version",
             )
         },
         "outcome": session.get("outcome"),
@@ -352,12 +403,71 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
         "top_threat": cause,
         "active_signals": active[:10],
         "has_transcript": bool(session.get("transcript")),
+        "version_pinpoint": {
+            "pin": pin,
+            "pinned_version": pinned_version,
+            "fleet_current_model": current_model,
+            "recent_versions": timeline_slice,
+            "narrative": "; ".join(pinpoint_bits),
+        },
         "related_views": {
             "incident": f"/api/agent-view/incident/{session_id}",
             "session": f"/api/agent-view/session/{session_id}",
             "signals": f"/api/agent-view/signals/{session_id}",
             "case_file": f"/export/case-file/{session_id}",
+            "versions": f"/api/agents/{agent_id}/versions/timeline" if agent_id else None,
         },
+    }
+
+
+SOURCE_LIST_CAP = 40
+
+
+def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Bounded source projection — no raw body dumps."""
+    findings = row.get("findings")
+    if isinstance(findings, str):
+        try:
+            findings = json.loads(findings)
+        except json.JSONDecodeError:
+            findings = findings
+    finding_excerpts: list[Any] = []
+    if isinstance(findings, list):
+        for item in findings[:5]:
+            if isinstance(item, dict):
+                finding_excerpts.append(
+                    {
+                        "category": item.get("category") or item.get("type"),
+                        "excerpt": _excerpt(
+                            item.get("evidence") or item.get("message") or json.dumps(item, default=str),
+                            EXCERPT_CHARS,
+                        ),
+                    }
+                )
+            else:
+                finding_excerpts.append(_excerpt(str(item), EXCERPT_CHARS))
+    elif findings is not None:
+        finding_excerpts.append(_excerpt(str(findings), EXCERPT_CHARS))
+    return {
+        "source_id": row.get("source_id"),
+        "session_id": row.get("session_id"),
+        "agent_id": row.get("agent_id"),
+        "origin": _excerpt(row.get("origin"), EXCERPT_CHARS),
+        "trust_level": row.get("trust_level"),
+        "scan_action": row.get("scan_action"),
+        "findings_excerpt": finding_excerpts,
+        "created_at": row.get("created_at"),
+    }
+
+
+def agent_sources_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
+    rows = repository.sources_for_ref(conn, ref_id, limit=SOURCE_LIST_CAP)
+    return {
+        "ref": ref_id,
+        "sources": [_source_agent_row(r) for r in rows],
+        "total": len(rows),
+        "truncated": len(rows) >= SOURCE_LIST_CAP,
+        "note": "bounded excerpts only — use human /api/sources for full ledger",
     }
 
 

@@ -13,11 +13,27 @@ function parseProposedModel(guidance: string | null): string {
   return (m?.[1] || m?.[2] || "").trim();
 }
 
-export function HqAgent() {
+function formatApplyError(e: unknown): string {
+  const raw = String(e);
+  if (raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
+    return "apply failed — arcnet-server unreachable (is :8000 up?)";
+  }
+  if (raw.includes("400")) {
+    return `apply rejected — ${raw.slice(0, 280)}`;
+  }
+  return `apply failed — ${raw.slice(0, 280)}`;
+}
+
+export function HqAgent({
+  deepLink,
+}: {
+  deepLink?: { agent?: string; session?: string };
+}) {
   const [proposals, setProposals] = useState<SignalRow[] | null>(null);
   const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
-  const [agentId, setAgentId] = useState("agent_j");
+  const [agentId, setAgentId] = useState(deepLink?.agent ?? "agent_j");
+  const [sessionId, setSessionId] = useState(deepLink?.session ?? "");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [applyModel, setApplyModel] = useState("");
@@ -26,6 +42,16 @@ export function HqAgent() {
   const [applyProposalId, setApplyProposalId] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (deepLink?.agent && deepLink.agent !== agentId) {
+      setAgentId(deepLink.agent);
+    }
+    if (deepLink?.session != null && deepLink.session !== sessionId) {
+      setSessionId(deepLink.session);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to deep-link changes
+  }, [deepLink?.agent, deepLink?.session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +69,14 @@ export function HqAgent() {
         setErr(null);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) {
+          const msg = String(e);
+          setErr(
+            msg.includes("Failed to fetch")
+              ? "arcnet-server unreachable — start uvicorn on :8000 and refresh"
+              : msg,
+          );
+        }
       });
     return () => {
       cancelled = true;
@@ -60,6 +93,9 @@ export function HqAgent() {
     setApplyModel(model);
     setApplyProposalId(p.signal_id);
     setApplyConfirm(false);
+    if (p.session_id && !sessionId) {
+      setSessionId(p.session_id);
+    }
     if (!applyVersion) {
       const d = new Date();
       const stamp = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}.${d.getUTCHours()}${d.getUTCMinutes()}`;
@@ -84,14 +120,18 @@ export function HqAgent() {
         model: applyModel.trim(),
         version: applyVersion.trim(),
         proposal_signal_id: applyProposalId ?? undefined,
-        notes: "applied from HQ proposal inbox",
+        session_id: sessionId.trim() || undefined,
+        notes: sessionId.trim()
+          ? `applied from HQ proposal inbox; pinned session ${sessionId.trim()}`
+          : "applied from HQ proposal inbox",
       });
-      setFlash(`applied ${out.model} as ${out.version.version}`);
+      const pinNote = sessionId.trim() ? ` · pinned ${sessionId.trim()}` : "";
+      setFlash(`applied ${out.model} as ${out.version.version}${pinNote}`);
       setApplyConfirm(false);
       setApplyProposalId(null);
       refresh();
     } catch (e: unknown) {
-      setFlash(String(e));
+      setFlash(formatApplyError(e));
     } finally {
       setBusy(false);
     }
@@ -103,7 +143,8 @@ export function HqAgent() {
       <h1>hq_agent</h1>
       <p className="lede">
         operator maintenance layer — proposal inbox + version timeline. griffin ={" "}
-        <code>MAD</code> (not TabFM). apply requires explicit confirm (no silent swaps).
+        <code>MAD</code> (not TabFM). apply requires explicit confirm (no silent swaps). optional
+        session_id pins the incident that justified the change.
       </p>
 
       <div className="control-bar">
@@ -112,6 +153,15 @@ export function HqAgent() {
           <input
             value={agentId}
             onChange={(e) => setAgentId(e.target.value.trim() || "agent_j")}
+            spellCheck={false}
+          />
+        </label>
+        <label>
+          session_id (pin)
+          <input
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value.trim())}
+            placeholder="optional — from case_files"
             spellCheck={false}
           />
         </label>
@@ -132,7 +182,7 @@ export function HqAgent() {
       <pre className="agent-json">{RUN_HINT}</pre>
 
       {err && <Seam error={err} />}
-      {flash && <p className="lede">{flash}</p>}
+      {flash && <p className={flash.startsWith("apply failed") || flash.startsWith("apply rejected") ? "err" : "lede"}>{flash}</p>}
 
       <p className="eyebrow">{"// apply_model (human-gated)"}</p>
       <div className="control-bar">
@@ -188,7 +238,7 @@ export function HqAgent() {
               <tr key={p.signal_id}>
                 <td className="dim">{ts(p.created_at)}</td>
                 <td className="wrap">{p.reason}</td>
-                <td className="wrap dim">{p.guidance ?? "—"}</td>
+                <td className="dim wrap">{p.guidance ?? "—"}</td>
                 <td>{p.status}</td>
                 <td>
                   {p.status !== "applied" && (

@@ -126,7 +126,8 @@ export function App() {
           {apiUp === false && (
             <p className="err">
               seam: arcnet-server unreachable — start uvicorn on :8000 (or `./scripts/run-demo.sh`
-              for a seeded bring-up) and reload.
+              for a seeded bring-up) and reload. Views below may show empty or stale data until the
+              API is back.
             </p>
           )}
           {view === "fleet_health" && (
@@ -181,7 +182,9 @@ export function App() {
             />
           )}
           {view === "dashboards" && <Dashboards mode={mode} />}
-          {view === "hq_agent" && <HqAgent />}
+          {view === "hq_agent" && (
+            <HqAgent deepLink={{ agent: hash.agent, session: hash.session }} />
+          )}
         </main>
       </div>
     </div>
