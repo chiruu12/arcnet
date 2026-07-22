@@ -4,7 +4,7 @@
 **Branch:** `wave-b-path-to-95` (PR #16)  
 **Rule:** overall product readiness **≤60%** until measurable exits pass. No 74/80/95 theater.
 
-Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts).
+Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research).
 
 ---
 
@@ -98,6 +98,8 @@ P1 regression exits (must stay green):
 ---
 
 ## 5. Next plan — harden framework first (Wave C = backlog)
+
+**Authoritative phase bundles:** [`21-next-phases-plan.md`](21-next-phases-plan.md) (Phase 1 = this planning pass; execution starts Phase 2).
 
 Order: **fix → test → measure → then new features**. Wave C items stay backlog until measurement exits move.
 
