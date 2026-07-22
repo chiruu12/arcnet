@@ -24,10 +24,27 @@ def _base(server_url: str | None = None) -> str:
 
 def _get(path: str, *, server_url: str | None = None, timeout: float = 10.0) -> Any:
     url = f"{_base(server_url)}{path}"
-    with httpx.Client(timeout=timeout) as client:
-        r = client.get(url)
-        r.raise_for_status()
-        return r.json()
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.get(url)
+            r.raise_for_status()
+            return r.json()
+    except httpx.TimeoutException:
+        return {"error": "timeout", "path": path, "timeout_s": timeout}
+    except httpx.HTTPStatusError as exc:
+        detail = ""
+        try:
+            detail = exc.response.text[:300]
+        except Exception:  # noqa: BLE001
+            detail = str(exc)
+        return {
+            "error": "http_error",
+            "path": path,
+            "status": exc.response.status_code,
+            "detail": detail,
+        }
+    except httpx.HTTPError as exc:
+        return {"error": "transport_error", "path": path, "detail": str(exc)[:300]}
 
 
 def _post(
@@ -38,10 +55,27 @@ def _post(
     timeout: float = 10.0,
 ) -> Any:
     url = f"{_base(server_url)}{path}"
-    with httpx.Client(timeout=timeout) as client:
-        r = client.post(url, json=body)
-        r.raise_for_status()
-        return r.json()
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.post(url, json=body)
+            r.raise_for_status()
+            return r.json()
+    except httpx.TimeoutException:
+        return {"error": "timeout", "path": path, "timeout_s": timeout}
+    except httpx.HTTPStatusError as exc:
+        detail = ""
+        try:
+            detail = exc.response.text[:300]
+        except Exception:  # noqa: BLE001
+            detail = str(exc)
+        return {
+            "error": "http_error",
+            "path": path,
+            "status": exc.response.status_code,
+            "detail": detail,
+        }
+    except httpx.HTTPError as exc:
+        return {"error": "transport_error", "path": path, "detail": str(exc)[:300]}
 
 
 def signoz_status(*, server_url: str | None = None) -> dict[str, Any]:
@@ -66,7 +100,21 @@ def session_check(
     *,
     server_url: str | None = None,
 ) -> dict[str, Any]:
-    return check_session(session_id, server_url=server_url)
+    """Compact check envelope — prefer version_pinpoint.narrative for change attribution."""
+    try:
+        out = check_session(session_id, server_url=server_url)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": "check_failed", "session_id": session_id, "detail": str(exc)[:300]}
+    if isinstance(out, dict):
+        data = out.get("data") if isinstance(out.get("data"), dict) else out
+        pin = (data or {}).get("version_pinpoint") if isinstance(data, dict) else None
+        if isinstance(pin, dict) and pin.get("narrative"):
+            out = dict(out)
+            out["pinpoint_hint"] = pin["narrative"]
+            related = (data or {}).get("related_views") if isinstance(data, dict) else None
+            if isinstance(related, dict):
+                out["evidence_pointers"] = {k: v for k, v in related.items() if v}
+    return out
 
 
 def case_file_view(
@@ -113,7 +161,7 @@ def recommend_models(
     *,
     constraints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Exploration-only model ranking (local curated catalog)."""
+    """Exploration-only ranking. Live OpenAI list when OPENAI_API_KEY set (or constraints.live)."""
     return _recommend_models(task_type, constraints=constraints)
 
 

@@ -119,7 +119,12 @@ def recommend_models(
     *,
     constraints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Rank candidates for a task type. Exploration only — no agent mutation."""
+    """Rank candidates for a task type. Exploration only — no agent mutation.
+
+    When ``constraints.live`` is True *or* omitted and ``OPENAI_API_KEY`` is set,
+    prefer the live OpenAI model list (still exploration-only; never mutates agents).
+    Explicit ``live=False`` keeps the curated snapshot.
+    """
     constraints = constraints or {}
     meta = TASK_TYPES.get(task_type)
     if meta is None:
@@ -127,10 +132,16 @@ def recommend_models(
             "task_type": task_type,
             "recommendations": [],
             "error": f"unknown task_type; known={list(TASK_TYPES)}",
+            "exploration_only": True,
         }
+    live_flag = constraints.get("live")
+    if live_flag is None:
+        live = bool(os.getenv("OPENAI_API_KEY", "").strip())
+    else:
+        live = bool(live_flag)
     catalog = fetch_provider_catalog(
         constraints.get("provider") or "openai",
-        live=False,
+        live=live,
     )
     by_id = {
         m["id"]: m
@@ -140,21 +151,31 @@ def recommend_models(
     max_cost = constraints.get("max_cost_usd")
     ranked: list[dict[str, Any]] = []
     for i, mid in enumerate(meta["prefer"]):
-        if mid not in by_id and mid not in meta["prefer"]:
-            continue
+        # Prefer curated order; include even if live catalog omitted notes.
+        if mid not in by_id and catalog.get("source") == "openai_api":
+            # Still recommend known prefer ids; evidence notes catalog miss.
+            pass
         if max_cost is not None and mid in ("o3-mini", "gpt-4.1") and float(max_cost) < 0.05:
             continue
+        notes = by_id.get(mid, {}).get("notes") or (
+            "in live catalog" if mid in by_id else "prefer list (may be newer than snapshot)"
+        )
         ranked.append(
             {
                 "model": mid,
                 "rank": i + 1,
-                "reason": f"{meta['label']}: prefer {mid} ({by_id.get(mid, {}).get('notes', 'catalog')})",
-                "evidence_refs": [f"task_type:{task_type}", f"catalog:{catalog.get('source')}"],
+                "reason": f"{meta['label']}: prefer {mid} ({notes})",
+                "evidence_refs": [
+                    f"task_type:{task_type}",
+                    f"catalog:{catalog.get('source')}",
+                    f"in_catalog:{mid in by_id}",
+                ],
             }
         )
     return {
         "task_type": task_type,
-        "constraints": constraints,
+        "constraints": {**constraints, "live_resolved": live},
+        "catalog_source": catalog.get("source"),
         "recommendations": ranked,
         "avoid_hint": meta["avoid_hint"],
         "exploration_only": True,
