@@ -1,9 +1,9 @@
 # ArcNet — Path to ~95% production-usable robustness
 
-**Status:** Wave B **in progress** — enhancement loop on `wave-b-path-to-95` (after Wave A PR #15).  
+**Status:** Wave B **measured** — surfaces landed; honesty re-score on `wave-b-path-to-95` (PR #16).  
 **Baseline:** honest **~48%** (founder-critical re-score 2026-07-22, [`17`](17-product-rework-plan.md)).  
 **Target:** **~95%** = real enhancement layer operators and coding agents can trust — not checklist theater.  
-**After Wave A (measured est.):** **~62–68** — version-first cascade, write secret, pinpoint, catalog fallback. **Do not claim 95%.**
+**Measured now:** **~55%** overall (≤60% cap) — see [`20-honest-progress.md`](20-honest-progress.md). Prior After-B **~74–80 est. withdrawn**. **Do not claim 74/80/95%.**
 
 | Related | Role |
 |---|---|
@@ -13,6 +13,7 @@
 | [`15`](15-product-map.md) | Built inventory + adversarial findings |
 | [`12`](12-data-api.md) | Frozen wire contract — **additive only** |
 | [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) | Measurable acceptance-test appendix |
+| [`20`](20-honest-progress.md) | Post–Wave B measured scorecard (≤60% cap) + next harden plan |
 
 **Standing constraints (non-negotiable):**
 
@@ -672,23 +673,25 @@ Calendar is **not** the constraint. Waves are ordered so execution can start imm
 
 ### 5.2 Running scoreboard (update in PRs)
 
-| Area | Start | After A | After B | After C (target) |
-|---|---:|---:|---:|---:|
-| Positioning | 58 | ~60 | ~62 | 92 |
-| HQ frontend | 55 | ~70 | ~78 | 94 |
-| Human APIs | 58 | ~72 | ~74 | 93 |
-| Agent APIs | 64 | ~68 | ~78 | 94 |
-| HQ Agent | 56 | ~60 | ~78 | 93 |
-| Version pinpoint | 52 | ~78 | ~80 | 95 |
-| Model explore | 50 | ~62 (P0) | ~76 | 92 |
-| Griffin | 46 | ~48 | ~72 | 90 |
-| SigNoz | 54 | ~58 | ~76 | 92 |
-| Unplug | 68 | ~72 (matrix stub) | ~74 | 94 |
-| Tests/CI/e2e | 48 | ~55 (FE cascade unit) | ~60 | 95 |
-| **Overall (excl. WS11)** | **~48** | **~62–68 est.** | **~74–80 est.** | **~95** |
-| Hackathon assets (track) | 35 | — | — | track |
+Authoritative measured table: [`20-honest-progress.md`](20-honest-progress.md). Summary:
 
-Wave B estimates assume WS3/5/6/7 landed with tests; **WS9 e2e still open** → overall stays well below 95. Measured scores replace estimates when exit criteria pass.
+| Area | Start | After A (est.) | **Measured (Wave B)** | After C (target) |
+|---|---:|---:|---:|---:|
+| Positioning | 58 | ~60 | **58** | 92 |
+| HQ frontend | 55 | ~70 | **62** | 94 |
+| Human APIs | 58 | ~72 | **64** | 93 |
+| Agent APIs | 64 | ~68 | **66** | 94 |
+| HQ Agent | 56 | ~60 | **58** | 93 |
+| Version pinpoint | 52 | ~78 | **68** | 95 |
+| Model explore | 50 | ~62 (P0) | **56** | 92 |
+| Griffin | 46 | ~48 | **52** | 90 |
+| SigNoz | 54 | ~58 | **56** | 92 |
+| Unplug | 68 | ~72 | **70** | 94 |
+| Tests/CI/e2e | 48 | ~55 | **52** | 95 |
+| **Overall (excl. WS11)** | **~48** | ~~62–68 est.~~ | **~55 (≤60 cap)** | **~95** |
+| Hackathon assets (track) | 35 | — | 35 | track |
+
+~~After B ~74–80 est.~~ **withdrawn** — checklist theater. Move cells only when §2 exits + [`20`](20-honest-progress.md) §3 gates pass. **WS9 e2e still open.**
 
 ### 5.3 Definition of “done enough to claim 95%”
 
