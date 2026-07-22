@@ -88,6 +88,8 @@ class RobustnessPassTests(unittest.TestCase):
         self.assertIn("narrative", data["version_pinpoint"])
         self.assertIsNotNone(data["session"].get("agent_version"))
         self.assertTrue(data["version_pinpoint"]["pinned_version"])
+        self.assertTrue(data["version_pinpoint"]["pinned_session_matches"])
+        self.assertEqual(data["version_pinpoint"]["version"], "robust-1")
         self.assertIn("versions", data["related_views"])
 
     def test_sources_agent_view_is_bounded(self) -> None:
