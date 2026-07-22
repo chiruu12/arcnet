@@ -10,7 +10,7 @@
     },
     {
       "name": "signoz_evidence",
-      "description": "Bounded SigNoz evidence for a session (span names/ids; MCP hang fallback).",
+      "description": "Bounded SigNoz HTTP/Query Range evidence for a session (prefer over MCP; span names/ids only).",
       "inputSchema": {
         "type": "object",
         "required": ["session_id"],

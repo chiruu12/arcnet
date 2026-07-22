@@ -77,12 +77,13 @@ def envelope(
         },
         "hints": {
             "raw_evidence": (
-                f"SigNoz: links.signoz_trace + GET /api/signoz/evidence?session_id={id_}. "
-                f"MCP: signoz_get_trace_details(trace_id='{trace_id}') — if MCP stdio hangs, "
-                "prefer the evidence endpoint / Query Range curl (docs/04)."
+                # Prefer HTTP / Query Range before SigNoz MCP (stdio may hang — Phase 3).
+                f"Prefer HTTP: GET /api/signoz/evidence?session_id={id_} + links.signoz_trace "
+                f"+ Query Range curl (docs/04). Optional MCP: signoz_get_trace_details"
+                f"(trace_id='{trace_id}') — do not block if MCP stdio hangs."
                 if trace_id
                 else "Evidence is SQLite-primary; no trace_id was recorded for this record. "
-                "MCP hang fallback: Case File + /api/signoz/status only."
+                "Prefer HTTP: Case File + GET /api/signoz/status / evidence — not MCP."
             )
         },
     }
@@ -547,10 +548,11 @@ def case_file_markdown(env: dict[str, Any], session: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## Fix-prompt preamble (hand to a coding agent)")
     lines.append("")
-    lines.append("> You are a coding agent with the SigNoz MCP server connected. Investigate this")
-    lines.append("> incident and propose a fix. Pull live evidence with the MCP hints below, confirm")
-    lines.append("> the root cause, then propose the smallest change that removes it. Do not weaken")
-    lines.append("> the source-trust guard.")
+    lines.append("> Investigate this incident and propose a fix. Prefer HTTP evidence first:")
+    lines.append("> `GET /api/signoz/evidence?session_id=` + Case File `links.signoz_trace` + Query Range")
+    lines.append("> curl (docs/04). SigNoz MCP stdio may hang — use MCP only as optional enrichment,")
+    lines.append("> never as a blocker. Confirm the root cause, then propose the smallest change")
+    lines.append("> that removes it. Do not weaken the source-trust guard.")
     lines.append("")
     lines.append("```")
     lines.append(f"signoz_trace: {links.get('signoz_trace')}")
