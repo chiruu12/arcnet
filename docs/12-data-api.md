@@ -142,8 +142,13 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 | `POST /webhooks/signoz` | SigNoz alert payload | 204 |
 | `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated row (server relays to AgentOS) |
 | `GET /export/case-file/{session_id}` | path | zip: `case-file.md` + `case-file.json` |
+| `GET /api/signoz/status` | — | `{signoz_url, ui_reachable, api_key_present, query_range_ok, query_note, dashboards: {fleet_ops, threats_trust, cost_tokens, agno}}` — dashboard ids from `SIGNOZ_DASHBOARD_*` env or title resolve (**additive** `dashboards`) |
 
 **Pagination convention (additive, 2026-07-22):** list bodies remain JSON **arrays** so existing HQ/clients keep working. Clients that need totals read `X-Total-Count` (and echo `X-Limit` / `X-Offset`). `offset` defaults to `0`; `limit` keeps prior defaults/caps.
+
+**HQ hash deep-links (additive, product surface):** `#view` with optional `?agent=&model=&session=` (e.g. `#case_files?agent=agent_j&model=gpt-4o-mini&session=s_ecfdb55d`).
+
+**SDK session tools (additive client):** `arcnet.hq.check_session` / `signals_view` / `session_view` / `incident_view` / `sources_view` — thin wrappers over agent-view envelopes (no full tool dumps).
 
 ### Agent-view envelope (every view, same wrapper)
 
