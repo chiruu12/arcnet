@@ -83,6 +83,7 @@ Root-user env (`SIGNOZ_USER_ROOT_*`) applied via casting + gitignored compose; `
 
 PR #5 merged → `verify-reinforce`. Verification green (unittest suite, HQ build, import boundaries, provision dry-validate, SigNoz health + Query Range via `SIGNOZ-API-KEY`, case-file zip, S1/S2/S5 live). Adversarial FAIL: webhook `[]` → 500; WARNs: oversized label ids, `/api/signoz/status` claimed Query Range on `/version`, `seed_demo` ignored `ARCNET_DB_PATH`. Fixes: webhook 400 + id clip 128, status probes `query_range`, seed_demo honors env; tests added. Deferred: G4 live 3× (use `_phase4_g4.json`), MCP stdio hung, open write APIs (demo), S0/S4 re-run.
 
-## 2026-07-22 — product guide + HQ audit
+## 2026-07-22 — product map + validation
 
-Frontend audit + user guide: `docs/14-product-guide.md` (DONE/LEFT matrix, how to run/use/test). HQ polish for testability: Dashboards probes `/api/signoz/status` (no stale "DEFERRED" copy); seam error points at `./scripts/run-demo.sh`; empty-state hints use real scenario runner paths. README links the guide; screenshot/Docker limitations updated after SigNoz evidence.
+Full built-surface inventory: `docs/15-product-map.md` (system + HQ↔API mermaid, DONE/PARTIAL/GAP tables, ~110 verification points, prioritized FE backlog). Validated vs code/`12`/`13`/`14`; adversarial review recorded in-doc (dashboards deep-link fake completeness, default session ≠ heroes, Beat 5 vs `mixed`, MCP PARTIAL, HITL no AgentOS relay). Links from README + `docs/14`. No FE redesign this pass.
+
