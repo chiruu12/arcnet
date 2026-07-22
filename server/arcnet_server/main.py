@@ -19,7 +19,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from arcnet_server import read_models, repository
 from arcnet_server.bus import BUS
-from arcnet_server.db import connect, init_db, now_ms
+from arcnet_server.db import connect, init_db, now_ms, row_to_dict
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
@@ -213,6 +213,37 @@ def list_agent_versions(
     return repository.list_agent_versions(conn, agent_id, limit=limit, offset=offset)
 
 
+def _require_session_for_agent(conn: Any, session_id: str, agent_id: str) -> dict[str, Any]:
+    """Session must exist and belong to agent_id (blocks cross-agent pins)."""
+    sess = repository.get_session(conn, session_id)
+    if sess is None:
+        raise HTTPException(404, f"session {session_id} not found")
+    if sess.get("agent_id") != agent_id:
+        raise HTTPException(
+            400,
+            f"session {session_id} belongs to agent {sess.get('agent_id')}, not {agent_id}",
+        )
+    return sess
+
+
+def _require_hq_proposal_for_agent(conn: Any, proposal_signal_id: str, agent_id: str) -> dict[str, Any]:
+    """Proposal must exist, be source=hq_agent, and belong to agent_id."""
+    sig = conn.execute(
+        "SELECT * FROM signals WHERE signal_id=?", (proposal_signal_id,)
+    ).fetchone()
+    prop = row_to_dict(sig)
+    if prop is None:
+        raise HTTPException(404, f"proposal {proposal_signal_id} not found")
+    if prop.get("source") != "hq_agent":
+        raise HTTPException(400, f"proposal {proposal_signal_id} is not source=hq_agent")
+    if prop.get("agent_id") != agent_id:
+        raise HTTPException(
+            400,
+            f"proposal {proposal_signal_id} belongs to agent {prop.get('agent_id')}, not {agent_id}",
+        )
+    return prop
+
+
 @app.post("/api/agents/{agent_id}/versions")
 async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any]:
     body = await request.json()
@@ -222,13 +253,14 @@ async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any
     if not version or not str(version).strip():
         raise HTTPException(400, "version is required")
     version_id = body.get("version_id") or _new_id("av_")
+    conn = get_conn()
     session_id = body.get("session_id")
     if session_id is not None:
         session_id = str(session_id).strip() or None
-        if session_id and repository.get_session(get_conn(), session_id) is None:
-            raise HTTPException(404, f"session {session_id} not found")
+        if session_id:
+            _require_session_for_agent(conn, session_id, agent_id)
     return repository.insert_agent_version(
-        get_conn(),
+        conn,
         version_id,
         agent_id,
         {
@@ -265,24 +297,29 @@ async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
     session_id = body.get("session_id")
     if session_id is not None:
         session_id = str(session_id).strip() or None
-        if session_id and repository.get_session(conn, session_id) is None:
-            raise HTTPException(404, f"session {session_id} not found")
+        if session_id:
+            _require_session_for_agent(conn, session_id, agent_id)
     proposal_signal_id = body.get("proposal_signal_id")
     if proposal_signal_id is not None:
         proposal_signal_id = str(proposal_signal_id).strip() or None
+        if proposal_signal_id:
+            _require_hq_proposal_for_agent(conn, proposal_signal_id, agent_id)
     version_id = body.get("version_id") or _new_id("av_")
-    return repository.apply_agent_model(
-        conn,
-        agent_id,
-        version_id,
-        model=str(model).strip(),
-        version=str(version).strip(),
-        model_version=body.get("model_version"),
-        source_ref=body.get("source_ref"),
-        notes=body.get("notes") or "applied via POST /api/agents/.../apply-model",
-        session_id=session_id,
-        proposal_signal_id=proposal_signal_id,
-    )
+    try:
+        return repository.apply_agent_model(
+            conn,
+            agent_id,
+            version_id,
+            model=str(model).strip(),
+            version=str(version).strip(),
+            model_version=body.get("model_version"),
+            source_ref=body.get("source_ref"),
+            notes=body.get("notes") or "applied via POST /api/agents/.../apply-model",
+            session_id=session_id,
+            proposal_signal_id=proposal_signal_id,
+        )
+    except repository.ApplyModelError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/threats")

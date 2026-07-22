@@ -140,6 +140,82 @@ class AgentVersionRegistryTests(unittest.TestCase):
         tl = self.client.get("/api/agents/agent_j/versions/timeline")
         self.assertEqual(tl.json()["current_model"], "gpt-4o")
 
+    def test_apply_model_rejects_cross_agent_session_and_proposal(self) -> None:
+        self.client.post(
+            "/api/agents",
+            json={"agent_id": "agent_l", "name": "L", "model": "gpt-4o-mini"},
+        )
+        foreign_sess = self.client.post(
+            "/api/sessions",
+            json={
+                "agent_id": "agent_l",
+                "scenario": "s1",
+                "goal": "other agent",
+                "model": "gpt-4o-mini",
+            },
+        ).json()["session_id"]
+        foreign_prop = self.client.post(
+            "/api/signal",
+            json={
+                "agent_id": "agent_l",
+                "kind": "note",
+                "severity": "info",
+                "reason": "foreign",
+                "guidance": "Proposed model change for agent_l: gpt-4o.",
+                "source": "hq_agent",
+            },
+        ).json()["signal_id"]
+
+        bad_sess = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-xagent-sess",
+                "session_id": foreign_sess,
+            },
+        )
+        self.assertEqual(bad_sess.status_code, 400)
+        agent_model = self.client.get("/api/agents/agent_j/versions/timeline").json()["current_model"]
+        self.assertNotEqual(agent_model, "gpt-4o")
+
+        bad_prop = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-xagent-prop",
+                "proposal_signal_id": foreign_prop,
+            },
+        )
+        self.assertEqual(bad_prop.status_code, 400)
+        still = self.client.get(f"/api/signals?source=hq_agent&agent_id=agent_l").json()
+        self.assertTrue(any(s["signal_id"] == foreign_prop and s["status"] != "applied" for s in still))
+
+    def test_apply_model_duplicate_version_id_is_atomic(self) -> None:
+        """Duplicate version_id must not leave agents.model bumped without a new row."""
+        first = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={"confirm": True, "model": "gpt-4o-mini", "version": "v-dup-base"},
+        )
+        self.assertEqual(first.status_code, 200)
+        vid = first.json()["version"]["version_id"]
+        before = self.client.get("/api/agents/agent_j/versions/timeline").json()["current_model"]
+
+        dup = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-dup-attempt",
+                "version_id": vid,
+            },
+        )
+        self.assertEqual(dup.status_code, 400)
+        after = self.client.get("/api/agents/agent_j/versions/timeline").json()
+        self.assertEqual(after["current_model"], before)
+        self.assertEqual(sum(1 for v in after["versions"] if v["version_id"] == vid), 1)
+
 
 class HqToolsTests(unittest.TestCase):
     @classmethod
