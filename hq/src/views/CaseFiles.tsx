@@ -62,14 +62,43 @@ export function CaseFiles({
   const { agentId, versionId, model, sessionId, lane } = cascade;
 
   useEffect(() => {
-    if (!deepLink?.agent || deepLink.agent === agentId) return;
+    if (!deepLink?.agent) return;
     prefer.current = {
       version: deepLink.version,
       model: deepLink.model,
       session: deepLink.session,
     };
-    setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: deepLink.agent! }));
-  }, [deepLink?.agent, deepLink?.version, deepLink?.model, deepLink?.session, agentId]);
+    if (deepLink.agent !== agentId) {
+      setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: deepLink.agent! }));
+      return;
+    }
+    // Same agent: still honor version / model / session hash changes.
+    setCascade((s) => {
+      let next = s;
+      const wantV = deepLink.version ?? "";
+      const wantM = deepLink.model;
+      if (wantV && (wantV !== s.versionId || (wantM !== undefined && wantM !== s.model))) {
+        const row = (versions ?? []).find((v) => v.version_id === wantV);
+        next = cascadeReducer(next, {
+          type: "set_version",
+          versionId: wantV,
+          model: wantM !== undefined ? wantM : (row?.model ?? ""),
+        });
+      } else if (!wantV && wantM !== undefined && wantM !== s.model) {
+        next = cascadeReducer(next, {
+          type: "set_unversioned",
+          model: wantM,
+        });
+      } else if (wantM !== undefined && wantM !== next.model && wantV === next.versionId) {
+        next = cascadeReducer(next, { type: "set_model", model: wantM });
+      }
+      const wantS = deepLink.session ?? "";
+      if (wantS !== next.sessionId) {
+        next = cascadeReducer(next, { type: "set_session", sessionId: wantS });
+      }
+      return next;
+    });
+  }, [deepLink?.agent, deepLink?.version, deepLink?.model, deepLink?.session, agentId, versions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -304,7 +333,9 @@ export function CaseFiles({
                   setCascade((s) =>
                     cascadeReducer(s, {
                       type: "set_unversioned",
-                      model: models[0]?.model ?? s.model,
+                      model: models.some((m) => m.model === s.model)
+                        ? s.model
+                        : (models[0]?.model ?? s.model),
                     }),
                   );
                   return;
@@ -314,7 +345,7 @@ export function CaseFiles({
                   cascadeReducer(s, {
                     type: "set_version",
                     versionId: v,
-                    model: row?.model ?? undefined,
+                    model: row?.model ?? "",
                   }),
                 );
               }}

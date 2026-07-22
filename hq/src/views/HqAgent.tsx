@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type AgentVersionRow } from "../api";
 import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
 import { Empty, Seam, ts } from "../components";
@@ -51,21 +51,46 @@ export function HqAgent({
   const [applyProposalId, setApplyProposalId] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const prefer = useRef({
+    version: deepLink?.version,
+    model: deepLink?.model,
+    session: deepLink?.session,
+  });
 
   const { agentId, versionId, sessionId } = cascade;
 
   useEffect(() => {
-    if (deepLink?.agent && deepLink.agent !== agentId) {
+    if (!deepLink) return;
+    prefer.current = {
+      version: deepLink.version,
+      model: deepLink.model,
+      session: deepLink.session,
+    };
+    if (deepLink.agent && deepLink.agent !== agentId) {
       setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: deepLink.agent! }));
+      return;
     }
-    if (deepLink?.session != null && deepLink.session !== sessionId) {
-      setCascade((s) => cascadeReducer(s, { type: "set_session", sessionId: deepLink.session! }));
-    }
-    if (deepLink?.version != null && deepLink.version !== versionId) {
-      setCascade((s) =>
-        cascadeReducer(s, { type: "set_version", versionId: deepLink.version!, model: deepLink.model }),
-      );
-    }
+    setCascade((s) => {
+      let next = s;
+      if (deepLink.version != null && deepLink.version !== s.versionId) {
+        next = cascadeReducer(next, {
+          type: "set_version",
+          versionId: deepLink.version,
+          // Clear stale model when link omits it; timeline/row fill happens next.
+          model: deepLink.model !== undefined ? deepLink.model : "",
+        });
+      } else if (
+        deepLink.version != null &&
+        deepLink.model !== undefined &&
+        deepLink.model !== s.model
+      ) {
+        next = cascadeReducer(next, { type: "set_model", model: deepLink.model });
+      }
+      if (deepLink.session != null && deepLink.session !== next.sessionId) {
+        next = cascadeReducer(next, { type: "set_session", sessionId: deepLink.session });
+      }
+      return next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to deep-link changes
   }, [deepLink?.agent, deepLink?.session, deepLink?.version, deepLink?.model]);
 
@@ -83,15 +108,41 @@ export function HqAgent({
         setVersions(tl.versions);
         setCurrentModel(tl.current_model);
         setErr(null);
-        if (!cascade.versionId && tl.versions[0]) {
-          setCascade((s) =>
-            cascadeReducer(s, {
+        const wantV = prefer.current.version;
+        const wantM = prefer.current.model;
+        prefer.current.version = undefined;
+        prefer.current.model = undefined;
+        setCascade((s) => {
+          if (wantV && tl.versions.some((v) => v.version_id === wantV)) {
+            const row = tl.versions.find((v) => v.version_id === wantV)!;
+            return cascadeReducer(s, {
+              type: "set_version",
+              versionId: wantV,
+              model: wantM !== undefined ? wantM : (row.model ?? ""),
+            });
+          }
+          if (s.versionId) {
+            // Deep link / user already chose — do not overwrite with newest.
+            if (!s.model) {
+              const row = tl.versions.find((v) => v.version_id === s.versionId);
+              if (row?.model) {
+                return cascadeReducer(s, {
+                  type: "hydrate",
+                  partial: { model: row.model },
+                });
+              }
+            }
+            return s;
+          }
+          if (tl.versions[0]) {
+            return cascadeReducer(s, {
               type: "set_version",
               versionId: tl.versions[0].version_id,
-              model: tl.versions[0].model ?? undefined,
-            }),
-          );
-        }
+              model: tl.versions[0].model ?? "",
+            });
+          }
+          return s;
+        });
       })
       .catch((e: unknown) => {
         if (!cancelled) {

@@ -48,6 +48,36 @@ describe("cascadeReducer", () => {
     assert.equal(next.lane, "versioned");
   });
 
+  it("set_version with empty model clears stale model", () => {
+    const prev = {
+      ...emptyCascade(),
+      agentId: "a",
+      model: "old-model",
+      sessionId: "s1",
+    };
+    const next = cascadeReducer(prev, {
+      type: "set_version",
+      versionId: "av_2",
+      model: "",
+    });
+    assert.equal(next.model, "");
+    assert.equal(next.sessionId, "");
+  });
+
+  it("set_unversioned without model preserves current model", () => {
+    const prev = {
+      ...emptyCascade(),
+      agentId: "a",
+      model: "gpt-4o",
+      sessionId: "s1",
+    };
+    const next = cascadeReducer(prev, { type: "set_unversioned" });
+    assert.equal(next.lane, "unversioned");
+    assert.equal(next.versionId, "");
+    assert.equal(next.model, "gpt-4o");
+    assert.equal(next.sessionId, "");
+  });
+
   it("set_unversioned labels honest fallback lane", () => {
     const next = cascadeReducer(emptyCascade(), {
       type: "set_unversioned",

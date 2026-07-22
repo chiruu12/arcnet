@@ -49,7 +49,9 @@ export function cascadeReducer(state: CascadeState, action: CascadeAction): Casc
       return {
         ...state,
         versionId: action.versionId,
-        model: action.model ?? state.model,
+        // Explicit model (including "") wins; omit only when key absent — callers
+        // should pass version.model so deep links without model don't keep stale ids.
+        model: action.model !== undefined ? action.model : state.model,
         sessionId: "",
         lane: "versioned",
       };
@@ -57,7 +59,8 @@ export function cascadeReducer(state: CascadeState, action: CascadeAction): Casc
       return {
         ...state,
         versionId: "",
-        model: action.model ?? "",
+        // Preserve current model when switching lanes unless a new model is provided.
+        model: action.model !== undefined ? action.model : state.model,
         sessionId: "",
         lane: "unversioned",
       };

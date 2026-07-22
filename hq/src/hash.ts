@@ -54,8 +54,9 @@ export function navigate(partial: Partial<HashState> & { view: View }): void {
   writeHash({
     view: partial.view,
     agent: partial.agent !== undefined ? partial.agent || undefined : cur.agent,
-    version: partial.version !== undefined ? partial.version || undefined : undefined,
-    session: partial.session !== undefined ? partial.session || undefined : undefined,
-    model: partial.model !== undefined ? partial.model || undefined : undefined,
+    // Preserve cascade context when callers omit fields (e.g. open Signals).
+    version: partial.version !== undefined ? partial.version || undefined : cur.version,
+    session: partial.session !== undefined ? partial.session || undefined : cur.session,
+    model: partial.model !== undefined ? partial.model || undefined : cur.model,
   });
 }
