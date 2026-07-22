@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { formatHash, navigate, parseHash, type HashState, writeHash } from "./hash";
 import type { Mode, View } from "./types";
 import { CaseFiles } from "./views/CaseFiles";
 import { Dashboards } from "./views/Dashboards";
@@ -13,40 +14,26 @@ const NAV: { group: string; items: View[] }[] = [
   { group: "// improve", items: ["time_machine", "case_files", "dashboards"] },
 ];
 
-const VIEWS = new Set<View>([
-  "fleet_health",
-  "signals",
-  "sources_trust",
-  "time_machine",
-  "case_files",
-  "dashboards",
-]);
-
-function viewFromHash(): View {
-  const raw = window.location.hash.replace(/^#/, "").split("?")[0];
-  return VIEWS.has(raw as View) ? (raw as View) : "fleet_health";
-}
-
 export function App() {
-  const [view, setView] = useState<View>(() =>
-    typeof window !== "undefined" ? viewFromHash() : "fleet_health",
+  const [hash, setHash] = useState<HashState>(() =>
+    typeof window !== "undefined" ? parseHash() : { view: "fleet_health" },
   );
   const [mode, setMode] = useState<Mode>("human");
   const [apiUp, setApiUp] = useState<boolean | null>(null);
   const [miniFleet, setMiniFleet] = useState<{ id: string; hot: boolean }[]>([]);
 
   useEffect(() => {
-    const onHash = () => setView(viewFromHash());
+    const onHash = () => setHash(parseHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   useEffect(() => {
-    const next = `#${view}`;
-    if (window.location.hash.replace(/^#/, "").split("?")[0] !== view) {
-      window.location.hash = next;
+    const next = formatHash(hash);
+    if (window.location.hash !== next) {
+      writeHash(hash);
     }
-  }, [view]);
+  }, [hash]);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +57,16 @@ export function App() {
     };
   }, []);
 
+  function setView(view: View) {
+    setHash((cur) => ({ view, agent: cur.agent }));
+  }
+
+  function patchHash(patch: Partial<HashState>) {
+    setHash((cur) => ({ ...cur, ...patch, view: patch.view ?? cur.view }));
+  }
+
+  const { view } = hash;
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -92,10 +89,16 @@ export function App() {
           <div className="nav-eyebrow">{"// fleet"}</div>
           {miniFleet.length === 0 && <div className="mini-row dim">no agents</div>}
           {miniFleet.map((a) => (
-            <div className="mini-row" key={a.id}>
+            <button
+              type="button"
+              className={`mini-row clickable ${hash.agent === a.id ? "active" : ""}`}
+              key={a.id}
+              title={`open case_files for ${a.id}`}
+              onClick={() => navigate({ view: "case_files", agent: a.id, session: "", model: "" })}
+            >
               <span className={`dot ${a.hot ? "danger" : "ok"}`} />
               {a.id}
-            </div>
+            </button>
           ))}
         </div>
       </aside>
@@ -104,6 +107,7 @@ export function App() {
         <header className="topbar">
           <div className="breadcrumb">
             {view}
+            {hash.agent ? ` · ${hash.agent}` : ""}
             {apiUp === null ? " · connecting" : apiUp ? " · live" : " · api_down"}
           </div>
           <span className="tag">local</span>
@@ -120,15 +124,61 @@ export function App() {
         <main className="content">
           {apiUp === false && (
             <p className="err">
-              seam: arcnet-server unreachable — start it with `./scripts/run-demo.sh`
-              (or uvicorn on :8000) and reload.
+              seam: arcnet-server unreachable — start uvicorn on :8000 (or `./scripts/run-demo.sh`
+              for a seeded bring-up) and reload.
             </p>
           )}
-          {view === "fleet_health" && <FleetHealth mode={mode} />}
-          {view === "signals" && <Signals mode={mode} />}
-          {view === "sources_trust" && <SourcesTrust mode={mode} />}
-          {view === "time_machine" && <TimeMachine mode={mode} />}
-          {view === "case_files" && <CaseFiles mode={mode} />}
+          {view === "fleet_health" && (
+            <FleetHealth
+              mode={mode}
+              onOpenAgent={(agentId) =>
+                navigate({ view: "case_files", agent: agentId, session: "", model: "" })
+              }
+              onOpenSignals={(agentId) =>
+                navigate({ view: "signals", agent: agentId, session: "", model: "" })
+              }
+            />
+          )}
+          {view === "signals" && (
+            <Signals
+              mode={mode}
+              agentId={hash.agent}
+              onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
+            />
+          )}
+          {view === "sources_trust" && (
+            <SourcesTrust
+              mode={mode}
+              agentId={hash.agent}
+              onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
+            />
+          )}
+          {view === "time_machine" && (
+            <TimeMachine
+              mode={mode}
+              deepLink={{ agent: hash.agent, session: hash.session, model: hash.model }}
+              onDeepLinkChange={(next) =>
+                patchHash({
+                  agent: next.agent,
+                  model: next.model,
+                  session: next.session,
+                })
+              }
+            />
+          )}
+          {view === "case_files" && (
+            <CaseFiles
+              mode={mode}
+              deepLink={{ agent: hash.agent, session: hash.session, model: hash.model }}
+              onDeepLinkChange={(next) =>
+                patchHash({
+                  agent: next.agent,
+                  model: next.model,
+                  session: next.session,
+                })
+              }
+            />
+          )}
           {view === "dashboards" && <Dashboards mode={mode} />}
         </main>
       </div>

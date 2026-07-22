@@ -9,12 +9,24 @@ const KIND_CLASS: Record<string, string> = {
   steer: "ok",
 };
 
-export function Signals({ mode }: { mode: Mode }) {
+export function Signals({
+  mode,
+  agentId,
+  onAgentChange,
+}: {
+  mode: Mode;
+  agentId?: string;
+  onAgentChange?: (agentId: string) => void;
+}) {
   const [signals, setSignals] = useState<SignalRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [liveCount, setLiveCount] = useState(0);
   const [fleet, setFleet] = useState<FleetRow[]>([]);
-  const [agentRef, setAgentRef] = useState("");
+  const [agentRef, setAgentRef] = useState(agentId ?? "");
+
+  useEffect(() => {
+    if (agentId && agentId !== agentRef) setAgentRef(agentId);
+  }, [agentId, agentRef]);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,7 +37,9 @@ export function Signals({ mode }: { mode: Mode }) {
         setFleet(f);
         setAgentRef((cur) => {
           if (cur && f.some((a) => a.agent_id === cur)) return cur;
-          return f[0]?.agent_id ?? "";
+          if (agentId && f.some((a) => a.agent_id === agentId)) return agentId;
+          // human list defaults to all; agent_view needs a concrete ref
+          return mode === "agent" ? (f[0]?.agent_id ?? "") : cur;
         });
       })
       .catch(() => {
@@ -34,12 +48,14 @@ export function Signals({ mode }: { mode: Mode }) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once; mode/agentId read at mount
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const params = agentRef ? { agent_id: agentRef } : undefined;
     api
-      .signals()
+      .signals(params)
       .then((s) => {
         if (!cancelled) setSignals(s);
       })
@@ -50,6 +66,7 @@ export function Signals({ mode }: { mode: Mode }) {
       if (cancelled || ev.event !== "signal") return;
       const row = ev.data as unknown as SignalRow;
       if (!row.signal_id) return;
+      if (agentRef && row.agent_id !== agentRef) return;
       setSignals((prev) => {
         const rest = (prev ?? []).filter((s) => s.signal_id !== row.signal_id);
         return [row, ...rest];
@@ -60,7 +77,12 @@ export function Signals({ mode }: { mode: Mode }) {
       cancelled = true;
       unsubscribe();
     };
-  }, []);
+  }, [agentRef]);
+
+  function pickAgent(next: string) {
+    setAgentRef(next);
+    onAgentChange?.(next);
+  }
 
   if (mode === "agent") {
     return (
@@ -71,7 +93,7 @@ export function Signals({ mode }: { mode: Mode }) {
           <div className="control-bar">
             <label>
               agent
-              <select value={agentRef} onChange={(e) => setAgentRef(e.target.value)}>
+              <select value={agentRef} onChange={(e) => pickAgent(e.target.value)}>
                 {fleet.map((a) => (
                   <option key={a.agent_id} value={a.agent_id}>
                     {a.agent_id}
@@ -97,6 +119,22 @@ export function Signals({ mode }: { mode: Mode }) {
         {liveCount > 0 && ` · ${liveCount} live event${liveCount === 1 ? "" : "s"} this session`}
       </p>
       {err && <Seam error={err} />}
+      {fleet.length > 0 && (
+        <div className="control-bar">
+          <label>
+            agent
+            <select value={agentRef} onChange={(e) => pickAgent(e.target.value)}>
+              <option value="">all agents</option>
+              {fleet.map((a) => (
+                <option key={a.agent_id} value={a.agent_id}>
+                  {a.agent_id}
+                  {a.model ? ` · fleet:${a.model}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
       {signals && signals.length === 0 && (
         <Empty hint="no signals yet — run a guarded agent session, or: PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1" />
       )}

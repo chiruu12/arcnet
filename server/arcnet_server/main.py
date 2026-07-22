@@ -611,6 +611,55 @@ async def griffin_evaluate(request: Request) -> dict[str, Any]:
     return evaluate_series(get_conn, series_id=series_id, observed=observed)
 
 
+def _signoz_dashboard_map(url: str, key: str) -> dict[str, str | None]:
+    """Resolve ArcNet dashboard UUIDs from env overrides and/or SigNoz list API.
+
+    Titles match deploy/provision templates. Env wins when set:
+    SIGNOZ_DASHBOARD_FLEET / _THREATS / _COST / _AGNO.
+    """
+    keys = {
+        "fleet_ops": "SIGNOZ_DASHBOARD_FLEET",
+        "threats_trust": "SIGNOZ_DASHBOARD_THREATS",
+        "cost_tokens": "SIGNOZ_DASHBOARD_COST",
+        "agno": "SIGNOZ_DASHBOARD_AGNO",
+    }
+    out: dict[str, str | None] = {k: (os.getenv(env) or "").strip() or None for k, env in keys.items()}
+    title_to_slot = {
+        "ArcNet Fleet Ops": "fleet_ops",
+        "ArcNet Threats & Trust": "threats_trust",
+        "ArcNet Cost & Tokens": "cost_tokens",
+        "Agno": "agno",
+    }
+    if not key or all(out.values()):
+        return out
+    try:
+        r = httpx.get(
+            f"{url}/api/v1/dashboards",
+            headers={"SIGNOZ-API-KEY": key},
+            timeout=5.0,
+        )
+        if r.status_code >= 400:
+            return out
+        payload = r.json()
+        items = payload.get("data") if isinstance(payload, dict) else payload
+        if not isinstance(items, list):
+            items = payload if isinstance(payload, list) else []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            did = item.get("id")
+            data = item.get("data") if isinstance(item.get("data"), dict) else item
+            title = data.get("title") if isinstance(data, dict) else None
+            if not isinstance(did, str) or not isinstance(title, str):
+                continue
+            slot = title_to_slot.get(title)
+            if slot and not out[slot]:
+                out[slot] = did
+    except Exception:  # noqa: BLE001
+        return out
+    return out
+
+
 @app.get("/api/signoz/status")
 def signoz_status() -> dict[str, Any]:
     """Seam probe: UI reachability + authenticated Query Range smoke (docs/04)."""
@@ -674,6 +723,7 @@ def signoz_status() -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             query_ok = False
             query_note = str(exc)
+    dashboards = _signoz_dashboard_map(url, key)
     return {
         "signoz_url": url,
         "ui_reachable": ui_ok,
@@ -681,4 +731,5 @@ def signoz_status() -> dict[str, Any]:
         "api_key_present": bool(key),
         "query_range_ok": query_ok,
         "query_note": query_note,
+        "dashboards": dashboards,
     }

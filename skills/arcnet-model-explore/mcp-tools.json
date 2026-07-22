@@ -1,7 +1,7 @@
 {
   "name": "arcnet-model-explore",
-  "version": "0.0.1",
-  "description": "Exploration-only model discovery tools for ArcNet (scaffold — not live).",
+  "version": "0.1.0",
+  "description": "Exploration-only model discovery tools for ArcNet.",
   "tools": [
     {
       "name": "list_task_types",
@@ -34,17 +34,23 @@
       "inputSchema": {
         "type": "object",
         "required": ["session_id"],
-        "properties": { "session_id": { "type": "string" } },
+        "properties": {
+          "session_id": { "type": "string" },
+          "server_url": { "type": "string" }
+        },
         "additionalProperties": false
       }
     },
     {
       "name": "fetch_provider_catalog",
-      "description": "Return a cached snapshot of newer/reliable model ids for a provider.",
+      "description": "Return a cached snapshot (default) or live OpenAI model id list (live=true, list-only).",
       "inputSchema": {
         "type": "object",
         "required": ["provider"],
-        "properties": { "provider": { "type": "string" } },
+        "properties": {
+          "provider": { "type": "string" },
+          "live": { "type": "boolean", "default": false }
+        },
         "additionalProperties": false
       }
     }

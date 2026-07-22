@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { AgentJson, Empty, Seam, ts } from "../components";
-import type { AgentEnvelope, AgentModelRow, FleetRow, Mode, SessionRow } from "../types";
+import type {
+  AgentEnvelope,
+  AgentModelRow,
+  CascadeLink,
+  FleetRow,
+  Mode,
+  SessionRow,
+} from "../types";
 
 type IncidentData = {
   goal: string | null;
@@ -16,22 +23,40 @@ type IncidentData = {
 
 const HERO_SESSIONS = ["s_ecfdb55d", "s_2af44726"];
 
-function preferHero(sessions: SessionRow[]): string {
+function preferHero(sessions: SessionRow[], prefer?: string): string {
+  if (prefer && sessions.some((s) => s.session_id === prefer)) return prefer;
   for (const id of HERO_SESSIONS) {
     if (sessions.some((s) => s.session_id === id)) return id;
   }
   return sessions[0]?.session_id ?? "";
 }
 
-export function CaseFiles({ mode }: { mode: Mode }) {
+export function CaseFiles({
+  mode,
+  deepLink,
+  onDeepLinkChange,
+}: {
+  mode: Mode;
+  deepLink?: CascadeLink;
+  onDeepLinkChange?: (next: CascadeLink) => void;
+}) {
   const [fleet, setFleet] = useState<FleetRow[] | null>(null);
-  const [agentId, setAgentId] = useState("");
+  const [agentId, setAgentId] = useState(deepLink?.agent ?? "");
   const [models, setModels] = useState<AgentModelRow[]>([]);
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(deepLink?.model ?? "");
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(deepLink?.session ?? "");
   const [envelope, setEnvelope] = useState<AgentEnvelope | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const preferSession = useRef(deepLink?.session);
+  const preferModel = useRef(deepLink?.model);
+
+  useEffect(() => {
+    if (!deepLink?.agent || deepLink.agent === agentId) return;
+    preferSession.current = deepLink.session;
+    preferModel.current = deepLink.model;
+    setAgentId(deepLink.agent);
+  }, [deepLink?.agent, deepLink?.session, deepLink?.model, agentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,9 +65,14 @@ export function CaseFiles({ mode }: { mode: Mode }) {
       .then((f) => {
         if (cancelled) return;
         setFleet(f);
-        if (f.length > 0) {
-          setAgentId((cur) => cur || f[0].agent_id);
-        }
+        if (f.length === 0) return;
+        setAgentId((cur) => {
+          if (cur && f.some((a) => a.agent_id === cur)) return cur;
+          if (deepLink?.agent && f.some((a) => a.agent_id === deepLink.agent)) {
+            return deepLink.agent;
+          }
+          return f[0].agent_id;
+        });
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -50,6 +80,7 @@ export function CaseFiles({ mode }: { mode: Mode }) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from deepLink
   }, []);
 
   useEffect(() => {
@@ -59,7 +90,6 @@ export function CaseFiles({ mode }: { mode: Mode }) {
       return;
     }
     let cancelled = false;
-    setModel("");
     setSelected("");
     setSessions(null);
     api
@@ -67,7 +97,11 @@ export function CaseFiles({ mode }: { mode: Mode }) {
       .then((rows) => {
         if (cancelled) return;
         setModels(rows);
-        setModel(rows[0]?.model ?? "");
+        const want = preferModel.current;
+        preferModel.current = undefined;
+        const next =
+          want && rows.some((r) => r.model === want) ? want : (rows[0]?.model ?? "");
+        setModel(next);
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -89,7 +123,9 @@ export function CaseFiles({ mode }: { mode: Mode }) {
       .then((s) => {
         if (cancelled) return;
         setSessions(s);
-        setSelected(preferHero(s));
+        const want = preferSession.current;
+        preferSession.current = undefined;
+        setSelected(preferHero(s, want));
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -119,6 +155,23 @@ export function CaseFiles({ mode }: { mode: Mode }) {
     };
   }, [selected]);
 
+  useEffect(() => {
+    if (!onDeepLinkChange || !agentId) return;
+    const next = {
+      agent: agentId,
+      model: model || undefined,
+      session: selected || undefined,
+    };
+    if (
+      deepLink?.agent === next.agent &&
+      deepLink?.model === next.model &&
+      deepLink?.session === next.session
+    ) {
+      return;
+    }
+    onDeepLinkChange(next);
+  }, [agentId, model, selected, onDeepLinkChange, deepLink?.agent, deepLink?.model, deepLink?.session]);
+
   const agentOptions = useMemo(() => fleet ?? [], [fleet]);
 
   if (mode === "agent") {
@@ -145,7 +198,7 @@ export function CaseFiles({ mode }: { mode: Mode }) {
       </p>
       {err && <Seam error={err} />}
       {fleet && fleet.length === 0 && (
-        <Empty hint="no agents yet — start the server and register agents via arcnet.init (or ./scripts/run-demo.sh to seed)" />
+        <Empty hint="no agents yet — start the server and register agents via arcnet.init (or seed with ./scripts/run-demo.sh)" />
       )}
 
       {agentOptions.length > 0 && (
@@ -155,6 +208,8 @@ export function CaseFiles({ mode }: { mode: Mode }) {
             <select
               value={agentId}
               onChange={(e) => {
+                preferModel.current = undefined;
+                preferSession.current = undefined;
                 setAgentId(e.target.value);
               }}
             >
@@ -170,7 +225,10 @@ export function CaseFiles({ mode }: { mode: Mode }) {
             model
             <select
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={(e) => {
+                preferSession.current = undefined;
+                setModel(e.target.value);
+              }}
               disabled={models.length === 0}
             >
               {models.length === 0 && <option value="">no sessions for agent</option>}

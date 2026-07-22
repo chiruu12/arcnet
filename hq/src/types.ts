@@ -8,6 +8,12 @@ export type View =
   | "case_files"
   | "dashboards";
 
+export type CascadeLink = {
+  agent?: string;
+  session?: string;
+  model?: string;
+};
+
 export type Health = {
   sessions_24h: number;
   threats_24h: number;

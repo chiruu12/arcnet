@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Empty, Seam, ts } from "../components";
-import type { Mode, SourceRow } from "../types";
+import { AgentJson, Empty, Seam, ts } from "../components";
+import type { FleetRow, Mode, SourceRow } from "../types";
 
 const ACTION_CLASS: Record<string, string> = {
   block: "danger",
@@ -10,14 +10,50 @@ const ACTION_CLASS: Record<string, string> = {
   allow: "ok",
 };
 
-export function SourcesTrust({ mode }: { mode: Mode }) {
+export function SourcesTrust({
+  mode,
+  agentId,
+  onAgentChange,
+}: {
+  mode: Mode;
+  agentId?: string;
+  onAgentChange?: (agentId: string) => void;
+}) {
   const [sources, setSources] = useState<SourceRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [fleet, setFleet] = useState<FleetRow[]>([]);
+  const [agentRef, setAgentRef] = useState(agentId ?? "");
+
+  useEffect(() => {
+    if (agentId && agentId !== agentRef) setAgentRef(agentId);
+  }, [agentId, agentRef]);
 
   useEffect(() => {
     let cancelled = false;
     api
-      .sources()
+      .fleet()
+      .then((f) => {
+        if (cancelled) return;
+        setFleet(f);
+        setAgentRef((cur) => {
+          if (cur && f.some((a) => a.agent_id === cur)) return cur;
+          if (agentId && f.some((a) => a.agent_id === agentId)) return agentId;
+          return f[0]?.agent_id ?? "";
+        });
+      })
+      .catch(() => {
+        /* optional */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .sources(agentRef ? { agent_id: agentRef } : undefined)
       .then((s) => {
         if (!cancelled) setSources(s);
       })
@@ -27,15 +63,34 @@ export function SourcesTrust({ mode }: { mode: Mode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [agentRef]);
+
+  function pickAgent(next: string) {
+    setAgentRef(next);
+    onAgentChange?.(next);
+  }
 
   if (mode === "agent") {
     return (
       <>
         <p className="eyebrow">{"// agent_view"}</p>
-        <h1>GET /api/sources</h1>
-        {err && <Seam error={err} />}
-        <pre className="agent-json">{JSON.stringify(sources ?? [], null, 2)}</pre>
+        <h1>sources_trust</h1>
+        {fleet.length > 0 && (
+          <div className="control-bar">
+            <label>
+              agent
+              <select value={agentRef} onChange={(e) => pickAgent(e.target.value)}>
+                {fleet.map((a) => (
+                  <option key={a.agent_id} value={a.agent_id}>
+                    {a.agent_id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        {!agentRef && <Empty hint="loading agent ref…" />}
+        {agentRef && <AgentJson view="sources" id={agentRef} />}
       </>
     );
   }
@@ -48,8 +103,23 @@ export function SourcesTrust({ mode }: { mode: Mode }) {
         per-agent ingested-source ledger · what unplug scanned, filtered, blocked.
       </p>
       {err && <Seam error={err} />}
+      {fleet.length > 0 && (
+        <div className="control-bar">
+          <label>
+            agent
+            <select value={agentRef} onChange={(e) => pickAgent(e.target.value)}>
+              <option value="">all agents</option>
+              {fleet.map((a) => (
+                <option key={a.agent_id} value={a.agent_id}>
+                  {a.agent_id}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
       {sources && sources.length === 0 && (
-        <Empty hint="no ingested sources — PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1 (with server up)" />
+        <Empty hint="no ingested sources — run a guarded session that retrieves content (e.g. scenario S1 with server up)" />
       )}
       {sources && sources.length > 0 && (
         <table className="data-table">

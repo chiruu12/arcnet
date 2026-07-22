@@ -233,6 +233,37 @@ def provision(base: str, api_key: str, *, cleanup_probes: bool = False) -> None:
         print(f"dashboard {name}", r.status_code, r.text[:200])
         if r.status_code < 400:
             existing_dash_titles.add(title)
+            try:
+                created = r.json()
+                new_id = (
+                    created.get("data", {}).get("id")
+                    if isinstance(created.get("data"), dict)
+                    else created.get("id")
+                )
+                if isinstance(new_id, str):
+                    title_to_ids.setdefault(title, []).append(new_id)
+            except Exception:  # noqa: BLE001
+                pass
+
+    # Emit title→id map for HQ deep-links / .env (gitignored copy optional)
+    id_map: dict[str, str] = {}
+    for title, ids in title_to_ids.items():
+        if title in managed_titles and ids:
+            id_map[title] = ids[0]
+    if id_map:
+        print("DASHBOARD_IDS")
+        slot = {
+            "ArcNet Fleet Ops": "SIGNOZ_DASHBOARD_FLEET",
+            "ArcNet Threats & Trust": "SIGNOZ_DASHBOARD_THREATS",
+            "ArcNet Cost & Tokens": "SIGNOZ_DASHBOARD_COST",
+            "Agno": "SIGNOZ_DASHBOARD_AGNO",
+        }
+        for title, did in sorted(id_map.items()):
+            env_key = slot.get(title, title)
+            print(f"  {env_key}={did}")
+        out_path = ROOT / ".dashboard-ids.json"
+        out_path.write_text(json.dumps(id_map, indent=2) + "\n")
+        print(f"wrote {out_path} (gitignored)")
 
     def _post_rule(a: dict[str, Any], label: str) -> None:
         alert_name = a["alert"]

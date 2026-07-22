@@ -91,3 +91,11 @@ Full built-surface inventory: `docs/15-product-map.md` (system + HQ↔API mermai
 
 Founder feedback: pivot from hackathon-demo framing to a **usable agent enhancement layer**. Captured in `docs/16` §11; backlog reordered in `docs/15` §6; phased plan `docs/17-product-rework-plan.md` (R1 API/framing → R2 HQ cascade IA → R3 model-explore skills/MCP). Additive contract updates in `docs/12` (pagination headers, session `model` filter, agents/{id}/models, agent-view `signals` + `check`).
 
+## 2026-07-22 — product rework R1 merged (PR #9)
+
+PR #9 `product-rework-r1` merged to main. Shipped: docs 15/16/17 + docs/12 additive APIs; pagination headers; agent-view signals + check; HQ cascades; demo chrome stripped; model-explore scaffold; Greptile P1s fixed in `25fc6f7`.
+
+## 2026-07-22 — product rework R2 (+ R3 thin)
+
+Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-fleet drill-down; Signals/Sources agent pickers; SigNoz `dashboards` on `/api/signoz/status` (env + title resolve) + provision ID emit; SDK `arcnet.hq` session tools; R3 `arcnet.model_explore` curated OpenAI snapshot + recommend/compare/record + MCP stdio shim. Tests: `server/tests/test_r2_r3_surface.py`.
+

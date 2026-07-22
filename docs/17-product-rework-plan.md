@@ -36,15 +36,15 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 
 ### Acceptance criteria
 
-- [ ] No `demo` badge / “run demo fleet” empty copy in HQ user chrome.
-- [ ] README leads with product positioning; “demo” only for bring-up script / limitations honesty.
-- [ ] List endpoints accept `offset`; `X-Total-Count` correct under filters.
-- [ ] `GET /api/agent-view/signals/{id}` returns envelope; 404 for unknown id.
-- [ ] `GET /api/agent-view/check/{session_id}` returns envelope without `recorded_output` bodies.
-- [ ] `GET /api/sessions?agent_id=&model=` filters correctly.
-- [ ] `GET /api/agents/{id}/models` lists distinct models for that agent.
-- [ ] Unit tests cover pagination headers, signals twin, session check, model filter.
-- [ ] Import-boundary check still green.
+- [x] No `demo` badge / “run demo fleet” empty copy in HQ user chrome.
+- [x] README leads with product positioning; “demo” only for bring-up script / limitations honesty.
+- [x] List endpoints accept `offset`; `X-Total-Count` correct under filters.
+- [x] `GET /api/agent-view/signals/{id}` returns envelope; 404 for unknown id.
+- [x] `GET /api/agent-view/check/{session_id}` returns envelope without `recorded_output` bodies.
+- [x] `GET /api/sessions?agent_id=&model=` filters correctly.
+- [x] `GET /api/agents/{id}/models` lists distinct models for that agent.
+- [x] Unit tests cover pagination headers, signals twin, session check, model filter.
+- [x] Import-boundary check still green.
 
 ---
 
@@ -60,17 +60,23 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 | Time Machine cascade | Same cascade pattern for replayable sessions (`has_transcript`). Candidate model defaults to a current reliable GPT-family id (editable). |
 | Signals guidance | Render `guidance` when present (column or secondary line). |
 | Agent mode signals | Use `/api/agent-view/signals/…` envelope (not raw list). |
-| Hash / deep-links | Bookmarkable `#view` (+ optional `session` / `agent` query) so rehearsal and handoff work. |
+| Hash / deep-links | Bookmarkable `#view` (+ optional `session` / `agent` / `model` query) so rehearsal and handoff work. |
+| Fleet drill-down | Fleet cards + sidebar mini-fleet navigate to `#case_files?agent=` / `#signals?agent=`. |
+| SigNoz UUID deep-links | `/api/signoz/status` returns `dashboards` (env override or title resolve); HQ opens `/dashboard/{uuid}`. |
+| Session tools (SDK) | `arcnet.hq` helpers for check / signals / session / incident / sources — bounded envelopes only. |
 | Empty states | Operator-facing: start server / seed / run scenario — not “demo toy” language. |
 | Hero defaults | Prefer `s_ecfdb55d` / `s_2af44726` when they exist in the filtered set. |
 
 ### Acceptance criteria
 
-- [ ] Case Files: changing agent resets model+session; changing model resets session; all three selects stay consistent with API filters.
-- [ ] Time Machine uses the same cascade for session pick.
-- [ ] Guidance visible on signals rows when set.
-- [ ] `#case_files` / `#time_machine` (and peers) restore view on reload.
-- [ ] HQ `pnpm build` / typecheck green.
+- [x] Case Files: changing agent resets model+session; changing model resets session; all three selects stay consistent with API filters.
+- [x] Time Machine uses the same cascade for session pick.
+- [x] Guidance visible on signals rows when set.
+- [x] `#case_files` / `#time_machine` (and peers) restore view on reload; optional `?agent=&model=&session=` preserved.
+- [x] Fleet drill-down + sidebar agent → case_files / signals.
+- [x] SigNoz dashboard UUID deep-links when IDs available (env or status resolve).
+- [x] SDK session tools for check/signals/session agent-views.
+- [x] HQ `pnpm build` / typecheck green.
 
 ### Manual try (Case File cascade)
 
@@ -116,14 +122,14 @@ Skills package (proposed path: `skills/arcnet-model-explore/` or repo `mcp/model
 ### This-pass deliverable
 
 - Spec above stays in this doc.
-- Scaffold shipped: `skills/arcnet-model-explore/SKILL.md` + `mcp-tools.json` (tool shapes only; no live catalog crawler).
-- Prefer finishing R1/R2 over half-built explorers — **done for this PR**.
+- Thin implementation: `skills/arcnet-model-explore/` + `sdk/arcnet/model_explore.py` (curated OpenAI snapshot, recommend/compare/record, MCP stdio shim).
+- Default Time Machine candidate remains `gpt-4o`.
 
 ### Acceptance criteria (full R3 — later PR)
 
-- [ ] Exploration agent can produce a recommendation note without calling kill/steer.
-- [ ] MCP tools return bounded JSON; no full tool dumps.
-- [ ] At least one Time Machine comparison path uses a current GPT-family candidate by default.
+- [x] Exploration agent can produce a recommendation note without calling kill/steer.
+- [x] MCP tools return bounded JSON; no full tool dumps.
+- [x] At least one Time Machine comparison path uses a current GPT-family candidate by default.
 - [ ] Docs list pin changes if any SDK/provider deps move.
 
 ---
@@ -138,7 +144,7 @@ Skills package (proposed path: `skills/arcnet-model-explore/` or repo `mcp/model
 | 4 | Signals `guidance` | **R2** |
 | 7 | HQ routing | **R2** |
 | 12 | Agent-view consistency (signals) | **R1–R2** |
-| 1 | Dashboard UUID deep-links | Later (unless cheap) |
+| 1 | Dashboard UUID deep-links | **R2** (status + env) |
 | 14 | Corpus scorecard | Defer |
 | — | Model explorer skills/MCP | **R3** |
 

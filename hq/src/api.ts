@@ -81,6 +81,12 @@ export type SignozStatus = {
   api_key_present: boolean;
   query_range_ok: boolean | null;
   query_note: string;
+  dashboards?: {
+    fleet_ops?: string | null;
+    threats_trust?: string | null;
+    cost_tokens?: string | null;
+    agno?: string | null;
+  };
 };
 
 export const api = {
@@ -121,7 +127,13 @@ export const api = {
     const qs = q.toString();
     return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);
   },
-  sources: () => getJSON<SourceRow[]>("/api/sources"),
+  sources: (params?: { agent_id?: string; session_id?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.session_id) q.set("session_id", params.session_id);
+    const qs = q.toString();
+    return getJSON<SourceRow[]>(`/api/sources${qs ? `?${qs}` : ""}`);
+  },
   agentView: (view: string, id: string) =>
     getJSON<AgentEnvelope>(`/api/agent-view/${view}/${encodeURIComponent(id)}`),
   runReplay: (session_id: string, candidate_model: string) =>

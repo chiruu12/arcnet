@@ -5,21 +5,46 @@ import type { Mode } from "../types";
 /** Fallback only before /api/signoz/status returns (or if the probe fails). */
 const SIGNOZ_FALLBACK: string = import.meta.env.VITE_SIGNOZ_URL ?? "http://localhost:8080";
 
-const LINKS: { name: string; path: string; desc: string }[] = [
+type DashKey = "fleet_ops" | "threats_trust" | "cost_tokens" | "agno";
+
+const ENV_DASH: Record<DashKey, string | undefined> = {
+  fleet_ops: import.meta.env.VITE_SIGNOZ_DASHBOARD_FLEET,
+  threats_trust: import.meta.env.VITE_SIGNOZ_DASHBOARD_THREATS,
+  cost_tokens: import.meta.env.VITE_SIGNOZ_DASHBOARD_COST,
+  agno: import.meta.env.VITE_SIGNOZ_DASHBOARD_AGNO,
+};
+
+type LinkDef = {
+  name: string;
+  key?: DashKey;
+  path: string;
+  desc: string;
+};
+
+const LINKS: LinkDef[] = [
   {
     name: "fleet_overview",
+    key: "fleet_ops",
     path: "/dashboard",
     desc: "sessions, cost, token burn per agent (SigNoz dashboard)",
   },
   {
     name: "threat_center",
+    key: "threats_trust",
     path: "/dashboard",
     desc: "guard actions by checkpoint/category, blocked tool calls (ClickHouse-SQL panel)",
   },
   {
-    name: "reliability",
+    name: "cost_tokens",
+    key: "cost_tokens",
     path: "/dashboard",
-    desc: "loop kills, seasonal-anomaly rule next to griffin fallback",
+    desc: "token burn and $ cost by agent / model",
+  },
+  {
+    name: "agno",
+    key: "agno",
+    path: "/dashboard",
+    desc: "Agno runtime dashboard (if provisioned)",
   },
   { name: "traces", path: "/traces-explorer", desc: "raw span explorer for any session trace_id" },
   { name: "alerts", path: "/alerts", desc: "v5 query-based alert rules → /webhooks/signoz" },
@@ -28,6 +53,18 @@ const LINKS: { name: string; path: string; desc: string }[] = [
 function baseUrl(s: SignozStatus | null): string {
   const raw = s?.signoz_url || SIGNOZ_FALLBACK;
   return raw.replace(/\/$/, "");
+}
+
+function dashboardId(s: SignozStatus | null, key: DashKey): string | undefined {
+  const fromStatus = s?.dashboards?.[key];
+  const fromEnv = ENV_DASH[key]?.trim();
+  return (fromStatus || fromEnv || undefined) || undefined;
+}
+
+function linkPath(s: SignozStatus | null, link: LinkDef): string {
+  if (!link.key) return link.path;
+  const id = dashboardId(s, link.key);
+  return id ? `/dashboard/${id}` : link.path;
 }
 
 function statusLine(
@@ -55,9 +92,16 @@ function statusLine(
       : s.query_range_ok === false
         ? `query_range=fail (${s.query_note})`
         : s.query_note;
+  const resolved = Object.entries(s.dashboards ?? {})
+    .filter(([, id]) => id)
+    .map(([name]) => name);
+  const dashNote =
+    resolved.length > 0
+      ? ` · dashboards=${resolved.join(",")}`
+      : " · dashboards=unresolved (set SIGNOZ_DASHBOARD_* or re-provision)";
   return {
-    text: `signoz UI reachable at ${s.signoz_url} · ${key} · ${query}. pick a provisioned dashboard in the SigNoz UI (Fleet / Threats / Cost) — list links open the same instance.`,
-    warn: !s.api_key_present || s.query_range_ok === false,
+    text: `signoz UI reachable at ${s.signoz_url} · ${key} · ${query}${dashNote}`,
+    warn: !s.api_key_present || s.query_range_ok === false || resolved.length === 0,
   };
 }
 
@@ -82,6 +126,11 @@ export function Dashboards({ mode }: { mode: Mode }) {
 
   const signozBase = baseUrl(status);
   const line = statusLine(status, probeErr, signozBase);
+  const resolvedLinks = LINKS.map((l) => ({
+    ...l,
+    href: `${signozBase}${linkPath(status, l)}`,
+    uuid: l.key ? dashboardId(status, l.key) : undefined,
+  }));
 
   const body = (
     <>
@@ -91,17 +140,20 @@ export function Dashboards({ mode }: { mode: Mode }) {
       </p>
       <p className={`meta ${line.warn ? "warn-text" : ""}`}>{line.text}</p>
       <div className="grid">
-        {LINKS.map((l) => (
+        {resolvedLinks.map((l) => (
           <a
             key={l.name}
             className="agent link-card"
-            href={`${signozBase}${l.path}`}
+            href={l.href}
             target="_blank"
             rel="noreferrer"
           >
             <h3>{l.name}</h3>
-            <div className="meta">{`${signozBase}${l.path}`}</div>
-            <p className="step">{l.desc}</p>
+            <div className="meta">{l.href}</div>
+            <p className="step">
+              {l.desc}
+              {l.key && !l.uuid ? " · UUID unresolved — opens dashboard list" : ""}
+            </p>
           </a>
         ))}
       </div>
@@ -117,9 +169,10 @@ export function Dashboards({ mode }: { mode: Mode }) {
           {JSON.stringify(
             {
               signoz_status: status,
-              links: LINKS.map((l) => ({
+              links: resolvedLinks.map((l) => ({
                 name: l.name,
-                url: `${signozBase}${l.path}`,
+                url: l.href,
+                dashboard_id: l.uuid ?? null,
                 desc: l.desc,
               })),
             },
