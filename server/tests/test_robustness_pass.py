@@ -124,6 +124,28 @@ class RobustnessPassTests(unittest.TestCase):
         self.assertEqual(out.get("catalog_source"), "snapshot")
         self.assertTrue(out["recommendations"])
 
+    def test_recommend_live_failure_falls_back_to_snapshot(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from arcnet.model_explore import recommend_models
+
+        os.environ["OPENAI_API_KEY"] = "sk-test-not-real"
+        try:
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.side_effect = RuntimeError("provider down")
+            mock_client = MagicMock()
+            mock_client.__enter__.return_value = mock_client
+            mock_client.__exit__.return_value = False
+            mock_client.get.return_value = mock_resp
+            with patch("arcnet.model_explore.httpx.Client", return_value=mock_client):
+                out = recommend_models("injection_resist", constraints={"live": True})
+            self.assertTrue(out["exploration_only"])
+            self.assertEqual(out.get("catalog_source"), "snapshot_fallback")
+            self.assertTrue(out["recommendations"])
+            self.assertGreaterEqual(len(out["recommendations"]), 1)
+        finally:
+            os.environ.pop("OPENAI_API_KEY", None)
+
 
 if __name__ == "__main__":
     unittest.main()

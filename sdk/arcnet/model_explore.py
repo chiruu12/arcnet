@@ -84,34 +84,48 @@ def fetch_provider_catalog(
             "note": "OPENAI_API_KEY empty — returned curated snapshot",
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-    with httpx.Client(timeout=15.0) as client:
-        r = client.get(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
-        r.raise_for_status()
-        raw = r.json().get("data") or []
-    # Prefer chat/reasoning-ish ids; keep list bounded
-    ids = sorted(
-        {
-            m["id"]
-            for m in raw
-            if isinstance(m, dict)
-            and isinstance(m.get("id"), str)
-            and (
-                m["id"].startswith("gpt-")
-                or m["id"].startswith("o1")
-                or m["id"].startswith("o3")
-                or m["id"].startswith("o4")
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {key}"},
             )
+            r.raise_for_status()
+            payload = r.json()
+            if not isinstance(payload, dict):
+                raise ValueError("models response is not an object")
+            raw = payload.get("data") or []
+            if not isinstance(raw, list):
+                raise ValueError("models.data is not a list")
+        # Prefer chat/reasoning-ish ids; keep list bounded
+        ids = sorted(
+            {
+                m["id"]
+                for m in raw
+                if isinstance(m, dict)
+                and isinstance(m.get("id"), str)
+                and (
+                    m["id"].startswith("gpt-")
+                    or m["id"].startswith("o1")
+                    or m["id"].startswith("o3")
+                    or m["id"].startswith("o4")
+                )
+            }
+        )[:max_models]
+        return {
+            "provider": "openai",
+            "source": "openai_api",
+            "models": [{"id": i} for i in ids],
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-    )[:max_models]
-    return {
-        "provider": "openai",
-        "source": "openai_api",
-        "models": [{"id": i} for i in ids],
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    except Exception as exc:  # noqa: BLE001 — any provider/network/parse miss → curated
+        return {
+            "provider": "openai",
+            "source": "snapshot_fallback",
+            "models": _OPENAI_SNAPSHOT[:max_models],
+            "note": f"live catalog failed ({type(exc).__name__}); returned curated snapshot",
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
 
 
 def recommend_models(
@@ -123,6 +137,7 @@ def recommend_models(
 
     When ``constraints.live`` is True *or* omitted and ``OPENAI_API_KEY`` is set,
     prefer the live OpenAI model list (still exploration-only; never mutates agents).
+    Provider/network/parse failures fall back to the curated snapshot instead of raising.
     Explicit ``live=False`` keeps the curated snapshot.
     """
     constraints = constraints or {}
