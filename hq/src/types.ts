@@ -11,6 +11,7 @@ export type View =
 
 export type CascadeLink = {
   agent?: string;
+  version?: string;
   session?: string;
   model?: string;
 };

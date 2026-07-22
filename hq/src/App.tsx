@@ -95,7 +95,15 @@ export function App() {
               className={`mini-row clickable ${hash.agent === a.id ? "active" : ""}`}
               key={a.id}
               title={`open case_files for ${a.id}`}
-              onClick={() => navigate({ view: "case_files", agent: a.id, session: "", model: "" })}
+              onClick={() =>
+                navigate({
+                  view: "case_files",
+                  agent: a.id,
+                  version: "",
+                  session: "",
+                  model: "",
+                })
+              }
             >
               <span className={`dot ${a.hot ? "danger" : "ok"}`} />
               {a.id}
@@ -109,6 +117,7 @@ export function App() {
           <div className="breadcrumb">
             {view}
             {hash.agent ? ` · ${hash.agent}` : ""}
+            {hash.version ? ` · ${hash.version}` : ""}
             {apiUp === null ? " · connecting" : apiUp ? " · live" : " · api_down"}
           </div>
           <span className="tag">local</span>
@@ -134,7 +143,13 @@ export function App() {
             <FleetHealth
               mode={mode}
               onOpenAgent={(agentId) =>
-                navigate({ view: "case_files", agent: agentId, session: "", model: "" })
+                navigate({
+                  view: "case_files",
+                  agent: agentId,
+                  version: "",
+                  session: "",
+                  model: "",
+                })
               }
               onOpenSignals={(agentId) =>
                 navigate({ view: "signals", agent: agentId, session: "", model: "" })
@@ -158,10 +173,16 @@ export function App() {
           {view === "time_machine" && (
             <TimeMachine
               mode={mode}
-              deepLink={{ agent: hash.agent, session: hash.session, model: hash.model }}
+              deepLink={{
+                agent: hash.agent,
+                version: hash.version,
+                session: hash.session,
+                model: hash.model,
+              }}
               onDeepLinkChange={(next) =>
                 patchHash({
                   agent: next.agent,
+                  version: next.version,
                   model: next.model,
                   session: next.session,
                 })
@@ -171,10 +192,16 @@ export function App() {
           {view === "case_files" && (
             <CaseFiles
               mode={mode}
-              deepLink={{ agent: hash.agent, session: hash.session, model: hash.model }}
+              deepLink={{
+                agent: hash.agent,
+                version: hash.version,
+                session: hash.session,
+                model: hash.model,
+              }}
               onDeepLinkChange={(next) =>
                 patchHash({
                   agent: next.agent,
+                  version: next.version,
                   model: next.model,
                   session: next.session,
                 })
@@ -183,7 +210,22 @@ export function App() {
           )}
           {view === "dashboards" && <Dashboards mode={mode} />}
           {view === "hq_agent" && (
-            <HqAgent deepLink={{ agent: hash.agent, session: hash.session }} />
+            <HqAgent
+              deepLink={{
+                agent: hash.agent,
+                version: hash.version,
+                session: hash.session,
+                model: hash.model,
+              }}
+              onDeepLinkChange={(next) =>
+                patchHash({
+                  agent: next.agent,
+                  version: next.version,
+                  model: next.model,
+                  session: next.session,
+                })
+              }
+            />
           )}
         </main>
       </div>

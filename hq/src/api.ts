@@ -30,6 +30,8 @@ async function fetchAllSessions(params?: {
   scenario?: string;
   agent_id?: string;
   model?: string;
+  agent_version?: string;
+  version_id?: string;
 }): Promise<SessionRow[]> {
   const all: SessionRow[] = [];
   let offset = 0;
@@ -39,6 +41,8 @@ async function fetchAllSessions(params?: {
     if (params?.scenario) q.set("scenario", params.scenario);
     if (params?.agent_id) q.set("agent_id", params.agent_id);
     if (params?.model) q.set("model", params.model);
+    if (params?.agent_version) q.set("agent_version", params.agent_version);
+    if (params?.version_id) q.set("version_id", params.version_id);
     q.set("limit", String(SESSIONS_PAGE));
     q.set("offset", String(offset));
     const { data, headers } = await getJSONPaged<SessionRow[]>(`/api/sessions?${q}`);
@@ -108,6 +112,8 @@ export const api = {
     scenario?: string;
     agent_id?: string;
     model?: string;
+    agent_version?: string;
+    version_id?: string;
     limit?: number;
     offset?: number;
     /** When true (default for HQ cascades), page through X-Total-Count. */
@@ -118,12 +124,16 @@ export const api = {
         scenario: params?.scenario,
         agent_id: params?.agent_id,
         model: params?.model,
+        agent_version: params?.agent_version,
+        version_id: params?.version_id,
       });
     }
     const q = new URLSearchParams();
     if (params?.scenario) q.set("scenario", params.scenario);
     if (params?.agent_id) q.set("agent_id", params.agent_id);
     if (params?.model) q.set("model", params.model);
+    if (params?.agent_version) q.set("agent_version", params.agent_version);
+    if (params?.version_id) q.set("version_id", params.version_id);
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();

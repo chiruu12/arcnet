@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { api, type AgentVersionRow } from "../api";
+import {
+  cascadeReducer,
+  emptyCascade,
+  preferHeroSession,
+  preferVersion,
+  type CascadeState,
+} from "../cascade";
 import { AgentJson, Empty, Seam, ts } from "../components";
 import type {
   AgentEnvelope,
@@ -23,14 +30,6 @@ type IncidentData = {
 
 const HERO_SESSIONS = ["s_ecfdb55d", "s_2af44726"];
 
-function preferHero(sessions: SessionRow[], prefer?: string): string {
-  if (prefer && sessions.some((s) => s.session_id === prefer)) return prefer;
-  for (const id of HERO_SESSIONS) {
-    if (sessions.some((s) => s.session_id === id)) return id;
-  }
-  return sessions[0]?.session_id ?? "";
-}
-
 export function CaseFiles({
   mode,
   deepLink,
@@ -41,22 +40,36 @@ export function CaseFiles({
   onDeepLinkChange?: (next: CascadeLink) => void;
 }) {
   const [fleet, setFleet] = useState<FleetRow[] | null>(null);
-  const [agentId, setAgentId] = useState(deepLink?.agent ?? "");
+  const [cascade, setCascade] = useState<CascadeState>(() => ({
+    ...emptyCascade(),
+    agentId: deepLink?.agent ?? "",
+    versionId: deepLink?.version ?? "",
+    model: deepLink?.model ?? "",
+    sessionId: deepLink?.session ?? "",
+  }));
+  const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
   const [models, setModels] = useState<AgentModelRow[]>([]);
-  const [model, setModel] = useState(deepLink?.model ?? "");
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [selected, setSelected] = useState(deepLink?.session ?? "");
+  const [versionHasNoPins, setVersionHasNoPins] = useState(false);
   const [envelope, setEnvelope] = useState<AgentEnvelope | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const preferSession = useRef(deepLink?.session);
-  const preferModel = useRef(deepLink?.model);
+  const prefer = useRef({
+    version: deepLink?.version,
+    model: deepLink?.model,
+    session: deepLink?.session,
+  });
+
+  const { agentId, versionId, model, sessionId, lane } = cascade;
 
   useEffect(() => {
     if (!deepLink?.agent || deepLink.agent === agentId) return;
-    preferSession.current = deepLink.session;
-    preferModel.current = deepLink.model;
-    setAgentId(deepLink.agent);
-  }, [deepLink?.agent, deepLink?.session, deepLink?.model, agentId]);
+    prefer.current = {
+      version: deepLink.version,
+      model: deepLink.model,
+      session: deepLink.session,
+    };
+    setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: deepLink.agent! }));
+  }, [deepLink?.agent, deepLink?.version, deepLink?.model, deepLink?.session, agentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,12 +79,13 @@ export function CaseFiles({
         if (cancelled) return;
         setFleet(f);
         if (f.length === 0) return;
-        setAgentId((cur) => {
-          if (cur && f.some((a) => a.agent_id === cur)) return cur;
-          if (deepLink?.agent && f.some((a) => a.agent_id === deepLink.agent)) {
-            return deepLink.agent;
-          }
-          return f[0].agent_id;
+        setCascade((cur) => {
+          if (cur.agentId && f.some((a) => a.agent_id === cur.agentId)) return cur;
+          const nextId =
+            deepLink?.agent && f.some((a) => a.agent_id === deepLink.agent)
+              ? deepLink.agent
+              : f[0].agent_id;
+          return cascadeReducer(cur, { type: "set_agent", agentId: nextId });
         });
       })
       .catch((e: unknown) => {
@@ -85,23 +99,43 @@ export function CaseFiles({
 
   useEffect(() => {
     if (!agentId) {
+      setVersions([]);
       setModels([]);
-      setModel("");
       return;
     }
     let cancelled = false;
-    setSelected("");
     setSessions(null);
-    api
-      .agentModels(agentId)
-      .then((rows) => {
+    Promise.all([api.agentVersions(agentId), api.agentModels(agentId)])
+      .then(([vers, mods]) => {
         if (cancelled) return;
-        setModels(rows);
-        const want = preferModel.current;
-        preferModel.current = undefined;
-        const next =
-          want && rows.some((r) => r.model === want) ? want : (rows[0]?.model ?? "");
-        setModel(next);
+        setVersions(vers);
+        setModels(mods);
+        const wantV = prefer.current.version;
+        const wantM = prefer.current.model;
+        prefer.current.version = undefined;
+        prefer.current.model = undefined;
+        if (vers.length === 0) {
+          const m =
+            wantM && mods.some((r) => r.model === wantM) ? wantM : (mods[0]?.model ?? "");
+          setCascade((s) => cascadeReducer(s, { type: "set_unversioned", model: m }));
+          return;
+        }
+        const vid = preferVersion(
+          vers.map((v) => v.version_id),
+          wantV,
+        );
+        const row = vers.find((v) => v.version_id === vid);
+        const nextModel =
+          wantM && mods.some((r) => r.model === wantM)
+            ? wantM
+            : (row?.model ?? mods[0]?.model ?? "");
+        setCascade((s) =>
+          cascadeReducer(s, {
+            type: "set_version",
+            versionId: vid,
+            model: nextModel || undefined,
+          }),
+        );
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -114,18 +148,40 @@ export function CaseFiles({
   useEffect(() => {
     if (!agentId || !model) {
       setSessions([]);
-      setSelected("");
+      setCascade((s) => (s.sessionId ? cascadeReducer(s, { type: "set_session", sessionId: "" }) : s));
       return;
     }
     let cancelled = false;
+    const params: {
+      agent_id: string;
+      model: string;
+      agent_version?: string;
+    } = { agent_id: agentId, model };
+    if (lane === "versioned" && versionId) {
+      params.agent_version = versionId;
+    }
     api
-      .sessions({ agent_id: agentId, model })
-      .then((s) => {
+      .sessions(params)
+      .then(async (s) => {
         if (cancelled) return;
-        setSessions(s);
-        const want = preferSession.current;
-        preferSession.current = undefined;
-        setSelected(preferHero(s, want));
+        let rows = s;
+        let noPins = false;
+        // Honest fallback: version exists but nothing pinned yet — show model sessions.
+        if (rows.length === 0 && params.agent_version) {
+          rows = await api.sessions({ agent_id: agentId, model });
+          noPins = true;
+        }
+        if (cancelled) return;
+        setVersionHasNoPins(noPins);
+        setSessions(rows);
+        const want = prefer.current.session;
+        prefer.current.session = undefined;
+        const next = preferHeroSession(
+          rows.map((r) => r.session_id),
+          HERO_SESSIONS,
+          want,
+        );
+        setCascade((cur) => cascadeReducer(cur, { type: "set_session", sessionId: next }));
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -133,17 +189,17 @@ export function CaseFiles({
     return () => {
       cancelled = true;
     };
-  }, [agentId, model]);
+  }, [agentId, versionId, model, lane]);
 
   useEffect(() => {
-    if (!selected) {
+    if (!sessionId) {
       setEnvelope(null);
       return;
     }
     let cancelled = false;
     setEnvelope(null);
     api
-      .agentView("incident", selected)
+      .agentView("incident", sessionId)
       .then((e) => {
         if (!cancelled) setEnvelope(e);
       })
@@ -153,34 +209,51 @@ export function CaseFiles({
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!onDeepLinkChange || !agentId) return;
     const next = {
       agent: agentId,
+      version: versionId || undefined,
       model: model || undefined,
-      session: selected || undefined,
+      session: sessionId || undefined,
     };
     if (
       deepLink?.agent === next.agent &&
+      deepLink?.version === next.version &&
       deepLink?.model === next.model &&
       deepLink?.session === next.session
     ) {
       return;
     }
     onDeepLinkChange(next);
-  }, [agentId, model, selected, onDeepLinkChange, deepLink?.agent, deepLink?.model, deepLink?.session]);
+  }, [
+    agentId,
+    versionId,
+    model,
+    sessionId,
+    onDeepLinkChange,
+    deepLink?.agent,
+    deepLink?.version,
+    deepLink?.model,
+    deepLink?.session,
+  ]);
 
   const agentOptions = useMemo(() => fleet ?? [], [fleet]);
+  const selectedVersion = versions?.find((v) => v.version_id === versionId) ?? null;
+  const modelOverride =
+    selectedVersion?.model && model && selectedVersion.model !== model
+      ? selectedVersion.model
+      : null;
 
   if (mode === "agent") {
-    if (selected) return <AgentJson view="incident" id={selected} />;
+    if (sessionId) return <AgentJson view="incident" id={sessionId} />;
     return (
       <>
         <p className="eyebrow">{"// agent_view"}</p>
         <h1>case_files</h1>
-        <Empty hint="select agent → model → session in human_view, then toggle agent_view" />
+        <Empty hint="select agent → version → model → session in human_view, then toggle agent_view" />
       </>
     );
   }
@@ -194,7 +267,7 @@ export function CaseFiles({
       <h1>case_files</h1>
       <p className="lede">
         hand an incident to a coding agent: root cause · timeline · recommended actions ·
-        fix-prompt with SigNoz MCP hints. pick agent → model → session, then export.
+        fix-prompt with SigNoz MCP hints. pick agent → version → model → session, then export.
       </p>
       {err && <Seam error={err} />}
       {fleet && fleet.length === 0 && (
@@ -208,9 +281,8 @@ export function CaseFiles({
             <select
               value={agentId}
               onChange={(e) => {
-                preferModel.current = undefined;
-                preferSession.current = undefined;
-                setAgentId(e.target.value);
+                prefer.current = { version: undefined, model: undefined, session: undefined };
+                setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: e.target.value }));
               }}
             >
               {agentOptions.map((a) => (
@@ -222,16 +294,59 @@ export function CaseFiles({
             </select>
           </label>
           <label>
+            version
+            <select
+              value={lane === "unversioned" ? "__unversioned__" : versionId}
+              onChange={(e) => {
+                prefer.current.session = undefined;
+                const v = e.target.value;
+                if (v === "__unversioned__") {
+                  setCascade((s) =>
+                    cascadeReducer(s, {
+                      type: "set_unversioned",
+                      model: models[0]?.model ?? s.model,
+                    }),
+                  );
+                  return;
+                }
+                const row = (versions ?? []).find((x) => x.version_id === v);
+                setCascade((s) =>
+                  cascadeReducer(s, {
+                    type: "set_version",
+                    versionId: v,
+                    model: row?.model ?? undefined,
+                  }),
+                );
+              }}
+              disabled={versions === null}
+            >
+              {versions && versions.length === 0 && (
+                <option value="__unversioned__">unversioned / observed models</option>
+              )}
+              {(versions ?? []).map((v) => (
+                <option key={v.version_id} value={v.version_id}>
+                  {v.version} · {v.model ?? "—"} · {v.version_id}
+                </option>
+              ))}
+              {versions && versions.length > 0 && (
+                <option value="__unversioned__">unversioned / observed models</option>
+              )}
+            </select>
+          </label>
+          <label>
             model
             <select
               value={model}
               onChange={(e) => {
-                preferSession.current = undefined;
-                setModel(e.target.value);
+                prefer.current.session = undefined;
+                setCascade((s) => cascadeReducer(s, { type: "set_model", model: e.target.value }));
               }}
-              disabled={models.length === 0}
+              disabled={models.length === 0 && !model}
             >
-              {models.length === 0 && <option value="">no sessions for agent</option>}
+              {models.length === 0 && !model && <option value="">no sessions for agent</option>}
+              {model && !models.some((m) => m.model === model) && (
+                <option value={model}>{model} · from version</option>
+              )}
               {models.map((m) => (
                 <option key={m.model} value={m.model}>
                   {m.model} · {m.session_count} session{m.session_count === 1 ? "" : "s"}
@@ -242,8 +357,10 @@ export function CaseFiles({
           <label>
             session
             <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
+              value={sessionId}
+              onChange={(e) =>
+                setCascade((s) => cascadeReducer(s, { type: "set_session", sessionId: e.target.value }))
+              }
               disabled={!sessions || sessions.length === 0}
             >
               {sessions && sessions.length === 0 && <option value="">no sessions</option>}
@@ -255,15 +372,15 @@ export function CaseFiles({
               ))}
             </select>
           </label>
-          {selected && (
-            <a className="btn" href={api.caseFileUrl(selected)} download>
+          {sessionId && (
+            <a className="btn" href={api.caseFileUrl(sessionId)} download>
               export_case_file()
             </a>
           )}
-          {selected && (
+          {sessionId && (
             <a
               className="btn ghost"
-              href={`#hq_agent?agent=${encodeURIComponent(agentId)}&session=${encodeURIComponent(selected)}`}
+              href={`#hq_agent?agent=${encodeURIComponent(agentId)}&version=${encodeURIComponent(versionId)}&session=${encodeURIComponent(sessionId)}`}
             >
               hq_agent · pin session
             </a>
@@ -271,11 +388,59 @@ export function CaseFiles({
         </div>
       )}
 
+      {lane === "unversioned" && agentId && (
+        <p className="dim">
+          lane=unversioned — no registry pin filter; showing sessions by observed model only.
+        </p>
+      )}
+      {versionHasNoPins && lane === "versioned" && (
+        <p className="dim">
+          no sessions pinned to this version yet — showing unpinned sessions for model={model}{" "}
+          (apply-model + session pin links them).
+        </p>
+      )}
+      {modelOverride && (
+        <p className="dim">
+          warning: model override ({model}) ≠ version registry model ({modelOverride})
+        </p>
+      )}
+
+      {versions && versions.length === 0 && agentId && (
+        <Empty hint="no registered versions — seed_demo / register_agent_version, or use unversioned observed models" />
+      )}
       {sessions && sessions.length === 0 && agentId && model && (
-        <Empty hint="no sessions for this agent + model — pick another model or run a scenario" />
+        <Empty hint="no sessions for this agent + version/model — pick another version or run a scenario" />
       )}
       {err && !fleet && (
         <Empty hint="could not load fleet — is arcnet-server up on :8000?" />
+      )}
+
+      {versions && versions.length > 0 && (
+        <>
+          <p className="eyebrow">{"// version_timeline"}</p>
+          <div className="history">
+            {versions.map((v) => (
+              <button
+                key={v.version_id}
+                type="button"
+                className={`history-row ${versionId === v.version_id ? "active" : ""}`}
+                onClick={() => {
+                  prefer.current.session = undefined;
+                  setCascade((s) =>
+                    cascadeReducer(s, {
+                      type: "set_version",
+                      versionId: v.version_id,
+                      model: v.model ?? undefined,
+                    }),
+                  );
+                }}
+              >
+                {ts(v.created_at)} · {v.version} · {v.model ?? "—"}
+                {v.source_ref ? ` · ${v.source_ref}` : ""}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {data && (
@@ -295,7 +460,8 @@ export function CaseFiles({
             <div className="stat-row">
               <span>agent_version</span>
               <span>
-                {(sessions ?? []).find((s) => s.session_id === selected)?.agent_version ?? "— unpinned"}
+                {(sessions ?? []).find((s) => s.session_id === sessionId)?.agent_version ??
+                  "— unpinned"}
               </span>
             </div>
             <div className="stat-row">

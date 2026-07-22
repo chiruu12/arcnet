@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, type AgentVersionRow } from "../api";
+import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
 import { Empty, Seam, ts } from "../components";
-import type { SignalRow } from "../types";
+import type { CascadeLink, SignalRow } from "../types";
 
 const RUN_HINT =
   'PYTHONPATH=sdk:agents uv run python -m hq_agent "fleet health + griffin MAD + proposals"';
@@ -26,32 +27,47 @@ function formatApplyError(e: unknown): string {
 
 export function HqAgent({
   deepLink,
+  onDeepLinkChange,
 }: {
-  deepLink?: { agent?: string; session?: string };
+  deepLink?: CascadeLink;
+  onDeepLinkChange?: (next: CascadeLink) => void;
 }) {
+  const [cascade, setCascade] = useState<CascadeState>(() => ({
+    ...emptyCascade(),
+    agentId: deepLink?.agent ?? "agent_j",
+    versionId: deepLink?.version ?? "",
+    model: deepLink?.model ?? "",
+    sessionId: deepLink?.session ?? "",
+  }));
   const [proposals, setProposals] = useState<SignalRow[] | null>(null);
   const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
-  const [agentId, setAgentId] = useState(deepLink?.agent ?? "agent_j");
-  const [sessionId, setSessionId] = useState(deepLink?.session ?? "");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [applyModel, setApplyModel] = useState("");
   const [applyVersion, setApplyVersion] = useState("");
+  const [applySourceRef, setApplySourceRef] = useState("");
   const [applyConfirm, setApplyConfirm] = useState(false);
   const [applyProposalId, setApplyProposalId] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
+  const { agentId, versionId, sessionId } = cascade;
+
   useEffect(() => {
     if (deepLink?.agent && deepLink.agent !== agentId) {
-      setAgentId(deepLink.agent);
+      setCascade((s) => cascadeReducer(s, { type: "set_agent", agentId: deepLink.agent! }));
     }
     if (deepLink?.session != null && deepLink.session !== sessionId) {
-      setSessionId(deepLink.session);
+      setCascade((s) => cascadeReducer(s, { type: "set_session", sessionId: deepLink.session! }));
+    }
+    if (deepLink?.version != null && deepLink.version !== versionId) {
+      setCascade((s) =>
+        cascadeReducer(s, { type: "set_version", versionId: deepLink.version!, model: deepLink.model }),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to deep-link changes
-  }, [deepLink?.agent, deepLink?.session]);
+  }, [deepLink?.agent, deepLink?.session, deepLink?.version, deepLink?.model]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +83,15 @@ export function HqAgent({
         setVersions(tl.versions);
         setCurrentModel(tl.current_model);
         setErr(null);
+        if (!cascade.versionId && tl.versions[0]) {
+          setCascade((s) =>
+            cascadeReducer(s, {
+              type: "set_version",
+              versionId: tl.versions[0].version_id,
+              model: tl.versions[0].model ?? undefined,
+            }),
+          );
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) {
@@ -81,7 +106,37 @@ export function HqAgent({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on agent/tick only
   }, [agentId, tick]);
+
+  useEffect(() => {
+    if (!onDeepLinkChange || !agentId) return;
+    const next = {
+      agent: agentId,
+      version: versionId || undefined,
+      model: cascade.model || undefined,
+      session: sessionId || undefined,
+    };
+    if (
+      deepLink?.agent === next.agent &&
+      deepLink?.version === next.version &&
+      deepLink?.model === next.model &&
+      deepLink?.session === next.session
+    ) {
+      return;
+    }
+    onDeepLinkChange(next);
+  }, [
+    agentId,
+    versionId,
+    cascade.model,
+    sessionId,
+    onDeepLinkChange,
+    deepLink?.agent,
+    deepLink?.version,
+    deepLink?.model,
+    deepLink?.session,
+  ]);
 
   function refresh() {
     setFlash(null);
@@ -94,7 +149,7 @@ export function HqAgent({
     setApplyProposalId(p.signal_id);
     setApplyConfirm(false);
     if (p.session_id && !sessionId) {
-      setSessionId(p.session_id);
+      setCascade((s) => cascadeReducer(s, { type: "set_session", sessionId: p.session_id! }));
     }
     if (!applyVersion) {
       const d = new Date();
@@ -119,6 +174,7 @@ export function HqAgent({
         confirm: true,
         model: applyModel.trim(),
         version: applyVersion.trim(),
+        source_ref: applySourceRef.trim() || undefined,
         proposal_signal_id: applyProposalId ?? undefined,
         session_id: sessionId.trim() || undefined,
         notes: sessionId.trim()
@@ -129,6 +185,13 @@ export function HqAgent({
       setFlash(`applied ${out.model} as ${out.version.version}${pinNote}`);
       setApplyConfirm(false);
       setApplyProposalId(null);
+      setCascade((s) =>
+        cascadeReducer(s, {
+          type: "set_version",
+          versionId: out.version.version_id,
+          model: out.model,
+        }),
+      );
       refresh();
     } catch (e: unknown) {
       setFlash(formatApplyError(e));
@@ -142,9 +205,9 @@ export function HqAgent({
       <p className="eyebrow">{"// improve"}</p>
       <h1>hq_agent</h1>
       <p className="lede">
-        operator maintenance layer — proposal inbox + version timeline. griffin ={" "}
-        <code>MAD</code> (not TabFM). apply requires explicit confirm (no silent swaps). optional
-        session_id pins the incident that justified the change.
+        operator maintenance layer — diagnose strip (agent → version → session) + proposal inbox +
+        version timeline. griffin = <code>MAD</code> (not TabFM). apply requires explicit confirm.
+        optional session_id pins the incident; optional source_ref records provenance.
       </p>
 
       <div className="control-bar">
@@ -152,15 +215,46 @@ export function HqAgent({
           agent_id
           <input
             value={agentId}
-            onChange={(e) => setAgentId(e.target.value.trim() || "agent_j")}
+            onChange={(e) =>
+              setCascade((s) =>
+                cascadeReducer(s, { type: "set_agent", agentId: e.target.value.trim() || "agent_j" }),
+              )
+            }
             spellCheck={false}
           />
+        </label>
+        <label>
+          version
+          <select
+            value={versionId}
+            onChange={(e) => {
+              const row = (versions ?? []).find((v) => v.version_id === e.target.value);
+              setCascade((s) =>
+                cascadeReducer(s, {
+                  type: "set_version",
+                  versionId: e.target.value,
+                  model: row?.model ?? undefined,
+                }),
+              );
+            }}
+          >
+            <option value="">—</option>
+            {(versions ?? []).map((v) => (
+              <option key={v.version_id} value={v.version_id}>
+                {v.version} · {v.model ?? "—"}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           session_id (pin)
           <input
             value={sessionId}
-            onChange={(e) => setSessionId(e.target.value.trim())}
+            onChange={(e) =>
+              setCascade((s) =>
+                cascadeReducer(s, { type: "set_session", sessionId: e.target.value.trim() }),
+              )
+            }
             placeholder="optional — from case_files"
             spellCheck={false}
           />
@@ -168,7 +262,10 @@ export function HqAgent({
         <button type="button" className="btn" onClick={refresh} disabled={busy}>
           refresh
         </button>
-        <a className="btn ghost" href={`#case_files?agent=${encodeURIComponent(agentId)}`}>
+        <a
+          className="btn ghost"
+          href={`#case_files?agent=${encodeURIComponent(agentId)}${versionId ? `&version=${encodeURIComponent(versionId)}` : ""}${sessionId ? `&session=${encodeURIComponent(sessionId)}` : ""}`}
+        >
           case_files
         </a>
         {currentModel && (
@@ -182,7 +279,15 @@ export function HqAgent({
       <pre className="agent-json">{RUN_HINT}</pre>
 
       {err && <Seam error={err} />}
-      {flash && <p className={flash.startsWith("apply failed") || flash.startsWith("apply rejected") ? "err" : "lede"}>{flash}</p>}
+      {flash && (
+        <p
+          className={
+            flash.startsWith("apply failed") || flash.startsWith("apply rejected") ? "err" : "lede"
+          }
+        >
+          {flash}
+        </p>
+      )}
 
       <p className="eyebrow">{"// apply_model (human-gated)"}</p>
       <div className="control-bar">
@@ -201,6 +306,15 @@ export function HqAgent({
             value={applyVersion}
             onChange={(e) => setApplyVersion(e.target.value)}
             placeholder="2026-07-22.1"
+            spellCheck={false}
+          />
+        </label>
+        <label>
+          source_ref
+          <input
+            value={applySourceRef}
+            onChange={(e) => setApplySourceRef(e.target.value)}
+            placeholder="git sha / prompt path"
             spellCheck={false}
           />
         </label>
@@ -276,7 +390,20 @@ export function HqAgent({
           </thead>
           <tbody>
             {versions.map((v) => (
-              <tr key={v.version_id}>
+              <tr
+                key={v.version_id}
+                className={versionId === v.version_id ? "active" : undefined}
+                onClick={() =>
+                  setCascade((s) =>
+                    cascadeReducer(s, {
+                      type: "set_version",
+                      versionId: v.version_id,
+                      model: v.model ?? undefined,
+                    }),
+                  )
+                }
+                style={{ cursor: "pointer" }}
+              >
                 <td className="dim">{ts(v.created_at)}</td>
                 <td>{v.version}</td>
                 <td>
