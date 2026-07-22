@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, subscribeBus } from "../api";
 import { AgentJson, Empty, Seam, ts } from "../components";
-import type { Mode, SignalRow } from "../types";
+import type { FleetRow, Mode, SignalRow } from "../types";
 
 const KIND_CLASS: Record<string, string> = {
   kill: "danger",
@@ -13,14 +13,20 @@ export function Signals({ mode }: { mode: Mode }) {
   const [signals, setSignals] = useState<SignalRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [liveCount, setLiveCount] = useState(0);
-  const [agentRef, setAgentRef] = useState("all");
+  const [fleet, setFleet] = useState<FleetRow[]>([]);
+  const [agentRef, setAgentRef] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     api
       .fleet()
       .then((f) => {
-        if (!cancelled && f.length > 0) setAgentRef((cur) => (cur === "all" ? f[0].agent_id : cur));
+        if (cancelled) return;
+        setFleet(f);
+        setAgentRef((cur) => {
+          if (cur && f.some((a) => a.agent_id === cur)) return cur;
+          return f[0]?.agent_id ?? "";
+        });
       })
       .catch(() => {
         /* fleet optional for raw list */
@@ -57,16 +63,29 @@ export function Signals({ mode }: { mode: Mode }) {
   }, []);
 
   if (mode === "agent") {
-    if (!agentRef || agentRef === "all") {
-      return (
-        <>
-          <p className="eyebrow">{"// agent_view"}</p>
-          <h1>signals</h1>
-          <Empty hint="loading agent ref…" />
-        </>
-      );
-    }
-    return <AgentJson view="signals" id={agentRef} />;
+    return (
+      <>
+        <p className="eyebrow">{"// agent_view"}</p>
+        <h1>signals</h1>
+        {fleet.length > 0 && (
+          <div className="control-bar">
+            <label>
+              agent
+              <select value={agentRef} onChange={(e) => setAgentRef(e.target.value)}>
+                {fleet.map((a) => (
+                  <option key={a.agent_id} value={a.agent_id}>
+                    {a.agent_id}
+                    {a.model ? ` · fleet:${a.model}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        {!agentRef && <Empty hint="loading agent ref…" />}
+        {agentRef && <AgentJson view="signals" id={agentRef} />}
+      </>
+    );
   }
 
   return (

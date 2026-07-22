@@ -122,6 +122,24 @@ class ProductReworkApiTests(unittest.TestCase):
                 ts,
             ),
         )
+        # >20 sources so session-check must use count_sources, not len(list_sources(limit=20))
+        for i in range(25):
+            conn.execute(
+                """INSERT INTO sources
+                   (source_id, session_id, agent_id, origin, trust_level, scan_action,
+                    findings, created_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    f"src_page_{i}",
+                    "s_page_a",
+                    "agent_j",
+                    f"http://example.test/{i}",
+                    "retrieved",
+                    "allow",
+                    0,
+                    ts - i,
+                ),
+            )
         conn.commit()
 
     @classmethod
@@ -191,6 +209,7 @@ class ProductReworkApiTests(unittest.TestCase):
         self.assertEqual(data["session"]["session_id"], "s_page_a")
         self.assertEqual(data["counts"]["threats"], 1)
         self.assertGreaterEqual(data["counts"]["signals"], 3)
+        self.assertEqual(data["counts"]["sources"], 25)
         self.assertEqual(data["top_threat"]["action"], "block")
         blob = json.dumps(data)
         self.assertNotIn("HUGE-SECRET-PAYLOAD", blob)

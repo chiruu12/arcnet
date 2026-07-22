@@ -312,7 +312,6 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
     session_id = session["session_id"]
     threats = repository.threats_for_session(conn, session_id)
     signals = repository.list_signals(conn, session_id=session_id, limit=10)
-    sources = repository.list_sources(conn, session_id=session_id, limit=20)
     transcript = session.get("transcript") or {}
     if isinstance(transcript, str):
         try:
@@ -346,7 +345,7 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
         "counts": {
             "threats": len(threats),
             "signals": repository.count_signals(conn, session_id=session_id),
-            "sources": len(sources),
+            "sources": repository.count_sources(conn, session_id=session_id),
             "timeline_steps": len(steps),
             "active_signals": len(active),
         },
