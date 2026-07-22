@@ -181,8 +181,10 @@ def recommend_models(
     Provider/network/parse failures fall back to the curated snapshot instead of raising.
     Explicit ``live=False`` keeps the curated snapshot.
 
-    When ``constraints.session_id`` is set (or hero replays are reachable), reasons
-    cite Time Machine verdict evidence_refs.
+    When ``constraints.session_id`` is set, reasons cite that session's Time Machine
+    verdicts and winners may reorder the curated list. Without a session_id, hero
+    sessions may appear as optional evidence citations only — they never promote
+    ranking across unrelated task types.
     """
     constraints = constraints or {}
     meta = TASK_TYPES.get(task_type)
@@ -214,16 +216,26 @@ def recommend_models(
         pass
     else:
         server_url = None
-    tm_refs, tm_notes = _tm_evidence_for_recommend(
-        session_id=str(session_id) if session_id else None,
-        server_url=server_url,
-    )
-    # Rank models that won TM replays slightly higher when present
+    scoped_session = bool(session_id and str(session_id).strip())
+    # Without a session_id, skip TM entirely so hero wins cannot reshape ranking
+    if scoped_session:
+        tm_refs, tm_notes = _tm_evidence_for_recommend(
+            session_id=str(session_id).strip(),
+            server_url=server_url,
+        )
+    else:
+        tm_refs, tm_notes = [], []
+    # Only promote winners from the caller's session
     tm_winners: set[str] = set()
     for n in tm_notes:
         mid = n.get("candidate_model")
         verd = str(n.get("verdict") or "").lower()
-        if isinstance(mid, str) and verd in ("better", "win", "improved", "candidate_better"):
+        if isinstance(mid, str) and verd in (
+            "better",
+            "win",
+            "improved",
+            "candidate_better",
+        ):
             tm_winners.add(mid)
     ranked: list[dict[str, Any]] = []
     for i, mid in enumerate(meta["prefer"]):
@@ -256,7 +268,7 @@ def recommend_models(
                 "evidence_refs": evidence[:12],
             }
         )
-    # Promote TM winners within the list (stable otherwise)
+    # Promote TM winners within the list only for the caller's session
     if tm_winners:
         ranked.sort(key=lambda r: (0 if r["model"] in tm_winners else 1, r["rank"]))
         for i, row in enumerate(ranked):
@@ -307,7 +319,9 @@ def compare_replay_verdicts(
         rows = []
     summaries: list[dict[str, Any]] = []
     evidence_refs: list[str] = [f"session:{session_id}"]
-    dim_winners: dict[str, str] = {}
+    # Majority vote per dimension (ties keep first-seen) — never last-write-wins
+    dim_votes: dict[str, dict[str, int]] = {}
+    dim_first: dict[str, str] = {}
     for row in rows[:10]:
         v = row.get("verdict") if isinstance(row, dict) else None
         if not isinstance(v, dict):
@@ -320,6 +334,7 @@ def compare_replay_verdicts(
             evidence_refs.append(f"candidate_model:{cand}")
         cand_m = v.get("candidate") if isinstance(v.get("candidate"), dict) else {}
         base_m = v.get("baseline") if isinstance(v.get("baseline"), dict) else {}
+        per_replay: dict[str, str] = {}
         for dim in ("resisted_injection", "goal_reached", "cost_usd", "tool_errors"):
             if dim not in cand_m and dim not in base_m:
                 continue
@@ -342,8 +357,14 @@ def compare_replay_verdicts(
                         base_m.get("model") or "baseline"
                     )
             if winner:
-                dim_winners[dim] = winner
-                evidence_refs.append(f"dim:{dim}:{winner}")
+                votes = dim_votes.setdefault(dim, {})
+                votes[winner] = votes.get(winner, 0) + 1
+                dim_first.setdefault(dim, winner)
+                per_replay[dim] = winner
+                tag = f"dim:{dim}:{winner}"
+                if rid:
+                    tag = f"{tag}:replay:{rid}"
+                evidence_refs.append(tag)
         summaries.append(
             {
                 "replay_id": rid,
@@ -352,6 +373,7 @@ def compare_replay_verdicts(
                 "confidence": v.get("confidence"),
                 "recommendation": (v.get("recommendation") or "")[:240],
                 "baseline_model": base_m.get("model"),
+                "dimension_winners": per_replay,
                 "candidate_metrics": {
                     k: cand_m.get(k)
                     for k in (
@@ -365,6 +387,14 @@ def compare_replay_verdicts(
                 },
             }
         )
+    dim_winners: dict[str, str] = {}
+    for dim, votes in dim_votes.items():
+        # Highest vote count; ties keep first-seen winner for that dimension
+        best = max(
+            votes.items(),
+            key=lambda kv: (kv[1], 1 if kv[0] == dim_first.get(dim) else 0),
+        )[0]
+        dim_winners[dim] = best
     # Dedupe evidence
     seen: set[str] = set()
     refs_out: list[str] = []
