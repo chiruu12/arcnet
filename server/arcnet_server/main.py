@@ -12,9 +12,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from arcnet_server import read_models, repository
@@ -36,6 +36,13 @@ def get_conn():
         _conn = connect()
         init_db(_conn)
     return _conn
+
+
+def _page_headers(response: Response, *, total: int, limit: int, offset: int) -> None:
+    """Additive pagination metadata — body stays a JSON array (docs/12)."""
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Limit"] = str(limit)
+    response.headers["X-Offset"] = str(offset)
 
 
 @asynccontextmanager
@@ -154,46 +161,107 @@ def get_session(session_id: str, include: str | None = Query(default=None)) -> d
 
 @app.get("/api/sessions")
 def list_sessions(
+    response: Response,
     scenario: str | None = None,
     agent_id: str | None = None,
+    model: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
     """Read-only session index for the UI (transcripts excluded — they're big)."""
-    return repository.list_sessions(
-        get_conn(), scenario=scenario, agent_id=agent_id, limit=limit
+    conn = get_conn()
+    total = repository.count_sessions(
+        conn, scenario=scenario, agent_id=agent_id, model=model
     )
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_sessions(
+        conn,
+        scenario=scenario,
+        agent_id=agent_id,
+        model=model,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/api/agents/{agent_id}/models")
+def list_agent_models(agent_id: str) -> list[dict[str, Any]]:
+    """Distinct models for cascade pickers (docs/12 additive)."""
+    conn = get_conn()
+    if repository.get_agent(conn, agent_id) is None:
+        raise HTTPException(404, f"agent {agent_id} not found")
+    return repository.list_agent_models(conn, agent_id)
 
 
 @app.get("/api/threats")
 def list_threats(
+    response: Response,
     since: int | None = None,
     agent_id: str | None = None,
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
-    return repository.list_threats(get_conn(), since=since, agent_id=agent_id)
+    conn = get_conn()
+    total = repository.count_threats(conn, since=since, agent_id=agent_id)
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_threats(
+        conn, since=since, agent_id=agent_id, limit=limit, offset=offset
+    )
 
 
 @app.get("/api/sources")
 def list_sources(
+    response: Response,
     agent_id: str | None = None,
     session_id: str | None = None,
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
-    return repository.list_sources(get_conn(), agent_id=agent_id, session_id=session_id)
+    conn = get_conn()
+    total = repository.count_sources(conn, agent_id=agent_id, session_id=session_id)
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_sources(
+        conn,
+        agent_id=agent_id,
+        session_id=session_id,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @app.get("/api/signals")
 def list_signals(
+    response: Response,
     session_id: str | None = None,
+    agent_id: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
-    return repository.list_signals(get_conn(), session_id=session_id, limit=limit)
+    conn = get_conn()
+    total = repository.count_signals(conn, session_id=session_id, agent_id=agent_id)
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_signals(
+        conn,
+        session_id=session_id,
+        agent_id=agent_id,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @app.get("/api/replays")
 def list_replays(
+    response: Response,
     session_id: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
-    return repository.list_replays(get_conn(), session_id=session_id, limit=limit)
+    conn = get_conn()
+    total = repository.count_replays(conn, session_id=session_id)
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_replays(
+        conn, session_id=session_id, limit=limit, offset=offset
+    )
 
 
 # ---------------------------------------------------------------- time machine
@@ -290,6 +358,29 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
             read_models.agent_session_context(session),
             trace_id=session.get("trace_id"),
             human_view=f"/sessions/{id}",
+        )
+    if view == "check":
+        session = _require_session(id)
+        return read_models.envelope(
+            "check",
+            id,
+            read_models.session_check_data(conn, session),
+            trace_id=session.get("trace_id"),
+            human_view=f"/sessions/{id}",
+        )
+    if view == "signals":
+        session = repository.get_session(conn, id)
+        agent = repository.get_agent(conn, id)
+        if session is None and agent is None:
+            raise HTTPException(404, f"no agent or session '{id}'")
+        is_session = session is not None
+        data = read_models.agent_signals_data(conn, ref_id=id, is_session=is_session)
+        return read_models.envelope(
+            "signals",
+            id,
+            data,
+            trace_id=session.get("trace_id") if session else None,
+            human_view="/signals" if not is_session else f"/signals?session={id}",
         )
     if view == "fleet":
         data = {"agents": read_models.human_fleet(repository.fleet_records(conn))}
