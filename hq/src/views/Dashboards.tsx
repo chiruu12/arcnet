@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api, type SignozStatus } from "../api";
 import type { Mode } from "../types";
 
-const SIGNOZ: string = import.meta.env.VITE_SIGNOZ_URL ?? "http://localhost:8080";
+/** Fallback only before /api/signoz/status returns (or if the probe fails). */
+const SIGNOZ_FALLBACK: string = import.meta.env.VITE_SIGNOZ_URL ?? "http://localhost:8080";
 
 const LINKS: { name: string; path: string; desc: string }[] = [
   {
@@ -24,10 +25,19 @@ const LINKS: { name: string; path: string; desc: string }[] = [
   { name: "alerts", path: "/alerts", desc: "v5 query-based alert rules → /webhooks/signoz" },
 ];
 
-function statusLine(s: SignozStatus | null, err: string | null): { text: string; warn: boolean } {
+function baseUrl(s: SignozStatus | null): string {
+  const raw = s?.signoz_url || SIGNOZ_FALLBACK;
+  return raw.replace(/\/$/, "");
+}
+
+function statusLine(
+  s: SignozStatus | null,
+  err: string | null,
+  base: string,
+): { text: string; warn: boolean } {
   if (err) {
     return {
-      text: `signoz status probe failed (${err}) — deep-links still open ${SIGNOZ}. optional stack; HQ works SQLite-primary without it.`,
+      text: `signoz status probe failed (${err}) — deep-links still open ${base}. optional stack; HQ works SQLite-primary without it.`,
       warn: true,
     };
   }
@@ -46,7 +56,7 @@ function statusLine(s: SignozStatus | null, err: string | null): { text: string;
         ? `query_range=fail (${s.query_note})`
         : s.query_note;
   return {
-    text: `signoz UI reachable · ${key} · ${query}. pick a provisioned dashboard in the SigNoz UI (Fleet / Threats / Cost) — list links open the explorer shell.`,
+    text: `signoz UI reachable at ${s.signoz_url} · ${key} · ${query}. pick a provisioned dashboard in the SigNoz UI (Fleet / Threats / Cost) — list links open the same instance.`,
     warn: !s.api_key_present || s.query_range_ok === false,
   };
 }
@@ -70,7 +80,8 @@ export function Dashboards({ mode }: { mode: Mode }) {
     };
   }, []);
 
-  const line = statusLine(status, probeErr);
+  const signozBase = baseUrl(status);
+  const line = statusLine(status, probeErr, signozBase);
 
   const body = (
     <>
@@ -84,12 +95,12 @@ export function Dashboards({ mode }: { mode: Mode }) {
           <a
             key={l.name}
             className="agent link-card"
-            href={`${SIGNOZ}${l.path}`}
+            href={`${signozBase}${l.path}`}
             target="_blank"
             rel="noreferrer"
           >
             <h3>{l.name}</h3>
-            <div className="meta">{`${SIGNOZ}${l.path}`}</div>
+            <div className="meta">{`${signozBase}${l.path}`}</div>
             <p className="step">{l.desc}</p>
           </a>
         ))}
@@ -106,7 +117,11 @@ export function Dashboards({ mode }: { mode: Mode }) {
           {JSON.stringify(
             {
               signoz_status: status,
-              links: LINKS.map((l) => ({ name: l.name, url: `${SIGNOZ}${l.path}`, desc: l.desc })),
+              links: LINKS.map((l) => ({
+                name: l.name,
+                url: `${signozBase}${l.path}`,
+                desc: l.desc,
+              })),
             },
             null,
             2,
