@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   usage             TEXT,                       -- json {input_tokens, output_tokens, cost_usd, latency_ms}
   trace_id          TEXT,
   transcript        TEXT,                       -- json: full replay-ready transcript (10-time-machine.md)
+  agent_version     TEXT,                       -- optional registered version tag (HQ Agent / docs/18)
   started_at        INTEGER,
   ended_at          INTEGER
 );
@@ -118,9 +119,24 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   received_at INTEGER,
   PRIMARY KEY (fingerprint, received_at)
 );
+
+-- Additive (HQ Agent / docs/18): agent code+model timeline
+CREATE TABLE IF NOT EXISTS agent_versions (
+  version_id     TEXT PRIMARY KEY,              -- av_<hex>
+  agent_id       TEXT NOT NULL REFERENCES agents(agent_id),
+  version        TEXT NOT NULL,                 -- semver or opaque tag
+  model          TEXT,
+  model_version  TEXT,
+  source_ref     TEXT,                          -- git sha / prompt@sha / image digest
+  notes          TEXT,
+  created_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, created_at DESC);
 ```
 
-**Not tables (deliberate):** Case Files are generated on demand from `sessions` + `threats` + `replays` — no storage. Griffin's forecasts live in the worker's in-memory cache (the UI band renders the last cycle; anomalies land in SigNoz as telemetry and here as `signals` with `source='griffin'`).
+**Additive session column (nullable):** `sessions.agent_version TEXT` — optional link to a registered version tag when known.
+
+**Not tables (deliberate):** Case Files are generated on demand from `sessions` + `threats` + `replays` — no storage. Griffin's forecasts live in the worker's in-memory cache (the UI band renders the last cycle; anomalies land in SigNoz as telemetry and here as `signals` with `source='griffin'`). Model-change **proposals** are `signals` with `source='hq_agent'` / `kind='note'` — not a separate table in slice 1.
 
 ## API contract (FastAPI · all JSON · no auth, localhost surface)
 
@@ -143,12 +159,17 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 | `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated row (server relays to AgentOS) |
 | `GET /export/case-file/{session_id}` | path | zip: `case-file.md` + `case-file.json` |
 | `GET /api/signoz/status` | — | `{signoz_url, ui_reachable, api_key_present, query_range_ok, query_note, dashboards: {fleet_ops, threats_trust, cost_tokens, agno}}` — dashboard ids from `SIGNOZ_DASHBOARD_*` env or title resolve (**additive** `dashboards`) |
+| `GET /api/agents/{agent_id}/versions?limit=&offset=` | path + page | `[agent_version row]` + pagination headers (**additive** HQ Agent) |
+| `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?}` | created version row (**additive**) |
+| `GET /api/agents/{agent_id}/versions/timeline` | path | `{agent_id, versions[], current_model?}` (**additive**) |
 
 **Pagination convention (additive, 2026-07-22):** list bodies remain JSON **arrays** so existing HQ/clients keep working. Clients that need totals read `X-Total-Count` (and echo `X-Limit` / `X-Offset`). `offset` defaults to `0`; `limit` keeps prior defaults/caps.
 
 **HQ hash deep-links (additive, product surface):** `#view` with optional `?agent=&model=&session=` (e.g. `#case_files?agent=agent_j&model=gpt-4o-mini&session=s_ecfdb55d`).
 
 **SDK session tools (additive client):** `arcnet.hq.check_session` / `signals_view` / `session_view` / `incident_view` / `sources_view` — thin wrappers over agent-view envelopes (no full tool dumps).
+
+**HQ Agent tools (additive client, docs/18):** `arcnet.hq_tools` — `signoz_status`, `fleet_overview`, `agent_signals`, `session_check`, `griffin_anomalies` (MAD-labeled), `list_agent_models`, `recommend_models`, `agent_version_timeline`, `register_agent_version`, `propose_model_change`, `list_model_proposals`. Proposals write `signals` with `source=hq_agent`; they do **not** auto-apply.
 
 ### Agent-view envelope (every view, same wrapper)
 

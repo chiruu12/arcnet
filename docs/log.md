@@ -99,3 +99,8 @@ PR #9 `product-rework-r1` merged to main. Shipped: docs 15/16/17 + docs/12 addit
 
 Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-fleet drill-down; Signals/Sources agent pickers; SigNoz `dashboards` on `/api/signoz/status` (env + title resolve) + provision ID emit; SDK `arcnet.hq` session tools; R3 `arcnet.model_explore` curated OpenAI snapshot + recommend/compare/record + MCP stdio shim. Tests: `server/tests/test_r2_r3_surface.py`.
 
+## HQ Agent — Wed Jul 22
+
+**Expected:** docs/18 plan; version registry; `hq_tools` + Agno HQ agent with Unplug; thin `#hq_agent` UI; skill/MCP; MAD honesty.
+**Actual:** PR #10 merged (MCP JSON-RPC fix); branch `hq-agent`. Added `agent_versions` + APIs; `sdk/arcnet/hq_tools.py`; `agents/hq_agent/`; `#hq_agent` view; `skills/arcnet-hq-agent/`. Griffin tools label **MAD** (not TabFM). Proposals = `source=hq_agent` notes only.
+
