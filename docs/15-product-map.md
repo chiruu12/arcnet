@@ -5,23 +5,26 @@ Use this before iterating frontend/dashboards view-by-view.
 
 | Related | Role |
 |---|---|
-| [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — comment by section; open questions + backlog reorder |
+| [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — §11 founder decisions; open questions closed |
+| [`17-product-rework-plan.md`](17-product-rework-plan.md) | **Productization plan** R1–R3 (framing, API, HQ IA, model explore) |
 | [`14-product-guide.md`](14-product-guide.md) | How to run / use / verify HQ |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire/storage contract |
 | [`13-phase6-api-read-models.md`](13-phase6-api-read-models.md) | Human vs agent read-model split |
 | [`01-product.md`](01-product.md) | Feature tiers / loop |
-| [`06-demo-script.md`](06-demo-script.md) | Camera beats |
+| [`06-demo-script.md`](06-demo-script.md) | Camera beats (hackathon narration) |
 | [`log.md`](log.md) | Gate outcomes (G1–G5) |
 
-**Status key:** `DONE` = shipped and demoable · `PARTIAL` = code exists but incomplete/fragile · `GAP` = missing or human-only · `CUT` = explicitly out of scope / deferred
+**Status key:** `DONE` = shipped and usable · `PARTIAL` = code exists but incomplete/fragile · `GAP` = missing or human-only · `CUT` = explicitly out of scope / deferred
+
+**Product direction (2026-07-22):** ArcNet is an **agent enhancement layer** (observe → defend → replay → case file → improve), not a demo toy. See [`16` §11](16-product-review-brief.md) and [`17`](17-product-rework-plan.md).
 
 ---
 
 ## 1. One-page product purpose
 
-**ArcNet is the control plane for a self-improving agent fleet.**
+**ArcNet is the layer that helps you make your agents work properly — and enhance them.**
 
-One loop on a localhost demo surface (no auth):
+One loop on a localhost surface (no auth in v1):
 
 ```
 OBSERVE → DETECT → DEFEND → HAND OFF → PROVE
@@ -283,25 +286,47 @@ Verification points for later adversarial/QA. Sources: `14` §8–11, `log.md` g
 
 ## 6. Prioritized iteration backlog (frontend / dashboard)
 
-Ordered by **demo impact**. Acceptance criteria are shippable gates — not redesign aspirations.
+**Superseded for ordering by [`17-product-rework-plan.md`](17-product-rework-plan.md)** after founder review. Table below retained as inventory; R-phase column shows current sequencing.
 
-| # | View / area | Problem / gap | Acceptance criteria |
-|---|---|---|---|
-| 1 | **dashboards** | Three named boards deep-link the same `/dashboard`; judges can't land on Fleet/Threats/Cost without hunting | After provision, HQ links open correct dashboard UUIDs (or documented picker steps with copy-paste IDs); status line still honest if key missing |
-| 2 | **time_machine** | Loading/error UX thinner than fleet; AgentOS-down can look like "empty"; default session ≠ heroes; Beat 5 script sells `[OK]`/`[RESISTED]` while heroes are `mixed` | Default-select Worms/Edgar heroes when present; explicit loading + failed-replay seam ("start AgentOS / check OPENAI_API_KEY"); never paint `mixed` as fake improved; align demo copy with G4 |
-| 3 | **case_files** | Preview depends on agent-view; default session often clean demo row (not Edgar); easy to miss export vs hand_to | Default-select `s_ecfdb55d` when present; clear primary CTA `export_case_file()`; zip contents checklist; prefer sessions with `trace_id` for MCP beat |
-| 4 | **signals** | `guidance` unused; no HITL approve/reject; agent mode not enveloped | Render `guidance` when present; optional HITL controls wired to `/api/hitl/{id}` **or** hide pause rows with "API-only" note |
-| 5 | **fleet_health** | Mini-fleet not clickable; no drill to threats | Click agent → filter signals/sources or open case_files for latest session |
-| 6 | **sources_trust** | Agent mode raw list; no link to incident | Agent mode uses `/api/agent-view/sources/{id}` when session selected; row click → case_files |
-| 7 | **HQ routing** | No deep links for demo rehearsal | Hash or path routes per view + optional `?session=` for TM/CF |
-| 8 | **Shell / demo** | Cosmetic `demo` tag; empty hints only | Optional "run S1" helper panel or copy-ready commands; remove fake interactivity |
-| 9 | **Griffin in HQ** | Anomalies only as fleet count / griffin-sourced signals | Small status strip from `/api/griffin/status` on fleet or dashboards (honest MAD label) |
-| 10 | **Threats panel** | `GET /api/threats` unused in HQ | Compact threats table under fleet or signals (or document "folded into Case File" in-UI) |
-| 11 | **Embedded SigNoz** | No charts in HQ | Keep launcher; add one Query Range sparkline **only if** key present — else keep PARTIAL |
-| 12 | **Agent-view consistency** | signals/sources/dashboards skip envelope | Either document "list JSON OK per 12" in UI chrome or add thin envelopes |
-| 13 | **HITL pause UI** | Server scaffold only | Approve/reject buttons when `kind=pause` pending (P1; not camera-critical) |
-| 14 | **Corpus scorecard** | No UI / API | Defer until `POST /api/replay/corpus` exists |
-| 15 | **Screenshots / video** | Human content | Fill README slots + `<3 min` video per `06` |
+Ordered originally by demo impact; **now ordered by product usability**.
+
+| # | View / area | Problem / gap | R-phase | Acceptance criteria |
+|---|---|---|---|---|
+| R1a | **Framing** | User-facing “demo” chrome/empty copy reads as a toy | **R1** | No demo badge; empty hints are operator bring-up, not “demo fleet” |
+| R1b | **List APIs** | No pagination / offset; cascade filters incomplete | **R1** | `limit`+`offset` + `X-Total-Count`; sessions filter by `model` |
+| R1c | **Agent signals** | No agent-view for signals | **R1** | `GET /api/agent-view/signals/{id}` envelope |
+| R1d | **Session check** | Agents lack a compact session inspection surface | **R1** | `GET /api/agent-view/check/{session_id}` bounded |
+| R2a | **case_files** | Flat session pick; wrong coupling | **R2** | Cascade Agent → model → session; hero prefer when present |
+| R2b | **time_machine** | Same flat pick; defaults ≠ heroes | **R2** | Same cascade; honest `mixed`; AgentOS-down seam |
+| 4 | **signals** | `guidance` unused; HITL missing | **R2** / later | Render `guidance`; HITL optional |
+| 7 | **HQ routing** | No bookmarkable views | **R2** | Hash routes + optional session/agent params |
+| 1 | **dashboards** | Named boards don’t deep-link UUID | Later | Correct UUIDs or documented picker |
+| 5 | **fleet_health** | Mini-fleet not clickable | Later | Click → filter signals/sources or case_files |
+| 6 | **sources_trust** | Agent mode raw; no link to incident | Later | Envelope + row → case_files |
+| 8 | **Shell** | (was cosmetic demo tag) | **R1** | See R1a |
+| 9 | **Griffin in HQ** | Count only | Later | MAD status strip |
+| 10 | **Threats panel** | API unused in HQ | Later | Compact table or in-UI “folded” note |
+| 11 | **Embedded SigNoz** | No charts | Later | Sparkline only if key present |
+| 12 | **Agent-view consistency** | signals/sources/dashboards skip envelope | **R1–R2** | Signals twin in R1; rest document or wrap |
+| 13 | **HITL pause UI** | Scaffold only | Later | Approve/reject when pause pending |
+| 14 | **Corpus scorecard** | No UI / API | Defer | Until corpus endpoint exists |
+| R3 | **Model explore** | No discovery layer | **R3** | Skills + MCP scaffold; exploration-only agents |
+| 15 | **Screenshots / video** | Human content | Parallel | Submission assets |
+
+---
+
+## 6.1 Founder-aligned gaps (2026-07-22)
+
+| Gap | Severity for “real product” | Plan |
+|---|---|---|
+| Demo framing in HQ/README | High (trust) | R1 |
+| No list pagination | High (scale / agents) | R1 |
+| No agent signals twin | High (agent tools) | R1 |
+| Weak session-check for agents | High (agent tools) | R1 |
+| Case File / TM flat session pick | High (UX coupling) | R2 |
+| No model exploration path | Medium (improve loop) | R3 scaffold |
+| Dashboard UUID links | Medium | Later |
+| MCP stdio PARTIAL | Medium (honesty) | Keep fallbacks; don’t overclaim |
 
 ---
 
@@ -393,7 +418,8 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 
 ## Related
 
-- Review brief: [`16-product-review-brief.md`](16-product-review-brief.md)
+- Review brief: [`16-product-review-brief.md`](16-product-review-brief.md) (§11 founder decisions)
+- Rework plan: [`17-product-rework-plan.md`](17-product-rework-plan.md)
 - Usage guide: [`14-product-guide.md`](14-product-guide.md)
 - Wire contract: [`12-data-api.md`](12-data-api.md)
 - Build log: [`log.md`](log.md)

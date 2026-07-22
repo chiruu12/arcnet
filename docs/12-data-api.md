@@ -122,22 +122,28 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 
 **Not tables (deliberate):** Case Files are generated on demand from `sessions` + `threats` + `replays` — no storage. Griffin's forecasts live in the worker's in-memory cache (the UI band renders the last cycle; anomalies land in SigNoz as telemetry and here as `signals` with `source='griffin'`).
 
-## API contract (FastAPI · all JSON · no auth, localhost demo surface)
+## API contract (FastAPI · all JSON · no auth, localhost surface)
 
 | Route | In | Out |
 |---|---|---|
 | `GET /api/fleet` | — | `[{agent_id, name, role, exposure, model, last_seen, health: {sessions_24h, threats_24h, blocked_24h, cost_24h_usd, anomalies_24h, active_signals}}]` |
-| `GET /api/threats?since=&agent_id=` | query | `[threat row]` (newest first, cap 200) |
-| `GET /api/sources?agent_id=&session_id=` | query | `[source row]` |
+| `GET /api/threats?since=&agent_id=&limit=&offset=` | query | `[threat row]` (newest first; default cap 200). Headers: `X-Total-Count`, `X-Limit`, `X-Offset` (**additive**) |
+| `GET /api/sources?agent_id=&session_id=&limit=&offset=` | query | `[source row]` + same pagination headers (**additive**) |
+| `GET /api/sessions?scenario=&agent_id=&model=&limit=&offset=` | query | session index rows + `has_transcript`; **no** transcript. `model` filter **additive**. Pagination headers **additive** |
 | `GET /api/sessions/{id}?include=transcript` | path | session row (+ full transcript only when asked — it's big) |
+| `GET /api/agents/{agent_id}/models` | path | `[{model, session_count, latest_started_at}]` — distinct models for cascade pickers (**additive**) |
+| `GET /api/signals?session_id=&agent_id=&limit=&offset=` | query | `[signal row]` + pagination headers; `agent_id` filter **additive** |
+| `GET /api/replays?session_id=&limit=&offset=` | query | replay index (no `runs` blob) + pagination headers (**additive**) |
 | `POST /api/replay` | `{session_id, candidate_model?, candidate_prompt?}` (exactly one candidate) | the verdict object (`10`) — synchronous; progress streams over SSE |
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |
-| `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources` | agent-view envelope (below) |
+| `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources, signals, check` | agent-view envelope (below). **`signals` + `check` additive** |
 | `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons) | created signal row |
 | `GET /signals/stream?session_id=` | query (omit = firehose) | SSE (events below) |
 | `POST /webhooks/signoz` | SigNoz alert payload | 204 |
 | `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated row (server relays to AgentOS) |
 | `GET /export/case-file/{session_id}` | path | zip: `case-file.md` + `case-file.json` |
+
+**Pagination convention (additive, 2026-07-22):** list bodies remain JSON **arrays** so existing HQ/clients keep working. Clients that need totals read `X-Total-Count` (and echo `X-Limit` / `X-Offset`). `offset` defaults to `0`; `limit` keeps prior defaults/caps.
 
 ### Agent-view envelope (every view, same wrapper)
 
@@ -159,6 +165,11 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 ```
 
 `data` for `incident`: `{goal, agent, exposure, root_cause: {checkpoint, trust_level, category, evidence_excerpt}, outcome, recommended_actions[], related_replay_id}`. For `replay`: the verdict object. For `fleet`/`session`/`sources`: the same rows the human view renders, minus presentation.
+
+**Additive agent views:**
+
+- `signals` (`id` = `agent_id` or `session_id`): `{signals: [{signal_id, kind, severity, reason_excerpt, guidance_excerpt, source, status, session_id, agent_id, created_at}], truncated}` — excerpts only.
+- `check` (`id` = `session_id`): compact session inspection `{session: {…meta…}, counts: {threats, signals, sources, timeline_steps}, top_threat, active_signals: […bounded…], links}` — no full tool outputs.
 
 ### SSE events (`/signals/stream`)
 

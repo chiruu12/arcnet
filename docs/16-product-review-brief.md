@@ -4,7 +4,9 @@ A short brief for a human reviewer. Comment by **section number** (e.g. “§4: 
 
 **Not this doc:** full inventory, API contracts, verification matrices. Those live in [`15-product-map.md`](15-product-map.md) and [`14-product-guide.md`](14-product-guide.md).
 
-**Focus on:** Is the story clear? Is human vs agent split right? What’s missing for the demo? What should we fix first?
+**Focus on:** Is the story clear? Is human vs agent split right? What’s missing for a usable product? What should we fix first?
+
+**Pivot (2026-07-22):** Founder review closed — see **§11 Founder review decisions**. Product direction is a **real agent enhancement layer**, not a hackathon-demo toy. Implementation plan: [`17-product-rework-plan.md`](17-product-rework-plan.md).
 
 ---
 
@@ -22,13 +24,13 @@ You do **not** need to run the stack to review this brief. If you want to poke H
 
 ## 2. What ArcNet is
 
-**ArcNet is the control plane for a self-improving agent fleet.**
+**ArcNet is the layer that helps you make your agents work properly — and enhance them.**
 
-One loop on a localhost demo (no auth):
+One loop (localhost, no auth in v1):
 
 ```
-OBSERVE → DETECT → DEFEND → HAND OFF → PROVE
- SigNoz    Unplug + Griffin   block/steer/kill   agent-view / Case File   Time Machine
+OBSERVE → DETECT → DEFEND → HAND OFF → PROVE → IMPROVE
+ SigNoz    Unplug + Griffin   block/steer/kill   agent-view / Case File   Time Machine   (model explore · R3)
 ```
 
 | Stage | Plain meaning |
@@ -38,14 +40,15 @@ OBSERVE → DETECT → DEFEND → HAND OFF → PROVE
 | **Defend** | Live signals: `steer`, `kill` (and scaffolded `pause`) — ms inline + SigNoz webhook |
 | **Hand off** | Machine twin: `/api/agent-view/*` + Case File zip for Claude / Cursor / Codex |
 | **Prove** | Time Machine replays a **recorded session** against a candidate model (mocked tools, live guard) |
+| **Improve** | Use proof + case files to pick better models / prompts; exploration agents (R3) discover options |
 
 **Hero proof (shipped):** S1 Edgar `s_ecfdb55d` and S4 Worms `s_2af44726` — both stable `mixed` (security/reliability win with honest cost tradeoff).
 
-**Explicitly not built:** autonomous evolvers (DSPy/GEPA), live tool re-execution for counterfactuals, auth, corpus scorecard UI.
+**Explicitly not built:** full autonomous ops agents, DSPy/GEPA evolvers, live tool re-execution for counterfactuals, auth, corpus scorecard UI.
 
 ```mermaid
 flowchart LR
-  Agents["Demo agents\nAgentOS :7777"] --> SDK["sdk: init + Unplug + signals"]
+  Agents["Instrumented agents\nAgentOS :7777"] --> SDK["sdk: init + Unplug + signals"]
   SDK -->|OTLP optional| SN["SigNoz :8080"]
   SDK --> SV["server :8000\nSQLite"]
   SN -->|webhook| SV
@@ -226,12 +229,61 @@ Reorder freely. Acceptance criteria live in the map §6.
 
 | Doc | Use when |
 |---|---|
+| [`17-product-rework-plan.md`](17-product-rework-plan.md) | Phased productization plan (R1–R3) after founder review |
 | [`14-product-guide.md`](14-product-guide.md) | How to run, use each view, verify |
 | [`15-product-map.md`](15-product-map.md) | Full DONE/PARTIAL/GAP inventory, check matrix, validation notes |
 | [`01-product.md`](01-product.md) | Feature tiers / loop spec |
-| [`06-demo-script.md`](06-demo-script.md) | Camera beats |
+| [`06-demo-script.md`](06-demo-script.md) | Camera beats (hackathon narration — not product framing) |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire contract |
 
 ---
 
-*Feedback on this brief will drive the next edit pass — then implementation against §9.*
+## 11. Founder review decisions (2026-07-22)
+
+Authoritative product direction from founder review of this brief + live HQ. These **supersede** open §8 questions and reorder §9 for the rework pass.
+
+### Positioning
+
+1. **Not a demo toy.** Strip user-facing “demo” language (HQ chrome, empty states, README tone that reads demo-only). Keep honest limitations; do not pretend MCP/SigNoz depth is perfect.
+2. **ArcNet = agent enhancement layer.** Helps you make agents work properly and improve them: observe → defend → replay → case file → improve. Long-lived product, not a one-off hackathon surface.
+3. **Hackathon deadline still exists**, but **product quality wins** over demo polish when they conflict.
+
+### Models & exploration (R3 — scaffold, don’t boil the ocean)
+
+4. Prefer **latest reliable models** (GPT family etc.) for sims and live work; surface which models perform better for the job.
+5. Build **exploration agents** that periodically discover best/newest models for task types — **exploration only**, not full autonomous ops.
+6. Ship **skills + MCP** for that model-discovery layer (YAGNI: plan + stub in R3; API/UX foundations first in R1–R2).
+
+### Frontend / IA
+
+7. **HQ needs a real IA rework** — visual style can stay as a starting point; flows and coupling are wrong today.
+8. **Case Files session picking is wrong.** Cascading selectors, tightly coupled: **Agent → LLM + version for that agent → Session ID** (same pattern for Time Machine where applicable).
+9. Related §9 items that align with “real product” stay in scope when cheap: hero defaults, deep-links / hash routes, `guidance` rendering, agent-view consistency.
+
+### API gaps called out (examples — fix these and similar)
+
+10. **Pagination** on list endpoints (additive `limit`/`offset` + total metadata; do not break existing array shapes without documenting).
+11. **Signals surface for agents** — agent-view (or equivalent) so coding agents can inspect signals as tools/payloads, not only raw list JSON.
+12. **Session inspection for agents** — proper bounded tools/API to check a session (status, threats/signals summaries, timeline digests — **no full tool dumps**).
+13. Wire contracts stay frozen at [`12-data-api.md`](12-data-api.md): new fields/endpoints are **additive**; document in 12 + 15/16/17.
+
+### Explicit non-goals this pass
+
+- Inventing SigNoz Cloud; local path stays.
+- Full model-explorer fleet in one PR.
+- Breaking product-core import boundaries (`sdk/`/`server/`/`hq/` never import `agents/`/`scripts/`).
+
+### Answers to §8 (closed by founder)
+
+| Q | Decision |
+|---|---|
+| 1 human vs agent | Keep split; finish agent twins for signals (and tighten session check). |
+| 2 dashboards deep-links | Still valuable; lower priority than cascade + pagination + agent signals this pass. |
+| 3 hero defaults | Yes — prefer Edgar/Worms when present; cascade still required. |
+| 4 missing HQ view | Fix IA/coupling first; threats can stay folded if Case File / fleet drill works. |
+| 5 agent payload | Bounded envelope + zip stays; add signals + session-check surfaces. |
+| 6 honesty / mixed | Keep honest `mixed`; product framing > camera script. |
+| 7 Griffin | Narrate MAD; TabFM optional later. |
+| 8 §9 reorder | See [`17`](17-product-rework-plan.md) R1→R2→R3. |
+
+*Implementation tracks §11 + [`17-product-rework-plan.md`](17-product-rework-plan.md).*

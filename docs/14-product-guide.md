@@ -279,7 +279,8 @@ Inventory of `hq/` as of this guide (live APIs only — Phase 3 mock route remov
 
 | Doc | Role |
 |---|---|
-| [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — scannable product picture + open questions; comment by section |
+| [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — §11 founder decisions |
+| [`17-product-rework-plan.md`](17-product-rework-plan.md) | **Productization plan** R1–R3 |
 | [`15-product-map.md`](15-product-map.md) | **Full built-surface map** — HQ↔API diagrams, DONE/GAP inventories, verification matrix, iteration backlog |
 | [`01-product.md`](01-product.md) | Feature tiers / loop spec |
 | [`02-architecture.md`](02-architecture.md) | Full architecture |
