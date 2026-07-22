@@ -11,9 +11,8 @@ PYTHONPATH="sdk:server" uv run python -m unittest discover -s sdk/tests
 PYTHONPATH="sdk:server" uv run python -m unittest discover -s server/tests
 uv run python scripts/check_import_boundaries.py
 cd hq && pnpm build
-# after WS9 lands:
-# cd hq && pnpm test
-# PYTHONPATH="sdk:server" uv run python scripts/e2e_path_to_95.py
+cd hq && pnpm test
+PYTHONPATH="sdk:server" uv run python scripts/e2e_path_to_95.py
 ```
 
 Honesty pins (manual assert in PR body):

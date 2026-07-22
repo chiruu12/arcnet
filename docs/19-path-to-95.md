@@ -17,7 +17,7 @@
 
 **Standing constraints (non-negotiable):**
 
-- No claiming TabFM live. Griffin = **MAD** unless TabPFN token path is proven; TabFM only if latency budget met.
+- No claiming TabFM live until Phase 7 exits. Griffin = **MAD** today; **TabFM integration is required** ([`21`](21-next-phases-plan.md) Phase 7 — `google/tabfm-1.0.0-pytorch` `regression/`); TabPFN stays deferred; MAD degrade OK at runtime.
 - Unplug stays **in-process** (no network hop on fail-closed path).
 - `docs/12` changes are **additive** only (no breaking array list bodies without version bump).
 - `sdk/` / `server/` / `hq/` **never** import `agents/` / `scripts/` (boundary script stays green).
@@ -390,9 +390,9 @@ MAD works on **hand-seeded** series; S4 choreographs Griffin→kill. HQ shows an
 2. `GET /api/griffin/status` enrich: per-series warmth, last evaluate, estimator name.
 3. Path without seed theater: pull recent `arcnet.*` from SigNoz Query Range when key present; else derive crude series from SQLite session usage/cost — label source honestly (`signoz` | `sqlite_proxy` | `seed`).
 4. Keep `scripts/seed.py` for cold demo — not the only story.
-5. TabPFN optional worker behind `TABPFN_TOKEN` + interface `forecast(history)->predictions`; failure → MAD; **no TabFM** unless new spike proves ≤ budget (document spike if attempted).
-6. Tests: status shape; evaluate emits signal; HQ label MAD.
-7. Update narration in `07`/`14`/`06` pointers: MAD locked; FM optional.
+5. TabPFN stays deferred (`TABPFN_TOKEN` only if reopened). **TabFM is required** on Phase 7 ([`21`](21-next-phases-plan.md)): `google/tabfm-1.0.0-pytorch` + `subfolder="regression"`, worker isolation, conformal bands, degrade-to-MAD at runtime.
+6. Tests: status shape; evaluate emits signal; HQ label MAD (until Phase 7 exit labels `tabfm`).
+7. Update narration in `07`/`14`/`06` pointers: MAD locked now; TabFM required on roadmap (not optional).
 
 #### Order
 
