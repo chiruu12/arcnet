@@ -1,4 +1,4 @@
-# ArcNet — Product rework plan (R1–R3)
+# ArcNet — Product rework plan (R1–R3 + HQ Agent)
 
 Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal: ship a **usable agent enhancement layer**, not a demo surface.
 
@@ -7,8 +7,9 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 | [`16-product-review-brief.md`](16-product-review-brief.md) §11 | Founder decisions (authoritative) |
 | [`15-product-map.md`](15-product-map.md) | Built inventory + gaps |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire contract — **additive only** |
+| [`18-hq-agent.md`](18-hq-agent.md) | **Next phase** — HQ Agent maintenance layer (SigNoz reuse, MAD Griffin, versions, proposals) |
 
-**Standing constraints:** product-core never imports `agents/`/`scripts/`; Unplug in-process; no full tool outputs in agent contexts; local SigNoz path only; YAGNI on model-explorer fleet.
+**Standing constraints:** product-core never imports `agents/`/`scripts/`; Unplug in-process; no full tool outputs in agent contexts; local SigNoz path only; YAGNI on model-explorer fleet / auto-remediation.
 
 ---
 
@@ -134,6 +135,33 @@ Skills package (proposed path: `skills/arcnet-model-explore/` or repo `mcp/model
 
 ---
 
+## Phase HQ — Operator maintenance agent (next after R2)
+
+**Goal:** Complete the overall fix/enhancement layer as a real agent operators (and coding agents) can run — reuse SigNoz + ArcNet APIs; add version timelines and model-change **proposals** only.
+
+Full design: [`18-hq-agent.md`](18-hq-agent.md).
+
+### Scope (slice 1)
+
+| Work | Notes |
+|---|---|
+| Spec | SigNoz reuse inventory; tool list; version schema; Unplug placement |
+| SDK tools | `arcnet.hq_tools` — HTTP wrappers (fleet, check, signals, signoz, griffin MAD, versions, propose) |
+| Registry | Additive `agent_versions` + list/create/timeline APIs |
+| Agent | `agents/hq_agent/` Agno definition + Unplug guards; tools call SDK only |
+| UI | Thin `#hq_agent` panel — proposals + run instructions |
+| Skills/MCP | `skills/arcnet-hq-agent/` |
+
+### Acceptance criteria
+
+- [x] Docs/18 covers reuse vs build; Griffin labeled **MAD** (not TabFM).
+- [x] Version registry APIs + tests green.
+- [x] HQ tools return bounded JSON; import boundary green.
+- [x] HQ agent wires Unplug like other fleet agents.
+- [x] Propose-model writes `source=hq_agent` note — does not auto-apply.
+
+---
+
 ## Priority vs old map §6
 
 | Old # | Area | R-phase |
@@ -147,6 +175,7 @@ Skills package (proposed path: `skills/arcnet-model-explore/` or repo `mcp/model
 | 1 | Dashboard UUID deep-links | **R2** (status + env) |
 | 14 | Corpus scorecard | Defer |
 | — | Model explorer skills/MCP | **R3** |
+| — | HQ Agent / version timeline / proposals | **HQ** ([`18`](18-hq-agent.md)) |
 
 ---
 

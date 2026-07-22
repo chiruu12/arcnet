@@ -311,6 +311,7 @@ Ordered originally by demo impact; **now ordered by product usability**.
 | 13 | **HITL pause UI** | Scaffold only | Later | Approve/reject when pause pending |
 | 14 | **Corpus scorecard** | No UI / API | Defer | Until corpus endpoint exists |
 | R3 | **Model explore** | No discovery layer | **R3** | Skills + MCP scaffold; exploration-only agents |
+| HQ | **HQ Agent** | No overall maintenance agent | **HQ** ([`18`](18-hq-agent.md)) | Version timeline, MAD griffin tools, proposals, Unplug |
 | 15 | **Screenshots / video** | Human content | Parallel | Submission assets |
 
 ---
@@ -325,6 +326,7 @@ Ordered originally by demo impact; **now ordered by product usability**.
 | Weak session-check for agents | High (agent tools) | R1 |
 | Case File / TM flat session pick | High (UX coupling) | R2 |
 | No model exploration path | Medium (improve loop) | R3 scaffold |
+| No HQ maintenance agent / version timeline | High (product layer) | HQ ([`18`](18-hq-agent.md)) |
 | Dashboard UUID links | Medium | Later |
 | MCP stdio PARTIAL | Medium (honesty) | Keep fallbacks; don’t overclaim |
 

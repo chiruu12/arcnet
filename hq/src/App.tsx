@@ -5,13 +5,14 @@ import type { Mode, View } from "./types";
 import { CaseFiles } from "./views/CaseFiles";
 import { Dashboards } from "./views/Dashboards";
 import { FleetHealth } from "./views/FleetHealth";
+import { HqAgent } from "./views/HqAgent";
 import { Signals } from "./views/Signals";
 import { SourcesTrust } from "./views/SourcesTrust";
 import { TimeMachine } from "./views/TimeMachine";
 
 const NAV: { group: string; items: View[] }[] = [
   { group: "// observe", items: ["fleet_health", "signals", "sources_trust"] },
-  { group: "// improve", items: ["time_machine", "case_files", "dashboards"] },
+  { group: "// improve", items: ["time_machine", "case_files", "dashboards", "hq_agent"] },
 ];
 
 export function App() {
@@ -180,6 +181,7 @@ export function App() {
             />
           )}
           {view === "dashboards" && <Dashboards mode={mode} />}
+          {view === "hq_agent" && <HqAgent />}
         </main>
       </div>
     </div>

@@ -6,7 +6,8 @@ export type View =
   | "sources_trust"
   | "time_machine"
   | "case_files"
-  | "dashboards";
+  | "dashboards"
+  | "hq_agent";
 
 export type CascadeLink = {
   agent?: string;

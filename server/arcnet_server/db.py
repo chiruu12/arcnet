@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   usage             TEXT,
   trace_id          TEXT,
   transcript        TEXT,
+  agent_version     TEXT,
   started_at        INTEGER,
   ended_at          INTEGER
 );
@@ -108,6 +109,18 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   received_at INTEGER,
   PRIMARY KEY (fingerprint, received_at)
 );
+
+CREATE TABLE IF NOT EXISTS agent_versions (
+  version_id     TEXT PRIMARY KEY,
+  agent_id       TEXT NOT NULL REFERENCES agents(agent_id),
+  version        TEXT NOT NULL,
+  model          TEXT,
+  model_version  TEXT,
+  source_ref     TEXT,
+  notes          TEXT,
+  created_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, created_at DESC);
 """
 
 
@@ -128,8 +141,16 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    """Additive column for existing DBs (docs/12 — no migration tool in v1)."""
+    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    _ensure_column(conn, "sessions", "agent_version", "TEXT")
     conn.commit()
 
 

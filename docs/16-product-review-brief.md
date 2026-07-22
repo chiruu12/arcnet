@@ -229,7 +229,8 @@ Reorder freely. Acceptance criteria live in the map §6.
 
 | Doc | Use when |
 |---|---|
-| [`17-product-rework-plan.md`](17-product-rework-plan.md) | Phased productization plan (R1–R3) after founder review |
+| [`17-product-rework-plan.md`](17-product-rework-plan.md) | Phased productization plan (R1–R3 + HQ Agent) after founder review |
+| [`18-hq-agent.md`](18-hq-agent.md) | HQ Agent maintenance layer — SigNoz reuse, MAD Griffin, versions, proposals |
 | [`14-product-guide.md`](14-product-guide.md) | How to run, use each view, verify |
 | [`15-product-map.md`](15-product-map.md) | Full DONE/PARTIAL/GAP inventory, check matrix, validation notes |
 | [`01-product.md`](01-product.md) | Feature tiers / loop spec |
@@ -284,6 +285,6 @@ Authoritative product direction from founder review of this brief + live HQ. The
 | 5 agent payload | Bounded envelope + zip stays; add signals + session-check surfaces. |
 | 6 honesty / mixed | Keep honest `mixed`; product framing > camera script. |
 | 7 Griffin | Narrate MAD; TabFM optional later. |
-| 8 §9 reorder | See [`17`](17-product-rework-plan.md) R1→R2→R3. |
+| 8 §9 reorder | See [`17`](17-product-rework-plan.md) R1→R2→R3→HQ ([`18`](18-hq-agent.md)). |
 
-*Implementation tracks §11 + [`17-product-rework-plan.md`](17-product-rework-plan.md).*
+*Implementation tracks §11 + [`17-product-rework-plan.md`](17-product-rework-plan.md) + [`18-hq-agent.md`](18-hq-agent.md).*

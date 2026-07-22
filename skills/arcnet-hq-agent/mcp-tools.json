@@ -1,0 +1,123 @@
+{
+  "name": "arcnet-hq-agent",
+  "version": "0.1.0",
+  "description": "HQ Agent tools — fleet, SigNoz status, Griffin MAD, versions, model proposals.",
+  "tools": [
+    {
+      "name": "signoz_status",
+      "description": "ArcNet SigNoz probe: UI, API key, query_range, dashboard UUIDs.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "fleet_overview",
+      "description": "Fleet health rows from ArcNet server.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "agent_signals",
+      "description": "Bounded signals envelope for agent_id or session_id.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["agent_or_session_id"],
+        "properties": { "agent_or_session_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "session_check",
+      "description": "Compact session diagnosis (no full tool outputs).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["session_id"],
+        "properties": { "session_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "griffin_anomalies",
+      "description": "Griffin MAD anomaly cache + recent griffin signals (honest MAD label).",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_agent_models",
+      "description": "Models observed for an agent.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["agent_id"],
+        "properties": { "agent_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "recommend_models",
+      "description": "Exploration-only model ranking for a task type.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["task_type"],
+        "properties": {
+          "task_type": { "type": "string" },
+          "constraints": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "agent_version_timeline",
+      "description": "Registered agent version timeline.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["agent_id"],
+        "properties": { "agent_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "register_agent_version",
+      "description": "Register a deployed agent version after a real change.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["agent_id", "version"],
+        "properties": {
+          "agent_id": { "type": "string" },
+          "version": { "type": "string" },
+          "model": { "type": "string" },
+          "model_version": { "type": "string" },
+          "source_ref": { "type": "string" },
+          "notes": { "type": "string" },
+          "server_url": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_model_change",
+      "description": "Record a model-change proposal note (does not auto-apply).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["agent_id", "to_model", "reason"],
+        "properties": {
+          "agent_id": { "type": "string" },
+          "to_model": { "type": "string" },
+          "reason": { "type": "string" },
+          "from_model": { "type": "string" },
+          "task_type": { "type": "string" },
+          "server_url": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_model_proposals",
+      "description": "List recent hq_agent proposal notes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "agent_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
+    }
+  ]
+}
