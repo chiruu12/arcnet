@@ -1,0 +1,32 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "query": {
+      "name": "A",
+      "queryName": "A",
+      "signal": "metrics"
+    },
+    "columns": [
+      {"name": "timestamp"},
+      {"name": "value"},
+      {"name": "metric_name"}
+    ],
+    "result": [
+      {
+        "metric": {"__name__": "arcnet.tokens.total", "agent_id": "agent_j"},
+        "values": [[1700000000, "120"], [1700000060, "135"]]
+      },
+      {
+        "name": "A",
+        "queryName": "builder_meta",
+        "stepInterval": 60
+      },
+      {
+        "name": "metric_name",
+        "fieldDataType": "string",
+        "signal": "metrics"
+      }
+    ]
+  }
+}

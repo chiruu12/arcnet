@@ -1,0 +1,35 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "raw",
+    "query": {
+      "name": "A",
+      "queryName": "A",
+      "signal": "traces"
+    },
+    "columns": [
+      {"name": "name", "signal": "traces"},
+      {"name": "durationNano", "signal": "traces"},
+      {"name": "spanId", "signal": "traces"}
+    ],
+    "result": [
+      {
+        "name": "hello_arcnet.run",
+        "durationNano": 482100000,
+        "spanId": "a1b2c3d4e5f60718",
+        "traceId": "68a0c4a9b793b111882557834a98f57b"
+      },
+      {
+        "name": "OpenAIChat.invoke",
+        "durationNano": 312000000,
+        "spanId": "b2c3d4e5f6071829",
+        "traceId": "68a0c4a9b793b111882557834a98f57b"
+      },
+      {
+        "name": "add",
+        "duration_ns": 1500000,
+        "span_id": "c3d4e5f60718293a"
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "raw",
+    "meta": {"name": "query_meta_only"},
+    "columns": [{"name": "spanName"}, {"name": "durationNano"}],
+    "result": [
+      {
+        "spanName": "agent_j.run",
+        "durationNano": 90000,
+        "spanID": "deadbeef00112233"
+      },
+      {
+        "name": "nested",
+        "children": [
+          {
+            "name": "tool.fetch_url",
+            "duration": 44000,
+            "spanId": "feedface44556677"
+          }
+        ]
+      },
+      {
+        "name": "column_label_only"
+      }
+    ]
+  }
+}
