@@ -19,13 +19,15 @@ from sse_starlette.sse import EventSourceResponse
 
 from arcnet_server import read_models, repository
 from arcnet_server.bus import BUS
-from arcnet_server.db import connect, init_db
+from arcnet_server.db import connect, init_db, now_ms
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
 _griffin_task: asyncio.Task | None = None
 
 WEBHOOK_DEDUPE_MS = 5 * 60 * 1000
+# Bound webhook-derived identifiers so a hostile/malformed alert cannot bloat SQLite.
+WEBHOOK_ID_MAX = 128
 
 
 def get_conn():
@@ -413,26 +415,51 @@ def _kind_from_labels(labels: dict[str, Any]) -> tuple[str, str]:
     return mapping.get(arcnet_kind, ("note", "warn"))
 
 
+def _clip_id(value: Any, *, default: str | None = None) -> str | None:
+    """Truncate webhook label ids; empty → default (None stays None when default is None)."""
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    return text[:WEBHOOK_ID_MAX]
+
+
 @app.post("/webhooks/signoz")
 async def signoz_webhook(request: Request):
     """SigNoz alert webhook — dedupe + map labels → Signal (docs/12)."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, "webhook body must be JSON") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(400, "webhook body must be a JSON object")
+
     conn = get_conn()
-    alerts = body.get("alerts") or [body]
+    raw_alerts = body.get("alerts")
+    alerts: list[Any]
+    if raw_alerts is None:
+        alerts = [body]
+    elif isinstance(raw_alerts, list):
+        alerts = raw_alerts
+    else:
+        raise HTTPException(400, "alerts must be a list when present")
     overall = str(body.get("status") or "").lower()
 
     for alert in alerts:
         if not isinstance(alert, dict):
             continue
         labels = dict(alert.get("labels") or {})
-        fingerprint = str(alert.get("fingerprint") or labels.get("alertname") or "unknown")
+        fingerprint = _clip_id(
+            alert.get("fingerprint") or labels.get("alertname"), default="unknown"
+        ) or "unknown"
         status = str(alert.get("status") or overall or "firing").lower()
 
         seen = repository.webhook_seen_recently(conn, fingerprint, window_ms=WEBHOOK_DEDUPE_MS)
         repository.insert_webhook_event(conn, fingerprint, status, alert)
 
         if status in ("resolved", "ok"):
-            agent_id = labels.get("agent_id") or labels.get("arcnet.agent_id")
+            agent_id = _clip_id(labels.get("agent_id") or labels.get("arcnet.agent_id"))
             if agent_id:
                 repository.expire_alert_signals(conn, agent_id, window_ms=WEBHOOK_DEDUPE_MS)
             conn.commit()
@@ -452,8 +479,14 @@ async def signoz_webhook(request: Request):
         )[:500]
         _insert_signal(
             {
-                "session_id": labels.get("session_id") or labels.get("arcnet.session_id"),
-                "agent_id": labels.get("agent_id") or labels.get("arcnet.agent_id") or "unknown",
+                "session_id": _clip_id(
+                    labels.get("session_id") or labels.get("arcnet.session_id")
+                ),
+                "agent_id": _clip_id(
+                    labels.get("agent_id") or labels.get("arcnet.agent_id"),
+                    default="unknown",
+                )
+                or "unknown",
                 "kind": kind,
                 "severity": severity,
                 "reason": reason,
@@ -488,7 +521,7 @@ async def griffin_evaluate(request: Request) -> dict[str, Any]:
 
 @app.get("/api/signoz/status")
 def signoz_status() -> dict[str, Any]:
-    """Seam probe: can we reach SigNoz UI? Query Range needs API key."""
+    """Seam probe: UI reachability + authenticated Query Range smoke (docs/04)."""
     url = os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
     key = os.getenv("SIGNOZ_API_KEY", "").strip()
     ui_ok = False
@@ -502,14 +535,50 @@ def signoz_status() -> dict[str, Any]:
     query_ok = None
     query_note = "skipped: SIGNOZ_API_KEY empty"
     if key:
+        # Tiny authenticated builder query — proves the key works for Query Range,
+        # not merely that /api/v1/version is reachable.
+        end = now_ms()
+        start = end - 60_000
+        payload = {
+            "start": start,
+            "end": end,
+            "requestType": "raw",
+            "compositeQuery": {
+                "queries": [
+                    {
+                        "type": "builder_query",
+                        "spec": {
+                            "name": "A",
+                            "signal": "traces",
+                            "stepInterval": 60,
+                            "disabled": False,
+                            "filter": {"expression": ""},
+                            "limit": 1,
+                            "offset": 0,
+                            "order": [{"key": {"name": "timestamp"}, "direction": "desc"}],
+                            "having": {"expression": ""},
+                            "selectFields": [
+                                {
+                                    "name": "name",
+                                    "fieldDataType": "string",
+                                    "signal": "traces",
+                                    "fieldContext": "span",
+                                }
+                            ],
+                        },
+                    }
+                ]
+            },
+        }
         try:
-            r = httpx.get(
-                f"{url}/api/v1/version",
-                headers={"SIGNOZ-API-KEY": key},
-                timeout=5.0,
+            r = httpx.post(
+                f"{url}/api/v5/query_range",
+                headers={"SIGNOZ-API-KEY": key, "Content-Type": "application/json"},
+                json=payload,
+                timeout=8.0,
             )
             query_ok = r.status_code < 400
-            query_note = f"version status={r.status_code}"
+            query_note = f"query_range status={r.status_code}"
         except Exception as exc:  # noqa: BLE001
             query_ok = False
             query_note = str(exc)
