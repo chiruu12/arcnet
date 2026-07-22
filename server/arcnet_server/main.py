@@ -222,6 +222,11 @@ async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any
     if not version or not str(version).strip():
         raise HTTPException(400, "version is required")
     version_id = body.get("version_id") or _new_id("av_")
+    session_id = body.get("session_id")
+    if session_id is not None:
+        session_id = str(session_id).strip() or None
+        if session_id and repository.get_session(get_conn(), session_id) is None:
+            raise HTTPException(404, f"session {session_id} not found")
     return repository.insert_agent_version(
         get_conn(),
         version_id,
@@ -232,7 +237,51 @@ async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any
             "model_version": body.get("model_version"),
             "source_ref": body.get("source_ref"),
             "notes": body.get("notes"),
+            "session_id": session_id,
         },
+    )
+
+
+@app.post("/api/agents/{agent_id}/apply-model")
+async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
+    """Human-gated model apply — requires confirm:true; records a version bump."""
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be a JSON object")
+    if body.get("confirm") is not True:
+        raise HTTPException(
+            400,
+            "confirm: true is required (human-gated; no silent model swaps)",
+        )
+    model = body.get("model")
+    version = body.get("version")
+    if not model or not str(model).strip():
+        raise HTTPException(400, "model is required")
+    if not version or not str(version).strip():
+        raise HTTPException(400, "version is required")
+    conn = get_conn()
+    if repository.get_agent(conn, agent_id) is None:
+        raise HTTPException(404, f"agent {agent_id} not found")
+    session_id = body.get("session_id")
+    if session_id is not None:
+        session_id = str(session_id).strip() or None
+        if session_id and repository.get_session(conn, session_id) is None:
+            raise HTTPException(404, f"session {session_id} not found")
+    proposal_signal_id = body.get("proposal_signal_id")
+    if proposal_signal_id is not None:
+        proposal_signal_id = str(proposal_signal_id).strip() or None
+    version_id = body.get("version_id") or _new_id("av_")
+    return repository.apply_agent_model(
+        conn,
+        agent_id,
+        version_id,
+        model=str(model).strip(),
+        version=str(version).strip(),
+        model_version=body.get("model_version"),
+        source_ref=body.get("source_ref"),
+        notes=body.get("notes") or "applied via POST /api/agents/.../apply-model",
+        session_id=session_id,
+        proposal_signal_id=proposal_signal_id,
     )
 
 
