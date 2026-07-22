@@ -1,0 +1,52 @@
+{
+  "name": "arcnet-model-explore",
+  "version": "0.0.1",
+  "description": "Exploration-only model discovery tools for ArcNet (scaffold — not live).",
+  "tools": [
+    {
+      "name": "list_task_types",
+      "description": "List known ArcNet task/usage buckets for model recommendations.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "recommend_models",
+      "description": "Rank candidate models for a task type. Exploration only — does not mutate agents.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["task_type"],
+        "properties": {
+          "task_type": { "type": "string" },
+          "constraints": {
+            "type": "object",
+            "properties": {
+              "max_cost_usd": { "type": "number" },
+              "provider": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "compare_replay_verdicts",
+      "description": "Summarize Time Machine verdict dimensions for a session (bounded).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["session_id"],
+        "properties": { "session_id": { "type": "string" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "fetch_provider_catalog",
+      "description": "Return a cached snapshot of newer/reliable model ids for a provider.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["provider"],
+        "properties": { "provider": { "type": "string" } },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

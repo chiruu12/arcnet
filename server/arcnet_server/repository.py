@@ -180,18 +180,13 @@ def upsert_session(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str
     return session
 
 
-def list_sessions(
-    conn: sqlite3.Connection,
+def _session_filters(
     *,
     scenario: str | None = None,
     agent_id: str | None = None,
-    limit: int = 100,
-) -> list[dict[str, Any]]:
-    """Index rows for pickers/lists — transcripts excluded by design (they're big)."""
-    q = (
-        "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, "
-        "started_at, ended_at, (transcript IS NOT NULL) AS has_transcript FROM sessions WHERE 1=1"
-    )
+    model: str | None = None,
+) -> tuple[str, list[Any]]:
+    q = ""
     params: list[Any] = []
     if scenario:
         q += " AND scenario = ?"
@@ -199,10 +194,67 @@ def list_sessions(
     if agent_id:
         q += " AND agent_id = ?"
         params.append(agent_id)
-    q += " ORDER BY started_at DESC, session_id DESC LIMIT ?"
-    params.append(limit)
+    if model:
+        q += " AND model = ?"
+        params.append(model)
+    return q, params
+
+
+def count_sessions(
+    conn: sqlite3.Connection,
+    *,
+    scenario: str | None = None,
+    agent_id: str | None = None,
+    model: str | None = None,
+) -> int:
+    where, params = _session_filters(scenario=scenario, agent_id=agent_id, model=model)
+    row = conn.execute(f"SELECT COUNT(*) FROM sessions WHERE 1=1{where}", params).fetchone()
+    return int(row[0] if row else 0)
+
+
+def list_sessions(
+    conn: sqlite3.Connection,
+    *,
+    scenario: str | None = None,
+    agent_id: str | None = None,
+    model: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Index rows for pickers/lists — transcripts excluded by design (they're big)."""
+    where, params = _session_filters(scenario=scenario, agent_id=agent_id, model=model)
+    q = (
+        "SELECT session_id, agent_id, scenario, goal, model, status, outcome, usage, trace_id, "
+        "started_at, ended_at, (transcript IS NOT NULL) AS has_transcript FROM sessions WHERE 1=1"
+        f"{where} ORDER BY started_at DESC, session_id DESC LIMIT ? OFFSET ?"
+    )
+    params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
     return [row_to_dict(r, json_fields=["outcome", "usage"]) for r in rows]  # type: ignore[misc]
+
+
+def list_agent_models(conn: sqlite3.Connection, agent_id: str) -> list[dict[str, Any]]:
+    """Distinct models for an agent — cascade picker (docs/12 additive)."""
+    rows = conn.execute(
+        """SELECT model,
+                  COUNT(*) AS session_count,
+                  MAX(started_at) AS latest_started_at
+           FROM sessions
+           WHERE agent_id=? AND model IS NOT NULL AND TRIM(model) != ''
+           GROUP BY model
+           ORDER BY latest_started_at DESC, model ASC""",
+        (agent_id,),
+    ).fetchall()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        out.append(
+            {
+                "model": row[0],
+                "session_count": int(row[1] or 0),
+                "latest_started_at": row[2],
+            }
+        )
+    return out
 
 
 def session_or_agent_exists(conn: sqlite3.Connection, ref_id: str) -> bool:
@@ -244,12 +296,31 @@ def insert_threat(conn: sqlite3.Connection, threat_id: str, fields: dict[str, An
     return d
 
 
+def count_threats(
+    conn: sqlite3.Connection,
+    *,
+    since: int | None = None,
+    agent_id: str | None = None,
+) -> int:
+    q = "SELECT COUNT(*) FROM threats WHERE 1=1"
+    params: list[Any] = []
+    if since is not None:
+        q += " AND created_at >= ?"
+        params.append(since)
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    row = conn.execute(q, params).fetchone()
+    return int(row[0] if row else 0)
+
+
 def list_threats(
     conn: sqlite3.Connection,
     *,
     since: int | None = None,
     agent_id: str | None = None,
     limit: int = 200,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     q = "SELECT * FROM threats WHERE 1=1"
     params: list[Any] = []
@@ -259,8 +330,8 @@ def list_threats(
     if agent_id:
         q += " AND agent_id = ?"
         params.append(agent_id)
-    q += " ORDER BY created_at DESC, threat_id DESC LIMIT ?"
-    params.append(limit)
+    q += " ORDER BY created_at DESC, threat_id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
     return [row_to_dict(r) for r in rows]  # type: ignore[misc]
 
@@ -299,12 +370,31 @@ def insert_source(conn: sqlite3.Connection, source_id: str, fields: dict[str, An
     return d
 
 
+def count_sources(
+    conn: sqlite3.Connection,
+    *,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+) -> int:
+    q = "SELECT COUNT(*) FROM sources WHERE 1=1"
+    params: list[Any] = []
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    if session_id:
+        q += " AND session_id = ?"
+        params.append(session_id)
+    row = conn.execute(q, params).fetchone()
+    return int(row[0] if row else 0)
+
+
 def list_sources(
     conn: sqlite3.Connection,
     *,
     agent_id: str | None = None,
     session_id: str | None = None,
     limit: int = 200,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     q = "SELECT * FROM sources WHERE 1=1"
     params: list[Any] = []
@@ -314,8 +404,8 @@ def list_sources(
     if session_id:
         q += " AND session_id = ?"
         params.append(session_id)
-    q += " ORDER BY created_at DESC, source_id DESC LIMIT ?"
-    params.append(limit)
+    q += " ORDER BY created_at DESC, source_id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
     return [row_to_dict(r) for r in rows]  # type: ignore[misc]
 
@@ -377,11 +467,31 @@ def signal_matches_session(signal: dict[str, Any], session_id: str | None) -> bo
     return sid is None or sid == session_id
 
 
+def count_signals(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str | None = None,
+    agent_id: str | None = None,
+) -> int:
+    q = "SELECT COUNT(*) FROM signals WHERE 1=1"
+    params: list[Any] = []
+    if session_id:
+        q += " AND (session_id = ? OR session_id IS NULL)"
+        params.append(session_id)
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    row = conn.execute(q, params).fetchone()
+    return int(row[0] if row else 0)
+
+
 def list_signals(
     conn: sqlite3.Connection,
     *,
     session_id: str | None = None,
+    agent_id: str | None = None,
     limit: int = 100,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     q = "SELECT * FROM signals WHERE 1=1"
     params: list[Any] = []
@@ -389,8 +499,11 @@ def list_signals(
         # Same scoping as signal_matches_session: session rows + fleet-wide rows.
         q += " AND (session_id = ? OR session_id IS NULL)"
         params.append(session_id)
-    q += " ORDER BY created_at DESC, signal_id DESC LIMIT ?"
-    params.append(limit)
+    if agent_id:
+        q += " AND agent_id = ?"
+        params.append(agent_id)
+    q += " ORDER BY created_at DESC, signal_id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
     return [row_to_dict(r) for r in rows]  # type: ignore[misc]
 
@@ -437,11 +550,22 @@ def get_replay(conn: sqlite3.Connection, replay_id: str) -> dict[str, Any] | Non
     return row_to_dict(row, json_fields=["verdict", "runs"])
 
 
+def count_replays(conn: sqlite3.Connection, *, session_id: str | None = None) -> int:
+    q = "SELECT COUNT(*) FROM replays WHERE 1=1"
+    params: list[Any] = []
+    if session_id:
+        q += " AND session_id = ?"
+        params.append(session_id)
+    row = conn.execute(q, params).fetchone()
+    return int(row[0] if row else 0)
+
+
 def list_replays(
     conn: sqlite3.Connection,
     *,
     session_id: str | None = None,
     limit: int = 100,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     q = (
         "SELECT replay_id, session_id, candidate_model, candidate_prompt_ref, verdict, "
@@ -451,8 +575,8 @@ def list_replays(
     if session_id:
         q += " AND session_id = ?"
         params.append(session_id)
-    q += " ORDER BY created_at DESC, replay_id DESC LIMIT ?"
-    params.append(limit)
+    q += " ORDER BY created_at DESC, replay_id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
     return [row_to_dict(r, json_fields=["verdict"]) for r in rows]  # type: ignore[misc]
 

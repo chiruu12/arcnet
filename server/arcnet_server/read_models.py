@@ -263,6 +263,104 @@ def incident_envelope(conn: sqlite3.Connection, session: dict[str, Any]) -> dict
     )
 
 
+# ---------------------------------------------------------------- agent: signals + session check
+
+
+SIGNAL_LIST_CAP = 50
+
+
+def _signal_agent_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Bounded signal projection — excerpts only (docs/12 additive signals view)."""
+    return {
+        "signal_id": row.get("signal_id"),
+        "session_id": row.get("session_id"),
+        "agent_id": row.get("agent_id"),
+        "kind": row.get("kind"),
+        "severity": row.get("severity"),
+        "reason_excerpt": _excerpt(row.get("reason"), EXCERPT_CHARS),
+        "guidance_excerpt": _excerpt(row.get("guidance"), EXCERPT_CHARS),
+        "source": row.get("source"),
+        "status": row.get("status"),
+        "created_at": row.get("created_at"),
+        "evidence_link": row.get("evidence_link"),
+    }
+
+
+def agent_signals_data(
+    conn: sqlite3.Connection,
+    *,
+    ref_id: str,
+    is_session: bool,
+) -> dict[str, Any]:
+    if is_session:
+        rows = repository.list_signals(conn, session_id=ref_id, limit=SIGNAL_LIST_CAP)
+        total = repository.count_signals(conn, session_id=ref_id)
+    else:
+        rows = repository.list_signals(conn, agent_id=ref_id, limit=SIGNAL_LIST_CAP)
+        total = repository.count_signals(conn, agent_id=ref_id)
+    return {
+        "ref": ref_id,
+        "scope": "session" if is_session else "agent",
+        "signals": [_signal_agent_row(r) for r in rows],
+        "total": total,
+        "truncated": total > len(rows),
+    }
+
+
+def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dict[str, Any]:
+    """Compact session inspection for coding agents — no full tool payloads."""
+    session_id = session["session_id"]
+    threats = repository.threats_for_session(conn, session_id)
+    signals = repository.list_signals(conn, session_id=session_id, limit=10)
+    transcript = session.get("transcript") or {}
+    if isinstance(transcript, str):
+        try:
+            transcript = json.loads(transcript)
+        except json.JSONDecodeError:
+            transcript = {}
+    steps = transcript.get("steps") or []
+    cause = root_cause(threats)
+    active = [
+        _signal_agent_row(s)
+        for s in signals
+        if s.get("status") in ("pending", "delivered")
+    ]
+    return {
+        "session": {
+            k: session.get(k)
+            for k in (
+                "session_id",
+                "agent_id",
+                "scenario",
+                "goal",
+                "model",
+                "status",
+                "trace_id",
+                "started_at",
+                "ended_at",
+            )
+        },
+        "outcome": session.get("outcome"),
+        "usage": session.get("usage"),
+        "counts": {
+            "threats": len(threats),
+            "signals": repository.count_signals(conn, session_id=session_id),
+            "sources": repository.count_sources(conn, session_id=session_id),
+            "timeline_steps": len(steps),
+            "active_signals": len(active),
+        },
+        "top_threat": cause,
+        "active_signals": active[:10],
+        "has_transcript": bool(session.get("transcript")),
+        "related_views": {
+            "incident": f"/api/agent-view/incident/{session_id}",
+            "session": f"/api/agent-view/session/{session_id}",
+            "signals": f"/api/agent-view/signals/{session_id}",
+            "case_file": f"/export/case-file/{session_id}",
+        },
+    }
+
+
 # ---------------------------------------------------------------- case file
 
 

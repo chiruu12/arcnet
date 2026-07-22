@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, subscribeBus, type ReplayRow } from "../api";
 import { AgentJson, Empty, Seam, money, ts } from "../components";
-import type { Mode, SessionRow, Verdict } from "../types";
+import type { AgentModelRow, FleetRow, Mode, SessionRow, Verdict } from "../types";
 
 type Progress = { step: number; total_steps: number; phase: string } | null;
+
+const HERO_SESSIONS = ["s_2af44726", "s_ecfdb55d"];
+const DEFAULT_CANDIDATE = "gpt-4o";
+
+function preferHero(sessions: SessionRow[]): string {
+  for (const id of HERO_SESSIONS) {
+    if (sessions.some((s) => s.session_id === id)) return id;
+  }
+  return sessions[0]?.session_id ?? "";
+}
 
 function badgeFor(run: Record<string, unknown>, isBaseline: boolean): { label: string; cls: string } {
   if ("resisted_injection" in run) {
@@ -30,9 +40,13 @@ const DIMENSIONS: [string, (v: unknown) => string][] = [
 ];
 
 export function TimeMachine({ mode }: { mode: Mode }) {
+  const [fleet, setFleet] = useState<FleetRow[] | null>(null);
+  const [agentId, setAgentId] = useState("");
+  const [models, setModels] = useState<AgentModelRow[]>([]);
+  const [model, setModel] = useState("");
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [selected, setSelected] = useState<string>("");
-  const [candidate, setCandidate] = useState("gpt-4o");
+  const [selected, setSelected] = useState("");
+  const [candidate, setCandidate] = useState(DEFAULT_CANDIDATE);
   const [replays, setReplays] = useState<ReplayRow[]>([]);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [running, setRunning] = useState(false);
@@ -42,12 +56,11 @@ export function TimeMachine({ mode }: { mode: Mode }) {
   useEffect(() => {
     let cancelled = false;
     api
-      .sessions()
-      .then((all) => {
+      .fleet()
+      .then((f) => {
         if (cancelled) return;
-        const replayable = all.filter((s) => s.has_transcript);
-        setSessions(replayable);
-        if (replayable.length > 0) setSelected((cur) => cur || replayable[0].session_id);
+        setFleet(f);
+        if (f.length > 0) setAgentId((cur) => cur || f[0].agent_id);
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -64,7 +77,59 @@ export function TimeMachine({ mode }: { mode: Mode }) {
   }, []);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!agentId) {
+      setModels([]);
+      setModel("");
+      return;
+    }
+    let cancelled = false;
+    setModel("");
+    setSelected("");
+    setSessions(null);
+    api
+      .agentModels(agentId)
+      .then((rows) => {
+        if (cancelled) return;
+        setModels(rows);
+        setModel(rows[0]?.model ?? "");
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setErr(String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId]);
+
+  useEffect(() => {
+    if (!agentId || !model) {
+      setSessions([]);
+      setSelected("");
+      return;
+    }
+    let cancelled = false;
+    api
+      .sessions({ agent_id: agentId, model })
+      .then((all) => {
+        if (cancelled) return;
+        const replayable = all.filter((s) => s.has_transcript);
+        setSessions(replayable);
+        setSelected(preferHero(replayable));
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setErr(String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId, model]);
+
+  useEffect(() => {
+    if (!selected) {
+      setReplays([]);
+      setVerdict(null);
+      return;
+    }
     let cancelled = false;
     api
       .replays(selected)
@@ -129,17 +194,46 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       </h1>
       <p className="lede">
         replay one recorded session against a candidate · tool_outputs=mocked · guard=identical ·
-        3 runs, majority verdict.
+        3 runs, majority verdict. pick agent → model → session.
       </p>
       {err && <Seam error={err} />}
 
       <div className="control-bar">
         <label>
+          agent
+          <select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+            {(fleet ?? []).map((a) => (
+              <option key={a.agent_id} value={a.agent_id}>
+                {a.agent_id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          model
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            disabled={models.length === 0}
+          >
+            {models.length === 0 && <option value="">no sessions</option>}
+            {models.map((m) => (
+              <option key={m.model} value={m.model}>
+                {m.model} · {m.session_count}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           session
-          <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            disabled={!sessions || sessions.length === 0}
+          >
             {(sessions ?? []).map((s) => (
               <option key={s.session_id} value={s.session_id}>
-                {s.session_id} · {s.scenario ?? "—"} · {s.status} · {s.model ?? "—"}
+                {s.session_id} · {s.scenario ?? "—"} · {s.status}
               </option>
             ))}
           </select>
@@ -158,7 +252,7 @@ export function TimeMachine({ mode }: { mode: Mode }) {
       </div>
 
       {sessions && sessions.length === 0 && (
-        <Empty hint="no recorded sessions — ./scripts/run-demo.sh seeds hero transcripts (S1 Edgar, S4 Worms)" />
+        <Empty hint="no replayable sessions for this agent + model — pick another, or record a session with a transcript" />
       )}
 
       {session && (

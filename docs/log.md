@@ -87,3 +87,7 @@ PR #5 merged → `verify-reinforce`. Verification green (unittest suite, HQ buil
 
 Full built-surface inventory: `docs/15-product-map.md` (system + HQ↔API mermaid, DONE/PARTIAL/GAP tables, ~110 verification points, prioritized FE backlog). Validated vs code/`12`/`13`/`14`; adversarial review recorded in-doc (dashboards deep-link fake completeness, default session ≠ heroes, Beat 5 vs `mixed`, MCP PARTIAL, HITL no AgentOS relay). Links from README + `docs/14`. No FE redesign this pass.
 
+## 2026-07-22 — founder review → product rework plan
+
+Founder feedback: pivot from hackathon-demo framing to a **usable agent enhancement layer**. Captured in `docs/16` §11; backlog reordered in `docs/15` §6; phased plan `docs/17-product-rework-plan.md` (R1 API/framing → R2 HQ cascade IA → R3 model-explore skills/MCP). Additive contract updates in `docs/12` (pagination headers, session `model` filter, agents/{id}/models, agent-view `signals` + `check`).
+

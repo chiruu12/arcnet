@@ -1,5 +1,6 @@
 import type {
   AgentEnvelope,
+  AgentModelRow,
   FleetRow,
   SessionRow,
   SignalRow,
@@ -13,6 +14,41 @@ async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
   return res.json() as Promise<T>;
+}
+
+/** Fetch JSON and expose response headers (for X-Total-Count pagination). */
+async function getJSONPaged<T>(path: string): Promise<{ data: T; headers: Headers }> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
+  return { data: (await res.json()) as T, headers: res.headers };
+}
+
+const SESSIONS_PAGE = 500; // server max for /api/sessions
+
+/** Walk /api/sessions pages until X-Total-Count is satisfied. */
+async function fetchAllSessions(params?: {
+  scenario?: string;
+  agent_id?: string;
+  model?: string;
+}): Promise<SessionRow[]> {
+  const all: SessionRow[] = [];
+  let offset = 0;
+  let total = Infinity;
+  while (offset < total) {
+    const q = new URLSearchParams();
+    if (params?.scenario) q.set("scenario", params.scenario);
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.model) q.set("model", params.model);
+    q.set("limit", String(SESSIONS_PAGE));
+    q.set("offset", String(offset));
+    const { data, headers } = await getJSONPaged<SessionRow[]>(`/api/sessions?${q}`);
+    all.push(...data);
+    const headerTotal = headers.get("X-Total-Count");
+    total = headerTotal != null ? Number(headerTotal) : all.length;
+    if (data.length === 0) break;
+    offset += data.length;
+  }
+  return all;
 }
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
@@ -49,16 +85,42 @@ export type SignozStatus = {
 
 export const api = {
   fleet: () => getJSON<FleetRow[]>("/api/fleet"),
-  sessions: (params?: { scenario?: string; agent_id?: string }) => {
+  agentModels: (agentId: string) =>
+    getJSON<AgentModelRow[]>(`/api/agents/${encodeURIComponent(agentId)}/models`),
+  sessions: (params?: {
+    scenario?: string;
+    agent_id?: string;
+    model?: string;
+    limit?: number;
+    offset?: number;
+    /** When true (default for HQ cascades), page through X-Total-Count. */
+    all?: boolean;
+  }) => {
+    if (params?.all !== false && params?.limit == null && params?.offset == null) {
+      return fetchAllSessions({
+        scenario: params?.scenario,
+        agent_id: params?.agent_id,
+        model: params?.model,
+      });
+    }
     const q = new URLSearchParams();
     if (params?.scenario) q.set("scenario", params.scenario);
     if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.model) q.set("model", params.model);
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
     return getJSON<SessionRow[]>(`/api/sessions${qs ? `?${qs}` : ""}`);
   },
   replays: (sessionId?: string) =>
     getJSON<ReplayRow[]>(`/api/replays${sessionId ? `?session_id=${sessionId}` : ""}`),
-  signals: () => getJSON<SignalRow[]>("/api/signals"),
+  signals: (params?: { agent_id?: string; session_id?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.session_id) q.set("session_id", params.session_id);
+    const qs = q.toString();
+    return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);
+  },
   sources: () => getJSON<SourceRow[]>("/api/sources"),
   agentView: (view: string, id: string) =>
     getJSON<AgentEnvelope>(`/api/agent-view/${view}/${encodeURIComponent(id)}`),

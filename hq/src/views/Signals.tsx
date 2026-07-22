@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, subscribeBus } from "../api";
-import { Empty, Seam, ts } from "../components";
-import type { Mode, SignalRow } from "../types";
+import { AgentJson, Empty, Seam, ts } from "../components";
+import type { FleetRow, Mode, SignalRow } from "../types";
 
 const KIND_CLASS: Record<string, string> = {
   kill: "danger",
@@ -13,6 +13,28 @@ export function Signals({ mode }: { mode: Mode }) {
   const [signals, setSignals] = useState<SignalRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [liveCount, setLiveCount] = useState(0);
+  const [fleet, setFleet] = useState<FleetRow[]>([]);
+  const [agentRef, setAgentRef] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .fleet()
+      .then((f) => {
+        if (cancelled) return;
+        setFleet(f);
+        setAgentRef((cur) => {
+          if (cur && f.some((a) => a.agent_id === cur)) return cur;
+          return f[0]?.agent_id ?? "";
+        });
+      })
+      .catch(() => {
+        /* fleet optional for raw list */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,9 +66,24 @@ export function Signals({ mode }: { mode: Mode }) {
     return (
       <>
         <p className="eyebrow">{"// agent_view"}</p>
-        <h1>GET /api/signals</h1>
-        {err && <Seam error={err} />}
-        <pre className="agent-json">{JSON.stringify(signals ?? [], null, 2)}</pre>
+        <h1>signals</h1>
+        {fleet.length > 0 && (
+          <div className="control-bar">
+            <label>
+              agent
+              <select value={agentRef} onChange={(e) => setAgentRef(e.target.value)}>
+                {fleet.map((a) => (
+                  <option key={a.agent_id} value={a.agent_id}>
+                    {a.agent_id}
+                    {a.model ? ` · fleet:${a.model}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        {!agentRef && <Empty hint="loading agent ref…" />}
+        {agentRef && <AgentJson view="signals" id={agentRef} />}
       </>
     );
   }
@@ -61,7 +98,7 @@ export function Signals({ mode }: { mode: Mode }) {
       </p>
       {err && <Seam error={err} />}
       {signals && signals.length === 0 && (
-        <Empty hint="no signals yet — ./scripts/run-demo.sh, or PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1" />
+        <Empty hint="no signals yet — run a guarded agent session, or: PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1" />
       )}
       {signals && signals.length > 0 && (
         <table className="data-table">
@@ -73,6 +110,7 @@ export function Signals({ mode }: { mode: Mode }) {
               <th>agent</th>
               <th>session</th>
               <th>reason</th>
+              <th>guidance</th>
               <th>source</th>
               <th>status</th>
             </tr>
@@ -90,6 +128,7 @@ export function Signals({ mode }: { mode: Mode }) {
                 <td>{s.agent_id}</td>
                 <td className="dim">{s.session_id ?? "—"}</td>
                 <td className="wrap">{s.reason}</td>
+                <td className="wrap dim">{s.guidance ?? "—"}</td>
                 <td className="dim">{s.source}</td>
                 <td>{s.status}</td>
               </tr>

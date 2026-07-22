@@ -34,7 +34,7 @@ export function FleetHealth({ mode }: { mode: Mode }) {
       {err && <Seam error={err} />}
       {!err && !fleet && <p className="lede">loading…</p>}
       {fleet && fleet.length === 0 && (
-        <Empty hint="no agents registered — run ./scripts/run-demo.sh to seed a demo fleet" />
+        <Empty hint="no agents registered — start the server and run an instrumented agent (or ./scripts/run-demo.sh to seed)" />
       )}
       {fleet && fleet.length > 0 && (
         <div className="grid">
