@@ -91,8 +91,8 @@ export function App() {
         <main className="content">
           {apiUp === false && (
             <p className="err">
-              seam: arcnet-server unreachable — start it with `make server` (or
-              scripts/run-demo.sh) and reload.
+              seam: arcnet-server unreachable — start it with `./scripts/run-demo.sh`
+              (or uvicorn on :8000) and reload.
             </p>
           )}
           {view === "fleet_health" && <FleetHealth mode={mode} />}

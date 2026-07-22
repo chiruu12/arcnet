@@ -49,7 +49,7 @@ export function SourcesTrust({ mode }: { mode: Mode }) {
       </p>
       {err && <Seam error={err} />}
       {sources && sources.length === 0 && (
-        <Empty hint="no ingested sources recorded — run a scenario that fetches untrusted content (S1)" />
+        <Empty hint="no ingested sources — PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1 (with server up)" />
       )}
       {sources && sources.length > 0 && (
         <table className="data-table">

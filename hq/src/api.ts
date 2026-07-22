@@ -38,6 +38,15 @@ export type ReplayRow = {
   duration_ms: number | null;
 };
 
+export type SignozStatus = {
+  signoz_url: string;
+  ui_reachable: boolean;
+  ui_status: number | string | null;
+  api_key_present: boolean;
+  query_range_ok: boolean | null;
+  query_note: string;
+};
+
 export const api = {
   fleet: () => getJSON<FleetRow[]>("/api/fleet"),
   sessions: (params?: { scenario?: string; agent_id?: string }) => {
@@ -56,6 +65,7 @@ export const api = {
   runReplay: (session_id: string, candidate_model: string) =>
     postJSON<Verdict>("/api/replay", { session_id, candidate_model }),
   caseFileUrl: (sessionId: string) => `${BASE}/export/case-file/${sessionId}`,
+  signozStatus: () => getJSON<SignozStatus>("/api/signoz/status"),
 };
 
 export type BusEvent = {

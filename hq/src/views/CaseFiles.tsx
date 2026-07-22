@@ -78,7 +78,7 @@ export function CaseFiles({ mode }: { mode: Mode }) {
       </p>
       {err && <Seam error={err} />}
       {sessions && sessions.length === 0 && (
-        <Empty hint="no recorded sessions — run scripts/record_scenario.py or run-demo.sh first" />
+        <Empty hint="no recorded sessions — ./scripts/run-demo.sh seeds hero incidents for export" />
       )}
 
       {sessions && sessions.length > 0 && (
