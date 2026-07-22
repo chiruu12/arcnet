@@ -1,9 +1,9 @@
 """HQ Agent callable tools — HTTP/SDK client over ArcNet APIs (docs/18).
 
 Bounded envelopes only. Does not import agents/ or scripts/.
-Griffin anomalies are labeled MAD (TabFM not live; TabPFN optional later).
+Griffin anomalies are labeled MAD (TabFM required on Phase 7 roadmap; TabPFN deferred).
 
-Error contract (Wave B): tools return structured ``{ok:false, error, tool, …}``
+Error contract (Wave B / Phase 2): tools return structured ``{ok:false, error, tool, …}``
 for catalog/network/timeout blips — never raise into the Agno loop for those.
 """
 
@@ -480,15 +480,26 @@ def propose_model_change(
     out = _post("/api/signal", body, server_url=server_url, tool="propose_model_change")
     if _is_error_payload(out):
         return _wrap_ok("propose_model_change", out)
+    empty_reason = None
+    if not refs:
+        empty_reason = (
+            "no bounded evidence collected (no session/replay/griffin/signoz hits); "
+            "proposal recorded without evidence_refs"
+        )
     if isinstance(out, dict):
         out = {**out, "evidence_refs": refs, "ok": True, "tool": "propose_model_change"}
+        if empty_reason:
+            out["evidence_refs_empty_reason"] = empty_reason
         return out
-    return {
+    payload: dict[str, Any] = {
         "ok": True,
         "tool": "propose_model_change",
         "data": out,
         "evidence_refs": refs,
     }
+    if empty_reason:
+        payload["evidence_refs_empty_reason"] = empty_reason
+    return payload
 
 
 def list_model_proposals(

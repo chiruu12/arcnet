@@ -4,7 +4,7 @@
 **Branch:** `wave-b-path-to-95` (PR #16)  
 **Rule:** overall product readiness **≤60%** until measurable exits pass. No 74/80/95 theater.
 
-Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts).
+Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research).
 
 ---
 
@@ -74,12 +74,12 @@ P1 regression exits (must stay green):
 
 | Gap | Why it blocks |
 |---|---|
-| No `scripts/e2e_path_to_95.py` (or equiv) in CI | Cannot prove propose→apply→pin→check |
-| No HQ FE unit/Vitest job | Cascade/reload UI unverified in CI |
-| SigNoz MCP stdio hang | Deep evidence path PARTIAL |
-| Live Fleet Health without seed | Proxy path unit-tested; not operator-observed cold |
-| Demo dry-run end-to-end | Not run in this measurement pass |
-| TabFM / TabPFN | Correctly **not** claimed; MAD only |
+| ~~No `scripts/e2e_path_to_95.py` in CI~~ | **Phase 2:** e2e + `hq-test` CI landed — still ≤60% until measured re-score |
+| ~~No HQ FE unit job~~ | **Phase 2:** cascade + hash `pnpm test` in CI |
+| SigNoz MCP stdio hang | Deep evidence path PARTIAL — Phase 3 |
+| Live Fleet Health without seed | Proxy path unit-tested; not operator-observed cold — Phase 3 |
+| Demo dry-run end-to-end | Not run in this measurement pass — Phase 4 |
+| TabFM / TabPFN | Not claimed; MAD only until **required** TabFM Phase 7 ([`21`](21-next-phases-plan.md)) |
 
 ---
 
@@ -92,28 +92,31 @@ P1 regression exits (must stay green):
 | Model explore | Session-scoped TM promote; majority dim winners | Explore loop off by default | Live OpenAI catalog + real replays |
 | SigNoz evidence | Links + bounded spans when Query Range shape is span-like | MCP hang; key-less honest empty | Real Query Range against cloud |
 | HQ Agent tools | Timeouts/errors structured; recommend uses deploy URL | Full agent conversation quality | Scripted multi-tool diagnose |
-| HQ UI | Build green; Fleet Health MAD strip / HQ Agent pin UI | FE tests none | Manual cascade matrix |
+| HQ UI | Build green; MAD strip / pin UI; cascade+hash FE tests in CI | — | Manual cascade matrix |
 | Webhooks | Harden tests + same-ms PK fix | — | High-volume burst soak |
 
 ---
 
 ## 5. Next plan — harden framework first (Wave C = backlog)
 
-Order: **fix → test → measure → then new features**. Wave C items stay backlog until measurement exits move.
+**Authoritative phase bundles:** [`21-next-phases-plan.md`](21-next-phases-plan.md). Phase 2 (test/CI) done on `phase-2-test-ci-gates`; next = brief Phase 1 measurement revisit → **Phase 3 (Evidence & Griffin)**. TabFM = **required** Phase 7 (not optional).
+
+Order: **fix → test → measure → then new features**. Wave C items stay backlog until measurement exits move. Overall stays **~55% / ≤60%** — Phase 2 does not unlock 70%+.
 
 ### Top 5 concrete hardening items
 
-1. **WS9 e2e script + CI job** — seed DB → propose → apply(`confirm`) → pin → `check` asserts `version_pinpoint` + reload flag; fail CI on regression.
-2. **HQ FE cascade tests** — Vitest for Agent→version→model→session reducer + deep-link hash; add `pnpm test` to CI.
-3. **Griffin cold-path soak** — no seed file: N loop cycles keep `series_source=sqlite_proxy`, status not stuck `cold`, Fleet Health shows warmth strip without seed theater.
-4. **SigNoz evidence contract** — golden fixtures for Query Range shapes; MCP hang documented + HTTP fallback always preferred in HQ Agent instructions/skills.
-5. **HQ tool error matrix** — each tool: timeout / 4xx / 5xx → stable JSON envelope; recommend/propose always carry `evidence_refs` or explicit empty reason.
+1. ~~**WS9 e2e script + CI job**~~ — **Phase 2 done**
+2. ~~**HQ FE cascade tests**~~ — **Phase 2 done** (`node:test` cascade + hash; CI `hq-test`)
+3. **Griffin cold-path soak** — Phase 3
+4. **SigNoz evidence contract** — Phase 3
+5. ~~**HQ tool error matrix**~~ — **Phase 2 done**
 
 ### Explicit backlog (not % fuel)
 
-- Wave C feature expansion (corpus scorecard, TabPFN path, HITL pause UI polish)
+- Wave C feature expansion (corpus scorecard, HITL pause UI polish)
+- **TabFM integration (required Phase 7)** — HF `google/tabfm-1.0.0-pytorch` `regression/`; MAD degrade OK; TabPFN deferred
 - WS11 hackathon capture (screenshots/video) — track only
-- Claiming ≥70% overall before e2e + FE tests green
+- Claiming ≥70% overall before Phase 3–4 exits + measured re-score
 
 ---
 
