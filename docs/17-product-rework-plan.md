@@ -205,6 +205,16 @@ Shipped: atomic apply-model + ownership checks; check `version_pinpoint`; bounde
 
 **Next:** [`19-path-to-95.md`](19-path-to-95.md) — ordered waves WS1–WS12 to reach ~95% with measurable exit criteria (not checklist inflation). Acceptance appendix: [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md).
 
+### Wave tracking (honest)
+
+| Wave | Status | Measured overall |
+|---|---|---|
+| Baseline | founder re-score | **~48%** |
+| A — Foundations | merged PR #15 | **~62–68 est.** (cascade/API/P0 catalog; not claimed 95%) |
+| B — Enhancement loop | in progress | partial WS3/5/6/7 — **do not claim 95%** |
+| C — Prove it | not started | e2e/CI gates 95% |
+
+Griffin = **MAD** only. No TabFM claims. Catalog fallback on main.
 ---
 
 ## Priority vs old map §6

@@ -222,5 +222,7 @@ Full matrix + truncation regression tests continue in Wave B (WS8). In-process U
 - Griffin runtime estimator = **MAD** (median/MAD robust z-score). TabFM failed latency budget; TabPFN needs token.
 - Model explore = **recommendations only** (live OpenAI list when `OPENAI_API_KEY` set; still exploration-only).
 - SigNoz seasonal anomaly ≠ Griffin; both can coexist with different jobs.
-- **Checklist-done ≠ robust-done.** HQ Agent slices 1–3 exist as a maintenance scaffold (~55% of the operator bar). Still missing: version-first cascade, reliable propose→diagnose→apply with evidence, judge-depth SigNoz, useful Griffin without seed files, honest AgentOS reload after apply-model. See [`17`](17-product-rework-plan.md) honesty table (~**48%** overall) and execution plan [`19`](19-path-to-95.md) **WS3**.
+- **Checklist-done ≠ robust-done.** HQ Agent slices 1–3 + Wave A cascade exist; Wave B hardens tools (timeouts, `{ok:false,error,tool}`), evidence_refs on propose, `agentos_reload_required` honesty, SigNoz evidence helper, Griffin MAD strip. Still missing: full e2e (WS9), complete Unplug matrix, TabPFN. Baseline **~48%**; Wave A ~62–68 est.; Wave B partial — **not 95%**. See [`17`](17-product-rework-plan.md) and [`19`](19-path-to-95.md).
 - Webhook: optional `ARCNET_WEBHOOK_SECRET` (`X-ArcNet-Webhook-Secret` / Bearer). Empty secret = localhost-trust model — document and bind carefully.
+- Apply-model updates SQLite only — response/UI always surface `agentos_reload_required` (never auto-restart AgentOS).
+- SigNoz MCP may hang: prefer `GET /api/signoz/evidence` + Case File `links.signoz_trace`.

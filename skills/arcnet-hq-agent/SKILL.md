@@ -39,16 +39,16 @@ agent.run("Check agent_j versions and propose gpt-4o if tool_heavy issues")
 from arcnet import hq_tools
 
 hq_tools.signoz_status()
+hq_tools.signoz_evidence("s_…")  # MCP hang fallback
 hq_tools.fleet_overview()
 hq_tools.session_check("s_…")
 hq_tools.case_file_view("s_…")
 hq_tools.replay_compare("s_…")
 hq_tools.griffin_anomalies()  # estimator=mad
-hq_tools.recommend_models("injection_resist")
-hq_tools.propose_model_change("agent_j", "gpt-4o", "S1 resists poorly", from_model="gpt-4o-mini")
-hq_tools.apply_model_change("agent_j", "gpt-4o", "2026-07-22.2", confirm=True)  # human-gated
-hq_tools.register_agent_version("agent_j", "2026-07-22.1", model="gpt-4o", source_ref="git:abc", session_id="s_…")
-hq_tools.agent_version_timeline("agent_j")
+hq_tools.recommend_models("injection_resist", constraints={"session_id": "s_…"})
+hq_tools.propose_model_change("agent_j", "gpt-4o", "S1 resists poorly", from_model="gpt-4o-mini", session_id="s_…")
+out = hq_tools.apply_model_change("agent_j", "gpt-4o", "2026-07-22.2", confirm=True)  # human-gated
+# out["agentos_reload_required"] is True — restart AgentOS manually
 ```
 
 ## MCP

@@ -1,7 +1,77 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, type GriffinStatus } from "../api";
 import { AgentJson, Empty, Seam } from "../components";
 import type { FleetRow, Mode } from "../types";
+
+function MadStrip({
+  status,
+  err,
+  onOpenSignals,
+}: {
+  status: GriffinStatus | null;
+  err: string | null;
+  onOpenSignals?: (agentId: string) => void;
+}) {
+  if (err) {
+    return (
+      <div className="mad-strip">
+        <Seam error={`griffin MAD status unavailable — ${err}`} />
+      </div>
+    );
+  }
+  if (!status) {
+    return (
+      <div className="mad-strip">
+        <p className="lede">loading griffin MAD…</p>
+      </div>
+    );
+  }
+  const last = status.last_anomaly;
+  const source = status.series_source || "none";
+  return (
+    <div className="mad-strip">
+      <p className="eyebrow">{"// griffin · MAD"}</p>
+      <div className="control-bar">
+        <span>
+          estimator=<code>MAD</code>
+        </span>
+        <span>
+          status=<code>{status.status}</code>
+        </span>
+        <span className="dim">
+          series={status.series_count ?? 0} · ready={status.ready_count ?? 0} · warming=
+          {status.warming_count ?? 0}
+        </span>
+        <span className="dim">
+          source=<code>{source}</code>
+          {source === "seed" ? " (cold demo)" : ""}
+          {source === "sqlite_proxy" ? " (SQLite usage — honest proxy)" : ""}
+        </span>
+      </div>
+      {last ? (
+        <p className="lede">
+          last outlier: <code>{last.series_id ?? "—"}</code>
+          {last.z != null ? ` z=${last.z}` : ""}
+          {last.agent_id ? (
+            <>
+              {" · "}
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => onOpenSignals?.(last.agent_id!)}
+              >
+                signals:{last.agent_id}
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : (
+        <Empty hint="no MAD outliers yet — warming or no series (seed / sqlite_proxy / signoz)" />
+      )}
+      <p className="dim">{status.honesty ?? "Griffin = MAD. TabFM not live."}</p>
+    </div>
+  );
+}
 
 export function FleetHealth({
   mode,
@@ -13,7 +83,9 @@ export function FleetHealth({
   onOpenSignals?: (agentId: string) => void;
 }) {
   const [fleet, setFleet] = useState<FleetRow[] | null>(null);
+  const [griffin, setGriffin] = useState<GriffinStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [griffinErr, setGriffinErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +96,17 @@ export function FleetHealth({
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
+      });
+    api
+      .griffinStatus()
+      .then((g) => {
+        if (!cancelled) {
+          setGriffin(g);
+          setGriffinErr(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setGriffinErr(String(e));
       });
     return () => {
       cancelled = true;
@@ -37,9 +120,10 @@ export function FleetHealth({
       <p className="eyebrow">{"// observe"}</p>
       <h1>fleet_health</h1>
       <p className="lede">
-        agents · trust posture · threats · cost · griffin anomalies. click an agent to open its
-        case_files cascade; hot agents also deep-link to signals.
+        agents · trust posture · threats · cost · griffin MAD. click an agent to open its case_files
+        cascade; hot agents also deep-link to signals.
       </p>
+      <MadStrip status={griffin} err={griffinErr} onOpenSignals={onOpenSignals} />
       {err && <Seam error={err} />}
       {!err && !fleet && <p className="lede">loading…</p>}
       {fleet && fleet.length === 0 && (

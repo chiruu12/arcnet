@@ -1,12 +1,22 @@
 {
   "name": "arcnet-hq-agent",
-  "version": "0.2.0",
-  "description": "HQ Agent tools — fleet, SigNoz, Griffin MAD, Case File/replay, versions, proposals, human-gated apply.",
+  "version": "0.3.0",
+  "description": "HQ Agent tools — fleet, SigNoz evidence, Griffin MAD, Case File/replay, versions, proposals, human-gated apply (reload required).",
   "tools": [
     {
       "name": "signoz_status",
       "description": "ArcNet SigNoz probe: UI, API key, query_range, dashboard UUIDs.",
       "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "signoz_evidence",
+      "description": "Bounded SigNoz evidence for a session (span names/ids; MCP hang fallback).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["session_id"],
+        "properties": { "session_id": { "type": "string" }, "server_url": { "type": "string" } },
+        "additionalProperties": false
+      }
     },
     {
       "name": "fleet_overview",
@@ -74,7 +84,7 @@
     },
     {
       "name": "recommend_models",
-      "description": "Exploration-only model ranking for a task type.",
+      "description": "Exploration-only model ranking for a task type (TM evidence when session_id set).",
       "inputSchema": {
         "type": "object",
         "required": ["task_type"],
@@ -116,7 +126,7 @@
     },
     {
       "name": "propose_model_change",
-      "description": "Record a model-change proposal note (does not auto-apply).",
+      "description": "Record a model-change proposal note with evidence_refs (does not auto-apply).",
       "inputSchema": {
         "type": "object",
         "required": ["agent_id", "to_model", "reason"],
@@ -126,6 +136,7 @@
           "reason": { "type": "string" },
           "from_model": { "type": "string" },
           "task_type": { "type": "string" },
+          "session_id": { "type": "string" },
           "server_url": { "type": "string" }
         },
         "additionalProperties": false
@@ -142,7 +153,7 @@
     },
     {
       "name": "apply_model_change",
-      "description": "Human-gated model apply. Requires confirm=true; records version bump.",
+      "description": "Human-gated model apply. Requires confirm=true; returns agentos_reload_required.",
       "inputSchema": {
         "type": "object",
         "required": ["agent_id", "model", "version", "confirm"],

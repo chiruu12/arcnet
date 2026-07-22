@@ -248,7 +248,7 @@ class HqToolsTests(unittest.TestCase):
         # Use httpx ASGI transport through TestClient by monkeypatching get/post
         with patch.object(hq_tools, "_get") as g, patch.object(hq_tools, "_post") as p:
 
-            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0):
+            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0, **_kw):
                 r = transport.get(path)
                 r.raise_for_status()
                 return r.json()
@@ -259,6 +259,7 @@ class HqToolsTests(unittest.TestCase):
                 *,
                 server_url: str | None = None,
                 timeout: float = 10.0,
+                **_kw,
             ):
                 r = transport.post(path, json=body)
                 r.raise_for_status()
@@ -293,7 +294,7 @@ class HqToolsTests(unittest.TestCase):
 
         with patch.object(hq_tools, "_get") as g:
 
-            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0):
+            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0, **_kw):
                 if path.startswith("/api/griffin/status"):
                     return {"model": "mad", "status": "cold", "anomalies": []}
                 if path.startswith("/api/signals"):
@@ -318,7 +319,7 @@ class HqToolsTests(unittest.TestCase):
 
         with patch.object(hq_tools, "_get") as g, patch.object(hq_tools, "_post") as p:
 
-            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0):
+            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0, **_kw):
                 r = self.client.get(path)
                 r.raise_for_status()
                 return r.json()
@@ -329,6 +330,7 @@ class HqToolsTests(unittest.TestCase):
                 *,
                 server_url: str | None = None,
                 timeout: float = 10.0,
+                **_kw,
             ):
                 r = self.client.post(path, json=body)
                 r.raise_for_status()
@@ -347,6 +349,7 @@ class HqToolsTests(unittest.TestCase):
             )
             self.assertTrue(applied.get("applied"))
             self.assertEqual(applied["model"], "gpt-4.1")
+            self.assertTrue(applied.get("agentos_reload_required"))
 
     def test_list_proposals_survives_newer_noise(self) -> None:
         """source=hq_agent filter must not be buried by mixed-source pagination."""
@@ -377,7 +380,7 @@ class HqToolsTests(unittest.TestCase):
 
         with patch.object(hq_tools, "_get") as g:
 
-            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0):
+            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0, **_kw):
                 r = self.client.get(path)
                 r.raise_for_status()
                 return r.json()

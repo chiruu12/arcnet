@@ -48,8 +48,11 @@ export function HqAgent({
   const [applyVersion, setApplyVersion] = useState("");
   const [applySourceRef, setApplySourceRef] = useState("");
   const [applyConfirm, setApplyConfirm] = useState(false);
+  const [pinSessionRequired, setPinSessionRequired] = useState(true);
   const [applyProposalId, setApplyProposalId] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [reloadBanner, setReloadBanner] = useState<string | null>(null);
+  const [pinpoint, setPinpoint] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const prefer = useRef({
     version: deepLink?.version,
@@ -218,8 +221,13 @@ export function HqAgent({
       setFlash("model and version required");
       return;
     }
+    if (pinSessionRequired && !sessionId.trim()) {
+      setFlash("session_id required for pin path — uncheck pin_session or pick a session");
+      return;
+    }
     setBusy(true);
     setFlash(null);
+    setPinpoint(null);
     try {
       const out = await api.applyModel(agentId, {
         confirm: true,
@@ -234,6 +242,12 @@ export function HqAgent({
       });
       const pinNote = sessionId.trim() ? ` · pinned ${sessionId.trim()}` : "";
       setFlash(`applied ${out.model} as ${out.version.version}${pinNote}`);
+      if (out.agentos_reload_required !== false) {
+        setReloadBanner(
+          out.agentos_reload_instructions ||
+            "AgentOS still on old model until restart — SQLite updated; do not auto-restart from server.",
+        );
+      }
       setApplyConfirm(false);
       setApplyProposalId(null);
       setCascade((s) =>
@@ -243,6 +257,16 @@ export function HqAgent({
           model: out.model,
         }),
       );
+      if (sessionId.trim()) {
+        try {
+          const check = await api.agentView("check", sessionId.trim());
+          const data = check.data as { version_pinpoint?: { narrative?: string } };
+          const narrative = data?.version_pinpoint?.narrative;
+          if (narrative) setPinpoint(narrative);
+        } catch {
+          /* pinpoint optional */
+        }
+      }
       refresh();
     } catch (e: unknown) {
       setFlash(formatApplyError(e));
@@ -258,8 +282,23 @@ export function HqAgent({
       <p className="lede">
         operator maintenance layer — diagnose strip (agent → version → session) + proposal inbox +
         version timeline. griffin = <code>MAD</code> (not TabFM). apply requires explicit confirm.
-        optional session_id pins the incident; optional source_ref records provenance.
+        pin_session path requires session_id; optional source_ref records provenance. apply updates
+        SQLite only — AgentOS reload is manual.
       </p>
+
+      {reloadBanner && (
+        <p className="err" role="status">
+          agentos_reload_required: {reloadBanner}{" "}
+          <button type="button" className="btn ghost" onClick={() => setReloadBanner(null)}>
+            dismiss
+          </button>
+        </p>
+      )}
+      {pinpoint && (
+        <p className="lede" role="status">
+          version_pinpoint: {pinpoint}
+        </p>
+      )}
 
       <div className="control-bar">
         <label>
@@ -306,7 +345,7 @@ export function HqAgent({
                 cascadeReducer(s, { type: "set_session", sessionId: e.target.value.trim() }),
               )
             }
-            placeholder="optional — from case_files"
+            placeholder={pinSessionRequired ? "required when pin_session checked" : "optional"}
             spellCheck={false}
           />
         </label>
@@ -368,6 +407,14 @@ export function HqAgent({
             placeholder="git sha / prompt path"
             spellCheck={false}
           />
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={pinSessionRequired}
+            onChange={(e) => setPinSessionRequired(e.target.checked)}
+          />
+          pin_session
         </label>
         <label className="check">
           <input

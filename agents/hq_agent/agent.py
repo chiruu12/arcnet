@@ -44,6 +44,12 @@ def tool_signoz_status() -> str:
     return json.dumps(hq_tools.signoz_status(server_url=_server()))
 
 
+@tool(name="signoz_evidence")
+def tool_signoz_evidence(session_id: str) -> str:
+    """Bounded SigNoz evidence for a session (span names/ids only; MCP hang fallback)."""
+    return json.dumps(hq_tools.signoz_evidence(session_id, server_url=_server()))
+
+
 @tool(name="fleet_overview")
 def tool_fleet_overview() -> str:
     """Fleet agents with 24h health counts."""
@@ -95,6 +101,9 @@ def tool_recommend_models(task_type: str, constraints_json: str = "{}") -> str:
         constraints = {}
     if not isinstance(constraints, dict):
         constraints = {}
+    # Default TM evidence to this agent's ArcNet deployment (not bare localhost)
+    if not constraints.get("server_url"):
+        constraints = {**constraints, "server_url": _server()}
     return json.dumps(hq_tools.recommend_models(task_type, constraints=constraints))
 
 
@@ -136,8 +145,9 @@ def tool_propose_model_change(
     reason: str,
     from_model: str = "",
     task_type: str = "",
+    session_id: str = "",
 ) -> str:
-    """Propose a model change as a note signal — does not auto-apply."""
+    """Propose a model change as a note signal — does not auto-apply. Attaches evidence_refs."""
     return json.dumps(
         hq_tools.propose_model_change(
             agent_id,
@@ -145,6 +155,7 @@ def tool_propose_model_change(
             reason,
             from_model=from_model or None,
             task_type=task_type or None,
+            session_id=session_id or None,
             server_url=_server(),
         )
     )
@@ -163,6 +174,7 @@ def tool_list_model_proposals(agent_id: str = "") -> str:
 
 HQ_TOOLS = [
     tool_signoz_status,
+    tool_signoz_evidence,
     tool_fleet_overview,
     tool_agent_signals,
     tool_session_check,
