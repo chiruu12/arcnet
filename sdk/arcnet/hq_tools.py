@@ -11,7 +11,8 @@ from typing import Any
 
 import httpx
 
-from arcnet.hq import check_session, signals_view
+from arcnet.hq import check_session, incident_view, signals_view
+from arcnet.model_explore import compare_replay_verdicts as _compare_replay_verdicts
 from arcnet.model_explore import recommend_models as _recommend_models
 
 _DEFAULT_BASE = "http://localhost:8000"
@@ -68,20 +69,34 @@ def session_check(
     return check_session(session_id, server_url=server_url)
 
 
+def case_file_view(
+    session_id: str,
+    *,
+    server_url: str | None = None,
+) -> dict[str, Any]:
+    """Bounded Case File / incident envelope (no zip, no full tool dumps)."""
+    return incident_view(session_id, server_url=server_url)
+
+
+def replay_compare(
+    session_id: str,
+    *,
+    server_url: str | None = None,
+) -> dict[str, Any]:
+    """Bounded Time Machine verdict summaries for a session."""
+    return _compare_replay_verdicts(session_id, server_url=server_url)
+
+
 def griffin_anomalies(*, server_url: str | None = None) -> dict[str, Any]:
     """Griffin cache + recent griffin-sourced signals. Estimator = MAD (honest)."""
     status = _get("/api/griffin/status", server_url=server_url)
-    signals = _get("/api/signals?limit=50&offset=0", server_url=server_url)
-    griffin_sigs = [
-        s
-        for s in (signals if isinstance(signals, list) else [])
-        if isinstance(s, dict) and str(s.get("source") or "").lower() == "griffin"
-    ][:20]
+    signals = _get("/api/signals?source=griffin&limit=20&offset=0", server_url=server_url)
+    griffin_sigs = [s for s in (signals if isinstance(signals, list) else []) if isinstance(s, dict)]
     return {
         "estimator": "mad",
         "note": "Griffin uses MAD (median/MAD robust z-score). TabFM too slow; TabPFN needs TABPFN_TOKEN.",
         "status": status,
-        "recent_griffin_signals": griffin_sigs,
+        "recent_griffin_signals": griffin_sigs[:20],
     }
 
 
@@ -118,6 +133,7 @@ def register_agent_version(
     model_version: str | None = None,
     source_ref: str | None = None,
     notes: str | None = None,
+    session_id: str | None = None,
     server_url: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"version": version}
@@ -129,6 +145,8 @@ def register_agent_version(
         body["source_ref"] = source_ref
     if notes is not None:
         body["notes"] = notes
+    if session_id is not None:
+        body["session_id"] = session_id
     return _post(f"/api/agents/{agent_id}/versions", body, server_url=server_url)
 
 
@@ -146,7 +164,7 @@ def propose_model_change(
     guidance = (
         f"Proposed model change for {agent_id}: {from_bit}{to_model}."
         + (f" task_type={task_type}." if task_type else "")
-        + " Apply manually (register_agent_version after deploy). No auto-apply."
+        + " Apply via POST /api/agents/{id}/apply-model with confirm:true (human-gated)."
     )
     return _post(
         "/api/signal",
@@ -176,3 +194,40 @@ def list_model_proposals(
     if not isinstance(rows, list):
         return []
     return [r for r in rows if isinstance(r, dict)]
+
+
+def apply_model_change(
+    agent_id: str,
+    model: str,
+    version: str,
+    *,
+    confirm: bool = False,
+    model_version: str | None = None,
+    source_ref: str | None = None,
+    notes: str | None = None,
+    session_id: str | None = None,
+    proposal_signal_id: str | None = None,
+    server_url: str | None = None,
+) -> dict[str, Any]:
+    """Human-gated apply — requires confirm=True; records version bump on the server."""
+    if confirm is not True:
+        return {
+            "applied": False,
+            "error": "confirm=True required (human-gated; refusing silent apply)",
+        }
+    body: dict[str, Any] = {
+        "confirm": True,
+        "model": model,
+        "version": version,
+    }
+    if model_version is not None:
+        body["model_version"] = model_version
+    if source_ref is not None:
+        body["source_ref"] = source_ref
+    if notes is not None:
+        body["notes"] = notes
+    if session_id is not None:
+        body["session_id"] = session_id
+    if proposal_signal_id is not None:
+        body["proposal_signal_id"] = proposal_signal_id
+    return _post(f"/api/agents/{agent_id}/apply-model", body, server_url=server_url)

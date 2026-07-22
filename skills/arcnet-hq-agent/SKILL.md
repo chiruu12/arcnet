@@ -41,10 +41,13 @@ from arcnet import hq_tools
 hq_tools.signoz_status()
 hq_tools.fleet_overview()
 hq_tools.session_check("s_…")
+hq_tools.case_file_view("s_…")
+hq_tools.replay_compare("s_…")
 hq_tools.griffin_anomalies()  # estimator=mad
 hq_tools.recommend_models("injection_resist")
 hq_tools.propose_model_change("agent_j", "gpt-4o", "S1 resists poorly", from_model="gpt-4o-mini")
-hq_tools.register_agent_version("agent_j", "2026-07-22.1", model="gpt-4o", source_ref="git:abc")
+hq_tools.apply_model_change("agent_j", "gpt-4o", "2026-07-22.2", confirm=True)  # human-gated
+hq_tools.register_agent_version("agent_j", "2026-07-22.1", model="gpt-4o", source_ref="git:abc", session_id="s_…")
 hq_tools.agent_version_timeline("agent_j")
 ```
 
@@ -55,4 +58,4 @@ See [`mcp-tools.json`](mcp-tools.json) + [`mcp_server.py`](mcp_server.py) (JSON-
 ## Honesty
 
 - Griffin = **MAD**. TabFM not live. TabPFN needs `TABPFN_TOKEN`.
-- Proposals are `signals` with `source=hq_agent` — humans/coding agents apply.
+- Proposals are `signals` with `source=hq_agent` — apply only with `confirm: true`.

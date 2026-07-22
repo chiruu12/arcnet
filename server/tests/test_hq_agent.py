@@ -37,6 +37,16 @@ class AgentVersionRegistryTests(unittest.TestCase):
         cls._tmpdir.cleanup()
 
     def test_create_list_timeline(self) -> None:
+        # Shared class DB may have been mutated by apply tests — reset model.
+        self.client.post(
+            "/api/agents",
+            json={
+                "agent_id": "agent_j",
+                "name": "Agent J",
+                "exposure": "forward_facing",
+                "model": "gpt-4o-mini",
+            },
+        )
         created = self.client.post(
             "/api/agents/agent_j/versions",
             json={
@@ -66,6 +76,145 @@ class AgentVersionRegistryTests(unittest.TestCase):
     def test_create_requires_version(self) -> None:
         r = self.client.post("/api/agents/agent_j/versions", json={"model": "gpt-4o"})
         self.assertEqual(r.status_code, 400)
+
+    def test_register_pins_session_agent_version(self) -> None:
+        sid = "s_pin_test"
+        self.client.post(
+            "/api/sessions",
+            json={
+                "session_id": sid,
+                "agent_id": "agent_j",
+                "model": "gpt-4o-mini",
+                "status": "completed",
+            },
+        )
+        created = self.client.post(
+            "/api/agents/agent_j/versions",
+            json={
+                "version": "pin-1",
+                "model": "gpt-4o",
+                "session_id": sid,
+            },
+        )
+        self.assertEqual(created.status_code, 200)
+        vid = created.json()["version_id"]
+        sess = self.client.get(f"/api/sessions/{sid}")
+        self.assertEqual(sess.status_code, 200)
+        self.assertEqual(sess.json().get("agent_version"), vid)
+
+    def test_apply_model_requires_confirm(self) -> None:
+        denied = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={"model": "gpt-4o", "version": "v-deny"},
+        )
+        self.assertEqual(denied.status_code, 400)
+
+        prop = self.client.post(
+            "/api/signal",
+            json={
+                "agent_id": "agent_j",
+                "kind": "note",
+                "severity": "info",
+                "reason": "apply me",
+                "guidance": "Proposed model change for agent_j: gpt-4o-mini → gpt-4o.",
+                "source": "hq_agent",
+            },
+        ).json()
+
+        ok = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-apply-1",
+                "proposal_signal_id": prop["signal_id"],
+            },
+        )
+        self.assertEqual(ok.status_code, 200)
+        body = ok.json()
+        self.assertTrue(body["applied"])
+        self.assertEqual(body["model"], "gpt-4o")
+        self.assertEqual(body["version"]["version"], "v-apply-1")
+        self.assertEqual(body["proposal"]["status"], "applied")
+
+        tl = self.client.get("/api/agents/agent_j/versions/timeline")
+        self.assertEqual(tl.json()["current_model"], "gpt-4o")
+
+    def test_apply_model_rejects_cross_agent_session_and_proposal(self) -> None:
+        self.client.post(
+            "/api/agents",
+            json={"agent_id": "agent_l", "name": "L", "model": "gpt-4o-mini"},
+        )
+        foreign_sess = self.client.post(
+            "/api/sessions",
+            json={
+                "agent_id": "agent_l",
+                "scenario": "s1",
+                "goal": "other agent",
+                "model": "gpt-4o-mini",
+            },
+        ).json()["session_id"]
+        foreign_prop = self.client.post(
+            "/api/signal",
+            json={
+                "agent_id": "agent_l",
+                "kind": "note",
+                "severity": "info",
+                "reason": "foreign",
+                "guidance": "Proposed model change for agent_l: gpt-4o.",
+                "source": "hq_agent",
+            },
+        ).json()["signal_id"]
+
+        bad_sess = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-xagent-sess",
+                "session_id": foreign_sess,
+            },
+        )
+        self.assertEqual(bad_sess.status_code, 400)
+        agent_model = self.client.get("/api/agents/agent_j/versions/timeline").json()["current_model"]
+        self.assertNotEqual(agent_model, "gpt-4o")
+
+        bad_prop = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-xagent-prop",
+                "proposal_signal_id": foreign_prop,
+            },
+        )
+        self.assertEqual(bad_prop.status_code, 400)
+        still = self.client.get(f"/api/signals?source=hq_agent&agent_id=agent_l").json()
+        self.assertTrue(any(s["signal_id"] == foreign_prop and s["status"] != "applied" for s in still))
+
+    def test_apply_model_duplicate_version_id_is_atomic(self) -> None:
+        """Duplicate version_id must not leave agents.model bumped without a new row."""
+        first = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={"confirm": True, "model": "gpt-4o-mini", "version": "v-dup-base"},
+        )
+        self.assertEqual(first.status_code, 200)
+        vid = first.json()["version"]["version_id"]
+        before = self.client.get("/api/agents/agent_j/versions/timeline").json()["current_model"]
+
+        dup = self.client.post(
+            "/api/agents/agent_j/apply-model",
+            json={
+                "confirm": True,
+                "model": "gpt-4o",
+                "version": "v-dup-attempt",
+                "version_id": vid,
+            },
+        )
+        self.assertEqual(dup.status_code, 400)
+        after = self.client.get("/api/agents/agent_j/versions/timeline").json()
+        self.assertEqual(after["current_model"], before)
+        self.assertEqual(sum(1 for v in after["versions"] if v["version_id"] == vid), 1)
 
 
 class HqToolsTests(unittest.TestCase):
@@ -164,11 +313,45 @@ class HqToolsTests(unittest.TestCase):
             self.assertIn("MAD", out["note"])
             self.assertEqual(len(out["recent_griffin_signals"]), 1)
 
+    def test_apply_and_case_file_tools(self) -> None:
+        from arcnet import hq_tools
+
+        with patch.object(hq_tools, "_get") as g, patch.object(hq_tools, "_post") as p:
+
+            def get_side(path: str, *, server_url: str | None = None, timeout: float = 10.0):
+                r = self.client.get(path)
+                r.raise_for_status()
+                return r.json()
+
+            def post_side(
+                path: str,
+                body: dict,
+                *,
+                server_url: str | None = None,
+                timeout: float = 10.0,
+            ):
+                r = self.client.post(path, json=body)
+                r.raise_for_status()
+                return r.json()
+
+            g.side_effect = get_side
+            p.side_effect = post_side
+
+            refused = hq_tools.apply_model_change(
+                "agent_j", "gpt-4o", "v-tool-refuse", confirm=False
+            )
+            self.assertFalse(refused.get("applied"))
+
+            applied = hq_tools.apply_model_change(
+                "agent_j", "gpt-4.1", "v-tool-apply", confirm=True
+            )
+            self.assertTrue(applied.get("applied"))
+            self.assertEqual(applied["model"], "gpt-4.1")
+
     def test_list_proposals_survives_newer_noise(self) -> None:
         """source=hq_agent filter must not be buried by mixed-source pagination."""
         from arcnet import hq_tools
 
-        # Flood with non-hq signals after a proposal exists.
         prop = self.client.post(
             "/api/signal",
             json={
@@ -203,13 +386,18 @@ class HqToolsTests(unittest.TestCase):
             proposals = hq_tools.list_model_proposals(agent_id="agent_j", limit=30)
 
         self.assertTrue(any(x["signal_id"] == prop["signal_id"] for x in proposals))
-        # Direct API also filters.
         filtered = self.client.get(
             "/api/signals?agent_id=agent_j&source=hq_agent&limit=30"
         )
         self.assertEqual(filtered.status_code, 200)
         self.assertTrue(all(r["source"] == "hq_agent" for r in filtered.json()))
         self.assertGreaterEqual(int(filtered.headers.get("X-Total-Count", "0")), 1)
+
+    def test_recommend_models_local(self) -> None:
+        from arcnet import hq_tools
+
+        rec = hq_tools.recommend_models("tool_heavy")
+        self.assertIn("recommendations", rec)
 
 
 class HqAgentBuildSmoke(unittest.TestCase):

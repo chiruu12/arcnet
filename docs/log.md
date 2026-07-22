@@ -102,5 +102,10 @@ Branch `product-rework-r2`: HQ hash `?agent=&model=&session=`; fleet + mini-flee
 ## HQ Agent — Wed Jul 22
 
 **Expected:** docs/18 plan; version registry; `hq_tools` + Agno HQ agent with Unplug; thin `#hq_agent` UI; skill/MCP; MAD honesty.
-**Actual:** PR #10 merged (MCP JSON-RPC fix); branch `hq-agent`. Added `agent_versions` + APIs; `sdk/arcnet/hq_tools.py`; `agents/hq_agent/`; `#hq_agent` view; `skills/arcnet-hq-agent/`. Griffin tools label **MAD** (not TabFM). Proposals = `source=hq_agent` notes only.
+**Actual:** PR #10 merged (MCP JSON-RPC fix); PR #11 merged (`hq-agent`). Added `agent_versions` + APIs; `sdk/arcnet/hq_tools.py`; `agents/hq_agent/`; `#hq_agent` view; `skills/arcnet-hq-agent/`. Griffin tools label **MAD** (not TabFM). Proposals = `source=hq_agent` notes only. Greptile P1 fixed: `GET /api/signals?source=` so proposals are not buried by mixed-source pagination.
+
+## HQ Agent slices 2–3 — Wed Jul 22
+
+**Expected:** Case File / replay tools; proposal inbox polish; human-gated apply-model; session→version pin.
+**Actual:** `case_file_view` + `replay_compare` tools; HQ proposal inbox with refresh / prep_apply / confirm checkbox; `POST /api/agents/{id}/apply-model` (`confirm: true` required) bumps model + registers version + optional proposal `status=applied`; `session_id` on version create/apply pins `sessions.agent_version`. TabPFN still deferred (no `TABPFN_TOKEN` work this pass).
 

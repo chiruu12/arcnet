@@ -66,6 +66,35 @@ def ensure_agent(conn: sqlite3.Connection, agent_id: str, *, exposure: str | Non
         )
 
 
+def set_agent_model(conn: sqlite3.Connection, agent_id: str, model: str) -> dict[str, Any]:
+    """Update the agent's current model (human-gated apply path)."""
+    ensure_agent(conn, agent_id, exposure=None, model=model)
+    conn.execute(
+        "UPDATE agents SET model=?, last_seen=? WHERE agent_id=?",
+        (model, now_ms(), agent_id),
+    )
+    conn.commit()
+    agent = get_agent(conn, agent_id)
+    assert agent is not None
+    return agent
+
+
+def set_session_agent_version(
+    conn: sqlite3.Connection,
+    session_id: str,
+    agent_version: str,
+) -> dict[str, Any] | None:
+    """Pin a session row to an agent_versions.version_id or version tag."""
+    if get_session(conn, session_id) is None:
+        return None
+    conn.execute(
+        "UPDATE sessions SET agent_version=? WHERE session_id=?",
+        (agent_version, session_id),
+    )
+    conn.commit()
+    return get_session(conn, session_id)
+
+
 def fleet_records(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Agents + 24h health aggregates in one pass (no per-agent query loop)."""
     day_ago = now_ms() - DAY_MS
@@ -682,10 +711,129 @@ def insert_agent_version(
             now_ms(),
         ),
     )
-    conn.commit()
+    session_id = fields.get("session_id")
+    if session_id:
+        pinned = set_session_agent_version(conn, str(session_id), version_id)
+        if pinned is None:
+            conn.commit()  # version row still persists even if session missing
+    else:
+        conn.commit()
     row = get_agent_version(conn, version_id)
     assert row is not None
     return row
+
+
+class ApplyModelError(ValueError):
+    """Raised when apply-model cannot complete safely (route maps to 4xx)."""
+
+
+def apply_agent_model(
+    conn: sqlite3.Connection,
+    agent_id: str,
+    version_id: str,
+    *,
+    model: str,
+    version: str,
+    model_version: str | None = None,
+    source_ref: str | None = None,
+    notes: str | None = None,
+    session_id: str | None = None,
+    proposal_signal_id: str | None = None,
+) -> dict[str, Any]:
+    """Human-gated model apply: bump agent.model + register version (+ optional pins).
+
+    Single SQLite transaction — never leaves agents.model changed without a
+    matching agent_versions row. Session/proposal refs must belong to agent_id.
+    """
+    if get_agent_version(conn, version_id) is not None:
+        raise ApplyModelError(f"version_id {version_id} already exists")
+
+    if session_id:
+        sess = get_session(conn, session_id)
+        if sess is None:
+            raise ApplyModelError(f"session {session_id} not found")
+        if sess.get("agent_id") != agent_id:
+            raise ApplyModelError(
+                f"session {session_id} belongs to agent {sess.get('agent_id')}, not {agent_id}"
+            )
+
+    proposal_row: dict[str, Any] | None = None
+    if proposal_signal_id:
+        sig = conn.execute(
+            "SELECT * FROM signals WHERE signal_id=?", (proposal_signal_id,)
+        ).fetchone()
+        proposal_row = row_to_dict(sig)
+        if proposal_row is None:
+            raise ApplyModelError(f"proposal {proposal_signal_id} not found")
+        if proposal_row.get("source") != "hq_agent":
+            raise ApplyModelError(
+                f"proposal {proposal_signal_id} is not source=hq_agent"
+            )
+        if proposal_row.get("agent_id") != agent_id:
+            raise ApplyModelError(
+                f"proposal {proposal_signal_id} belongs to agent "
+                f"{proposal_row.get('agent_id')}, not {agent_id}"
+            )
+
+    try:
+        ensure_agent(conn, agent_id, exposure=None, model=model)
+        conn.execute(
+            "UPDATE agents SET model=?, last_seen=? WHERE agent_id=?",
+            (model, now_ms(), agent_id),
+        )
+        conn.execute(
+            """INSERT INTO agent_versions
+               (version_id, agent_id, version, model, model_version, source_ref, notes, created_at)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                version_id,
+                agent_id,
+                version,
+                model,
+                model_version,
+                source_ref,
+                notes,
+                now_ms(),
+            ),
+        )
+        if session_id:
+            conn.execute(
+                "UPDATE sessions SET agent_version=? WHERE session_id=? AND agent_id=?",
+                (version_id, session_id, agent_id),
+            )
+        if proposal_signal_id:
+            cur = conn.execute(
+                """UPDATE signals SET status=?
+                   WHERE signal_id=? AND source='hq_agent' AND agent_id=?""",
+                ("applied", proposal_signal_id, agent_id),
+            )
+            if cur.rowcount != 1:
+                raise ApplyModelError(
+                    f"proposal {proposal_signal_id} not updated (wrong agent/source)"
+                )
+        conn.commit()
+    except ApplyModelError:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+
+    row = get_agent_version(conn, version_id)
+    assert row is not None
+    proposal: dict[str, Any] | None = None
+    if proposal_signal_id:
+        sig = conn.execute(
+            "SELECT * FROM signals WHERE signal_id=?", (proposal_signal_id,)
+        ).fetchone()
+        proposal = row_to_dict(sig)
+    return {
+        "agent_id": agent_id,
+        "model": model,
+        "version": row,
+        "proposal": proposal,
+        "applied": True,
+    }
 
 
 def get_agent_version(conn: sqlite3.Connection, version_id: str) -> dict[str, Any] | None:

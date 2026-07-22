@@ -47,6 +47,32 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "case_file_view",
+        "description": "Bounded Case File / incident envelope for a session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "server_url": {"type": "string"},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "replay_compare",
+        "description": "Bounded Time Machine verdict summaries for a session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "server_url": {"type": "string"},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "griffin_anomalies",
         "description": "Griffin MAD anomaly cache + recent griffin signals.",
         "inputSchema": {
@@ -106,6 +132,7 @@ TOOLS: list[dict[str, Any]] = [
                 "model_version": {"type": "string"},
                 "source_ref": {"type": "string"},
                 "notes": {"type": "string"},
+                "session_id": {"type": "string"},
                 "server_url": {"type": "string"},
             },
             "required": ["agent_id", "version"],
@@ -141,6 +168,25 @@ TOOLS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "apply_model_change",
+        "description": "Human-gated model apply. Requires confirm=true; records version bump.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {"type": "string"},
+                "model": {"type": "string"},
+                "version": {"type": "string"},
+                "confirm": {"type": "boolean"},
+                "session_id": {"type": "string"},
+                "proposal_signal_id": {"type": "string"},
+                "notes": {"type": "string"},
+                "server_url": {"type": "string"},
+            },
+            "required": ["agent_id", "model", "version", "confirm"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -154,6 +200,10 @@ def _handle_tool(name: str, args: dict[str, Any]) -> Any:
         return hq_tools.agent_signals(args["agent_or_session_id"], server_url=server_url)
     if name == "session_check":
         return hq_tools.session_check(args["session_id"], server_url=server_url)
+    if name == "case_file_view":
+        return hq_tools.case_file_view(args["session_id"], server_url=server_url)
+    if name == "replay_compare":
+        return hq_tools.replay_compare(args["session_id"], server_url=server_url)
     if name == "griffin_anomalies":
         return hq_tools.griffin_anomalies(server_url=server_url)
     if name == "list_agent_models":
@@ -170,6 +220,7 @@ def _handle_tool(name: str, args: dict[str, Any]) -> Any:
             model_version=args.get("model_version"),
             source_ref=args.get("source_ref"),
             notes=args.get("notes"),
+            session_id=args.get("session_id"),
             server_url=server_url,
         )
     if name == "propose_model_change":
@@ -184,6 +235,17 @@ def _handle_tool(name: str, args: dict[str, Any]) -> Any:
     if name == "list_model_proposals":
         return hq_tools.list_model_proposals(
             agent_id=args.get("agent_id"),
+            server_url=server_url,
+        )
+    if name == "apply_model_change":
+        return hq_tools.apply_model_change(
+            args["agent_id"],
+            args["model"],
+            args["version"],
+            confirm=bool(args.get("confirm")),
+            session_id=args.get("session_id"),
+            proposal_signal_id=args.get("proposal_signal_id"),
+            notes=args.get("notes"),
             server_url=server_url,
         )
     raise ValueError(f"unknown tool {name}")

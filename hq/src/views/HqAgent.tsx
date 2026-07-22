@@ -6,11 +6,26 @@ import type { SignalRow } from "../types";
 const RUN_HINT =
   'PYTHONPATH=sdk:agents uv run python -m hq_agent "fleet health + griffin MAD + proposals"';
 
+/** Pull trailing model id from proposal guidance like "…: gpt-4o-mini → gpt-4o." */
+function parseProposedModel(guidance: string | null): string {
+  if (!guidance) return "";
+  const m = guidance.match(/→\s*([A-Za-z0-9._-]+)|:\s*([A-Za-z0-9._-]+)\./);
+  return (m?.[1] || m?.[2] || "").trim();
+}
+
 export function HqAgent() {
   const [proposals, setProposals] = useState<SignalRow[] | null>(null);
   const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [agentId, setAgentId] = useState("agent_j");
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [applyModel, setApplyModel] = useState("");
+  const [applyVersion, setApplyVersion] = useState("");
+  const [applyConfirm, setApplyConfirm] = useState(false);
+  const [applyProposalId, setApplyProposalId] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -18,12 +33,13 @@ export function HqAgent() {
     setVersions(null);
     Promise.all([
       api.signals({ agent_id: agentId, source: "hq_agent", limit: 40 }),
-      api.agentVersions(agentId),
+      api.agentVersionTimeline(agentId),
     ])
-      .then(([sigs, vers]) => {
+      .then(([sigs, tl]) => {
         if (cancelled) return;
         setProposals(sigs);
-        setVersions(vers);
+        setVersions(tl.versions);
+        setCurrentModel(tl.current_model);
         setErr(null);
       })
       .catch((e: unknown) => {
@@ -32,15 +48,62 @@ export function HqAgent() {
     return () => {
       cancelled = true;
     };
-  }, [agentId]);
+  }, [agentId, tick]);
+
+  function refresh() {
+    setFlash(null);
+    setTick((n) => n + 1);
+  }
+
+  function prepApply(p: SignalRow) {
+    const model = parseProposedModel(p.guidance);
+    setApplyModel(model);
+    setApplyProposalId(p.signal_id);
+    setApplyConfirm(false);
+    if (!applyVersion) {
+      const d = new Date();
+      const stamp = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}.${d.getUTCHours()}${d.getUTCMinutes()}`;
+      setApplyVersion(stamp);
+    }
+  }
+
+  async function submitApply() {
+    if (!applyConfirm) {
+      setFlash("check confirm — apply is human-gated");
+      return;
+    }
+    if (!applyModel.trim() || !applyVersion.trim()) {
+      setFlash("model and version required");
+      return;
+    }
+    setBusy(true);
+    setFlash(null);
+    try {
+      const out = await api.applyModel(agentId, {
+        confirm: true,
+        model: applyModel.trim(),
+        version: applyVersion.trim(),
+        proposal_signal_id: applyProposalId ?? undefined,
+        notes: "applied from HQ proposal inbox",
+      });
+      setFlash(`applied ${out.model} as ${out.version.version}`);
+      setApplyConfirm(false);
+      setApplyProposalId(null);
+      refresh();
+    } catch (e: unknown) {
+      setFlash(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
       <p className="eyebrow">{"// improve"}</p>
       <h1>hq_agent</h1>
       <p className="lede">
-        operator maintenance layer — proposals + version timeline. griffin ={" "}
-        <code>MAD</code> (not TabFM). model changes are proposals only.
+        operator maintenance layer — proposal inbox + version timeline. griffin ={" "}
+        <code>MAD</code> (not TabFM). apply requires explicit confirm (no silent swaps).
       </p>
 
       <div className="control-bar">
@@ -52,12 +115,57 @@ export function HqAgent() {
             spellCheck={false}
           />
         </label>
+        <button type="button" className="btn" onClick={refresh} disabled={busy}>
+          refresh
+        </button>
+        <a className="btn ghost" href={`#case_files?agent=${encodeURIComponent(agentId)}`}>
+          case_files
+        </a>
+        {currentModel && (
+          <span className="dim">
+            current_model=<code>{currentModel}</code>
+          </span>
+        )}
       </div>
 
       <p className="eyebrow">{"// run locally"}</p>
       <pre className="agent-json">{RUN_HINT}</pre>
 
       {err && <Seam error={err} />}
+      {flash && <p className="lede">{flash}</p>}
+
+      <p className="eyebrow">{"// apply_model (human-gated)"}</p>
+      <div className="control-bar">
+        <label>
+          model
+          <input
+            value={applyModel}
+            onChange={(e) => setApplyModel(e.target.value)}
+            placeholder="gpt-4o"
+            spellCheck={false}
+          />
+        </label>
+        <label>
+          version
+          <input
+            value={applyVersion}
+            onChange={(e) => setApplyVersion(e.target.value)}
+            placeholder="2026-07-22.1"
+            spellCheck={false}
+          />
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={applyConfirm}
+            onChange={(e) => setApplyConfirm(e.target.checked)}
+          />
+          confirm
+        </label>
+        <button type="button" className="btn" onClick={submitApply} disabled={busy}>
+          apply
+        </button>
+      </div>
 
       <p className="eyebrow">{"// model_proposals"}</p>
       {proposals === null && !err && <p className="lede">loading…</p>}
@@ -72,6 +180,7 @@ export function HqAgent() {
               <th>reason</th>
               <th>guidance</th>
               <th>status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -81,6 +190,18 @@ export function HqAgent() {
                 <td className="wrap">{p.reason}</td>
                 <td className="wrap dim">{p.guidance ?? "—"}</td>
                 <td>{p.status}</td>
+                <td>
+                  {p.status !== "applied" && (
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => prepApply(p)}
+                      disabled={busy}
+                    >
+                      prep_apply
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -90,7 +211,7 @@ export function HqAgent() {
       <p className="eyebrow">{"// agent_versions"}</p>
       {versions === null && !err && <p className="lede">loading…</p>}
       {versions && versions.length === 0 && (
-        <Empty hint="no registered versions — register_agent_version after a deploy" />
+        <Empty hint="no registered versions — register_agent_version or apply-model after a deploy" />
       )}
       {versions && versions.length > 0 && (
         <table className="data-table">
