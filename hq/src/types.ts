@@ -44,6 +44,7 @@ export type SessionRow = {
   outcome: Record<string, unknown> | null;
   usage: Record<string, unknown> | null;
   trace_id: string | null;
+  agent_version?: string | null;
   started_at: number | null;
   ended_at: number | null;
   has_transcript: number;
