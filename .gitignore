@@ -13,6 +13,7 @@ hq/.vite/
 .uv/
 deploy/pours/
 deploy/casting.yaml.lock
+deploy/provision/.dashboard-ids.json
 *.db
 data/
 .coverage
