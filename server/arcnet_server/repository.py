@@ -647,3 +647,73 @@ def insert_webhook_event(
         "INSERT INTO webhook_events (fingerprint, status, payload, received_at) VALUES (?,?,?,?)",
         (fingerprint, status, dumps(payload), now_ms()),
     )
+
+
+# ---------------------------------------------------------------- agent_versions (HQ Agent)
+
+
+def insert_agent_version(
+    conn: sqlite3.Connection,
+    version_id: str,
+    agent_id: str,
+    fields: dict[str, Any],
+) -> dict[str, Any]:
+    ensure_agent(conn, agent_id, exposure=None, model=fields.get("model"))
+    conn.execute(
+        """INSERT INTO agent_versions
+           (version_id, agent_id, version, model, model_version, source_ref, notes, created_at)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (
+            version_id,
+            agent_id,
+            fields["version"],
+            fields.get("model"),
+            fields.get("model_version"),
+            fields.get("source_ref"),
+            fields.get("notes"),
+            now_ms(),
+        ),
+    )
+    conn.commit()
+    row = get_agent_version(conn, version_id)
+    assert row is not None
+    return row
+
+
+def get_agent_version(conn: sqlite3.Connection, version_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        "SELECT * FROM agent_versions WHERE version_id=?", (version_id,)
+    ).fetchone()
+    return row_to_dict(row)
+
+
+def list_agent_versions(
+    conn: sqlite3.Connection,
+    agent_id: str,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """SELECT * FROM agent_versions WHERE agent_id=?
+           ORDER BY created_at DESC, version_id DESC LIMIT ? OFFSET ?""",
+        (agent_id, limit, offset),
+    ).fetchall()
+    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+
+
+def count_agent_versions(conn: sqlite3.Connection, agent_id: str) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) FROM agent_versions WHERE agent_id=?", (agent_id,)
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def agent_version_timeline(conn: sqlite3.Connection, agent_id: str) -> dict[str, Any]:
+    agent = get_agent(conn, agent_id)
+    versions = list_agent_versions(conn, agent_id, limit=100, offset=0)
+    return {
+        "agent_id": agent_id,
+        "current_model": (agent or {}).get("model"),
+        "versions": versions,
+    }

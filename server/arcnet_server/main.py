@@ -194,6 +194,48 @@ def list_agent_models(agent_id: str) -> list[dict[str, Any]]:
     return repository.list_agent_models(conn, agent_id)
 
 
+@app.get("/api/agents/{agent_id}/versions/timeline")
+def agent_versions_timeline(agent_id: str) -> dict[str, Any]:
+    """HQ Agent version timeline (docs/18)."""
+    return repository.agent_version_timeline(get_conn(), agent_id)
+
+
+@app.get("/api/agents/{agent_id}/versions")
+def list_agent_versions(
+    agent_id: str,
+    response: Response,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict[str, Any]]:
+    conn = get_conn()
+    total = repository.count_agent_versions(conn, agent_id)
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_agent_versions(conn, agent_id, limit=limit, offset=offset)
+
+
+@app.post("/api/agents/{agent_id}/versions")
+async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any]:
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be a JSON object")
+    version = body.get("version")
+    if not version or not str(version).strip():
+        raise HTTPException(400, "version is required")
+    version_id = body.get("version_id") or _new_id("av_")
+    return repository.insert_agent_version(
+        get_conn(),
+        version_id,
+        agent_id,
+        {
+            "version": str(version).strip(),
+            "model": body.get("model"),
+            "model_version": body.get("model_version"),
+            "source_ref": body.get("source_ref"),
+            "notes": body.get("notes"),
+        },
+    )
+
+
 @app.get("/api/threats")
 def list_threats(
     response: Response,
