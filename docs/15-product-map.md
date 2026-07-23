@@ -310,7 +310,7 @@ Ordered originally by demo impact; **now ordered by product usability**.
 | 11 | **Embedded SigNoz** | No charts | Later | Sparkline only if key present |
 | 12 | **Agent-view consistency** | signals/sources/dashboards skip envelope | **R1–R2** | Signals twin in R1; rest document or wrap |
 | 13 | **HITL pause UI** | Scaffold only | Later | Approve/reject when pause pending |
-| 14 | **Corpus scorecard** | No UI / API | Defer | Until corpus endpoint exists |
+| 14 | **Corpus scorecard** | No UI / API | **DEFER** (P6-C, 2026-07-23) | No corpus endpoint on server; docs/12 P1 row is contract-only |
 | R3 | **Model explore** | No discovery layer | **R3** | Skills + MCP scaffold; exploration-only agents |
 | HQ | **HQ Agent** | No overall maintenance agent | **HQ** ([`18`](18-hq-agent.md)) | Version timeline, MAD griffin tools, proposals, Unplug |
 | 15 | **Screenshots / video** | Human content | Parallel | Submission assets |
