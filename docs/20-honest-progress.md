@@ -4,7 +4,7 @@
 **Branch:** `main` @ PR #18 merge; Phase 4 work on `phase-4-live-ops`  
 **Rule:** overall product readiness **≤60%** until measurable exits pass. No 74/80/95 theater.
 
-Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research).
+Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research), [`23-product-overview.md`](23-product-overview.md) (product overview).
 
 ---
 

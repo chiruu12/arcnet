@@ -4,7 +4,9 @@ The **product spec** — the features, the loop, the demo. The concept, locked s
 
 ## One-liner
 
-**ArcNet is the control plane for a self-improving agent fleet.** It watches every agent's behavior, cost, and the *trust of everything it ingests* (on SigNoz), stops attacks in real time (Unplug), makes all of it legible to the coding agents that improve the fleet (the agent-view), and lets you prove a different model or prompt would behave better before you ship it (the Time Machine).
+**ArcNet is the agent enhancement layer for a fleet you already run.** It watches behavior, cost, and the *trust of everything agents ingest*; stops attacks in real time (Unplug); makes incidents legible to coding agents (agent-view / Case File); proves a different model or prompt would behave better (Time Machine); and helps operators improve via HQ Agent proposals — not a SigNoz clone, not an autonomous evolver.
+
+> Product overview + honesty pin (~57%): [`23-product-overview.md`](23-product-overview.md). Measurement/plan truth: [`20`](20-honest-progress.md) · [`21`](21-next-phases-plan.md) · [`22`](22-next-agent-packets.md).
 
 ## What it actually does — the loop
 
@@ -19,7 +21,7 @@ ArcNet is one loop, not a bag of features:
 ```
 
 1. **Observe** — every agent traced into SigNoz: model calls, tool calls, tokens, cost, latency, errors.
-2. **Detect** — two detectors. (a) *Trust:* Unplug tags every ingested datum with a trust level and scans the untrusted ones. (b) *Anomaly:* Griffin (foundation-model) flags metric outliers static thresholds miss.
+2. **Detect** — two detectors. (a) *Trust:* Unplug tags every ingested datum with a trust level and scans the untrusted ones. (b) *Anomaly:* Griffin flags metric outliers; **runtime today = MAD**. **TabFM is required** on Phase 7 (`google/tabfm-1.0.0-pytorch` `regression/`) with MAD degrade; TabPFN deferred.
 3. **Defend** — an untrusted source trying to steer an agent is blocked; a `steer` signal makes the agent quarantine it and self-correct; runaway loops get `kill`.
 4. **Hand off** — every incident and every panel has an **agent-view**: a goal-level, trust-annotated, structured format that a coding agent (Claude Code, Codex, Cursor) consumes to improve the observed agent. ArcNet is the substrate; the coding agents people already run are the "evolvers."
 5. **Prove** — the **Time Machine** replays a recorded incident against a different model or prompt (tool outputs mocked from the trace) and shows the behavioral diff: did it reach the goal? loop less? cost less? resist the attack? Proof on your own history, not vibes.
@@ -47,7 +49,7 @@ The security story is **provenance-first**, which is exactly Unplug's taint/trus
 Two triggers, one bus: **inline** (guard block → signal, milliseconds) and **alert-driven** (SigNoz alert → webhook — the system of record; see `02` §3). Four kinds: `steer` (inject guidance, continue), `pause` (HITL approve/reject from the UI), `kill` (cancel a runaway), `note` (annotate telemetry only). The fleet defends itself in seconds.
 
 ### 4. Anomaly — Griffin
-Foundation-model (TabFM) anomaly detection on the metrics; reports only true outliers, silent otherwise. Catches health drift on new/short-history agents that seasonal thresholds miss. (Design: `07-griffin-anomaly.md`.)
+Metric-anomaly layer on the fleet. **Today:** robust MAD / rolling median in-process (honest statistical baseline). **Required next (Phase 7):** Google TabFM (`google/tabfm-1.0.0-pytorch`, `subfolder="regression"`) behind a worker with conformal bands and **MAD degrade** when TabFM is cold/slow/unavailable. TabPFN stays deferred/out. Never claim TabFM/TabPFN live until Phase 7 exits. (Design: `07-griffin-anomaly.md`; plan: `21` / `22`.)
 
 ### 5. Agent-view — the machine-optimal twin
 **Every datum ArcNet shows has an agent-optimal representation**, served for a coding agent to consume:

@@ -3,7 +3,7 @@
 **Date:** 2026-07-23  
 **Branch base:** `main` (Phase 4 merged via PR #19)  
 **Readiness pin:** overall **~57% / ≤60%** ([`20-honest-progress.md`](20-honest-progress.md)). Do not inflate.  
-**Companion plan:** [`21-next-phases-plan.md`](21-next-phases-plan.md) (phase bundles). This doc turns Phases **5 / 6 / 7** into **concrete agent packets** with goals, files, exits, deps.
+**Companion plan:** [`21-next-phases-plan.md`](21-next-phases-plan.md) (phase bundles). Product overview: [`23-product-overview.md`](23-product-overview.md). This doc turns Phases **5 / 6 / 7** into **concrete agent packets** with goals, files, exits, deps.
 
 **Audit context (same day):** quality gates green on Phase 4 tip; product loop partially E2E (API/CI) vs demo theater (live AgentOS restart, SigNoz depth, TabFM missing). Hackathon readiness ≠ product readiness.
 
@@ -37,7 +37,7 @@ No quality blockers for Phase 5 start. Optional live AgentOS screenshot remains 
 | Improve (HQ Agent propose→apply→pin) | **API/CI E2E** | Dry-run green; live reload still operator restart (by design) |
 | TabFM forecast | **Not built** | Required Phase 7; MAD-only honesty strings in HQ/Griffin |
 
-**HQ views:** cascade (Case Files / Time Machine / HQ Agent) **usable**; Fleet Health MAD strip **usable** (cold honesty OK); Time Machine / Case File **usable** with seed; HQ Agent **usable** for propose/apply/pin + reload banner. Gaps: HITL UI missing; `api_down` does not auto-recover on focus; no dedicated threats table; TabFM absent.
+**HQ views:** Case Files / Time Machine cascade (agent→version→model→session) **usable**; HQ Agent diagnose strip (agent→version→session) + apply-form model **usable**; Fleet Health MAD strip **usable** (cold honesty OK); Time Machine / Case File **usable** with seed; HQ Agent **usable** for propose/apply/pin + reload banner. Gaps: HITL UI missing; `api_down` does not auto-recover on focus; no dedicated threats table; TabFM absent.
 
 **Operator feedback:** pagination “showing N of Total” landed (Phase 4); reload banner + probe note landed; shell `api_down` seam exists but **one-shot mount probe** (A21 → Phase 6).
 

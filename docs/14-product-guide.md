@@ -6,17 +6,21 @@ User-facing guide for the Agents of SigNoz hackathon build: what ArcNet is, how 
 
 ## 1. What ArcNet is
 
-**ArcNet is the control plane for a self-improving agent fleet.** It watches every agent's behavior, cost, and the trust of everything it ingests; stops attacks in real time; makes incidents legible to coding agents; and proves a different model or prompt would behave better before you ship it.
+**ArcNet is an agent enhancement layer** — observe → defend → replay → case file → improve. It is not a SigNoz clone and not demo theater.
+
+It watches every agent's behavior, cost, and the trust of everything it ingests; stops attacks in real time; makes incidents legible to coding agents; and proves a different model or prompt would behave better before you ship it. HQ is the operator control plane for that loop.
 
 One loop:
 
 ```
-OBSERVE → DETECT → DEFEND → HAND OFF → PROVE
-  SigNoz    Griffin +     Unplug      agent-view /    Time Machine
-  traces    Unplug trust  block/steer Case File       counterfactual replay
+OBSERVE → DETECT → DEFEND → HAND OFF → PROVE → IMPROVE
+  SigNoz    Griffin MAD    Unplug       agent-view /    Time Machine    HQ Agent
+  / fleet   (+ TabFM P7)   block/steer  Case File       counterfactual  propose→apply
 ```
 
-Plain language: agents browse, call tools, and burn tokens. Untrusted scraped pages can inject instructions. ArcNet traces the run into SigNoz, tags source trust with Unplug, blocks exfil, steers or kills the run, then lets you **replay the recorded session** against another model with the same tools/guard — your own history as a behavioral regression suite.
+Plain language: agents browse, call tools, and burn tokens. Untrusted scraped pages can inject instructions. ArcNet traces the run (SigNoz optional), tags source trust with Unplug, blocks exfil, steers or kills the run, then lets you **replay the recorded session** against another model with the same tools/guard — your own history as a behavioral regression suite — then propose/apply model upgrades with human confirm.
+
+**Start here for product direction:** [`23-product-overview.md`](23-product-overview.md). **Measurement / roadmap truth:** [`20`](20-honest-progress.md) · [`21`](21-next-phases-plan.md) · [`22`](22-next-agent-packets.md). Honesty pin: **~57% / ≤60%**.
 
 ---
 
@@ -66,7 +70,7 @@ flowchart LR
 | **SDK / guard** (`sdk/`) | OTel init, Unplug in-process (no network hop on fail-closed path), signal client, replay stubs |
 | **SigNoz** (`deploy/`) | Optional depth: traces, dashboards, alerts, MCP |
 | **Agents / demo** (`agents/`) | Agno AgentOS + Bug Suite (`S0`–`S5`) |
-| **Griffin** | MAD anomaly judge in-process; TabPFN optional (`TABPFN_TOKEN`) |
+| **Griffin** | **MAD** anomaly judge in-process today; **TabFM required Phase 7** (not live); TabPFN deferred |
 | **Time Machine** | **SQLite-primary** transcripts — not reconstructed from span attributes |
 
 Import rule: `sdk/`, `server/`, `hq/` never import `agents/` or `scripts/`.
@@ -123,14 +127,17 @@ Env defaults: `VITE_ARCNET_API` empty (same-origin via Vite proxy). Override onl
 
 Global chrome: sidebar (`// observe` · `// improve`), mini fleet dots, breadcrumb `· live` / `· api_down`, **`human_view | agent_view`** toggle.
 
+**How views evolved:** early HQ was a flat six-panel demo HUD. Product rework added **Agent → version → model → session cascade** on Case Files and Time Machine; HQ Agent uses a diagnose strip (**agent → version → session**) with **model typed in the apply form** (not a fourth cascade selector), Fleet **MAD** strip, pagination **“showing N of Total”**, apply **reload honesty** (`agentos_reload_required` + probe — restart is operator step), and hash deep-links. HITL approve UI and `api_down` auto-recover are still deferred (Phase 6). Full story: [`23`](23-product-overview.md).
+
 | View | Human mode | Agent mode | Buttons / actions |
 |---|---|---|---|
-| **fleet_health** | Agent cards: exposure, sessions/threats/blocked/cost/anomalies/signals. `[FORWARD]` = higher injection risk | `GET /api/agent-view/fleet/all` JSON | — |
-| **signals** | Table of steer/pause/kill/note; live SSE updates | Raw `/api/signals` JSON | Watch feed; no approve/reject UI yet (HITL API exists server-side) |
-| **sources_trust** | Ingested-source ledger: origin, trust_level, scan_action | Raw `/api/sources` JSON | — |
-| **time_machine** | Session picker · candidate model · baseline vs candidate diff · verdict terminal · history | `GET /api/agent-view/replay/{id}` after a verdict exists | **`replay.run()`** (needs key + AgentOS); **`hand_to(claude_code)`** downloads Case File |
-| **case_files** | Incident preview (root cause, actions, MCP hint) | Incident agent-view envelope | **`export_case_file()`** → zip (`case-file.md` + `.json`) |
-| **dashboards** | SigNoz deep-links + live `/api/signoz/status` probe | Status + link list JSON | Opens SigNoz in a new tab |
+| **fleet_health** | Agent cards: exposure, sessions/threats/blocked/cost/anomalies/signals. `[FORWARD]` = higher injection risk. **MAD** Griffin strip | `GET /api/agent-view/fleet/all` JSON | — |
+| **signals** | Table of steer/pause/kill/note; live SSE updates; pagination totals | Agent-view signals envelope when wired | Watch feed; HITL approve/reject UI = Phase 6 (API decide = SQLite only today) |
+| **sources_trust** | Ingested-source ledger: origin, trust_level, scan_action | Bounded sources agent-view when available | — |
+| **time_machine** | **Cascade** agent→version→model→session · candidate · baseline vs candidate · verdict · history | `GET /api/agent-view/replay/{id}` after a verdict exists | **`replay.run()`** (needs key + AgentOS); **`hand_to(claude_code)`** downloads Case File |
+| **case_files** | Same **cascade** · incident preview (root cause, actions, HTTP-prefer MCP hint) | Incident agent-view envelope | **`export_case_file()`** → zip (`case-file.md` + `.json`) |
+| **hq_agent** | Diagnose strip (agent/version/session) · proposals · version timeline · apply form (model + version + `confirm`) · reload banner | Tools via `arcnet.hq_tools` | Propose → human apply → pin; **not** auto AgentOS restart |
+| **dashboards** | SigNoz deep-links + live `/api/signoz/status` probe | Status + link list JSON | Opens SigNoz in a new tab; MCP PARTIAL |
 
 **Toggle tip:** flip to `agent_view` on an incident/replay before the Case File handoff beat — that is the machine-optimal twin coding agents consume.
 
@@ -196,16 +203,17 @@ See [§ Frontend audit](#11-frontend-audit-done-vs-left) below for per-view APIs
 
 ## 9. Known limitations
 
-- **No auth** — localhost demo surface.
-- **HITL pause approve/reject** — server routes exist; HQ has no approve/reject controls yet (P1).
-- **Dedicated threats feed** — `GET /api/threats` exists; HQ surfaces threats via fleet aggregates + Case File root cause, not a separate view.
-- **Corpus scorecard / `replay_corpus`** — P1; not on camera.
-- **SigNoz MCP** — binary installable; G5 live stdio handoff was PARTIAL (Case File + Query Range fallback).
+- **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live. TabFM required on roadmap (`21`/`22`); TabPFN deferred.
+- **HITL** — `POST /api/hitl/{id}` updates SQLite; does **not** yet relay/pause live AgentOS (Phase 6). Apply `confirm` ≠ auth.
+- **SigNoz MCP** — binary installable; live stdio handoff remains **PARTIAL** (Case File + Query Range HTTP preferred).
+- **Live AgentOS restart** after apply — operator step; probe/banner honesty only (auto-restart unproven).
+- **Overall readiness ~57% / ≤60%** — [`20`](20-honest-progress.md). No 74/80/95 theater.
 - **Screenshots / video** — human content tasks (slots listed in README + §12).
 - **Timestamps** — APIs return epoch-ms (docs/12 said ISO; documented drift).
 - **Temp-0 replay** ≠ determinism — 3-run majority; honest `inconclusive` / `mixed` verdicts.
-- **Griffin** defaults to MAD unless `TABPFN_TOKEN` is set.
-- **Dashboards deep-links** open SigNoz shells (`/dashboard`, `/traces-explorer`); pick the provisioned Fleet/Threats/Cost dashboards inside the UI after `setup.py`.
+- **Dashboards deep-links** open SigNoz shells; pick provisioned dashboards after `setup.py`.
+- **Dedicated threats feed / corpus scorecard / HITL UI** — Phase 6 or deferred (see [`22`](22-next-agent-packets.md)).
+- **No auth** — localhost demo surface.
 
 ---
 
@@ -279,12 +287,17 @@ Inventory of `hq/` as of this guide (live APIs only — Phase 3 mock route remov
 
 | Doc | Role |
 |---|---|
-| [`16-product-review-brief.md`](16-product-review-brief.md) | **Human review brief** — §11 founder decisions |
-| [`17-product-rework-plan.md`](17-product-rework-plan.md) | **Productization plan** R1–R3 |
-| [`15-product-map.md`](15-product-map.md) | **Full built-surface map** — HQ↔API diagrams, DONE/GAP inventories, verification matrix, iteration backlog |
+| [`23-product-overview.md`](23-product-overview.md) | **Product overview** — is/isn't, loop, HQ evolution, ~57% |
+| [`20-honest-progress.md`](20-honest-progress.md) | **Measured scorecard** (source of truth) |
+| [`21-next-phases-plan.md`](21-next-phases-plan.md) | **Phase plan + required TabFM** |
+| [`22-next-agent-packets.md`](22-next-agent-packets.md) | **Next agent packets** Phases 5–7 |
+| [`16-product-review-brief.md`](16-product-review-brief.md) | Human review brief — §11 founder decisions |
+| [`17-product-rework-plan.md`](17-product-rework-plan.md) | Productization plan R1–R3 |
+| [`15-product-map.md`](15-product-map.md) | Full built-surface map |
 | [`01-product.md`](01-product.md) | Feature tiers / loop spec |
 | [`02-architecture.md`](02-architecture.md) | Full architecture |
 | [`06-demo-script.md`](06-demo-script.md) | Camera script |
+| [`07-griffin-anomaly.md`](07-griffin-anomaly.md) | Griffin (MAD now; TabFM Phase 7) |
 | [`09-frontend.md`](09-frontend.md) | Design system + IA |
 | [`10-time-machine.md`](10-time-machine.md) | Replay semantics |
 | [`11-scenarios.md`](11-scenarios.md) | Bug Suite fixtures |
