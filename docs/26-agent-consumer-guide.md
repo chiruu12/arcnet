@@ -150,7 +150,7 @@ On duplicate `version_id`, expect **409** with `hint` to auto-generate a fresh i
 curl -s "http://localhost:8000/api/agents/${AGENT}/versions/timeline" | jq '{current_model, versions: [.versions[] | {version_id, model, created_at}]}'
 curl -s "http://localhost:8000/api/agent-view/check/${SESSION}" | jq '.data.version_pinpoint | {pin, version_id, narrative, fleet_current_model}'
 curl -s http://localhost:8000/api/griffin/status | jq '{estimator, status, last_anomaly, honesty}'
-curl -s "http://localhost:8000/api/agent-view/time_machine/${SESSION}" | jq '{latest_replay_id, latest_verdict}'
+curl -s "http://localhost:8000/api/agent-view/time_machine/${SESSION}" | jq '.data | {latest_replay_id, latest_verdict}'
 ```
 
 **Read:** `versions/timeline.current_model` matches applied model; `version_pinpoint.narrative` explains pin drift; `griffin.estimator` stays `mad`; `time_machine.latest_verdict` after a replay run.

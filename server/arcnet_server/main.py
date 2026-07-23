@@ -319,7 +319,11 @@ def agent_model_intel(agent_id: str) -> dict[str, Any]:
     """Catalog projections + evidence-grounded recommendation (docs/27, additive endpoint)."""
     conn = get_conn()
     if repository.get_agent(conn, agent_id) is None:
-        raise HTTPException(404, f"agent {agent_id} not found")
+        raise api_error(
+            404,
+            f"agent {agent_id} not found",
+            hint="list agents via GET /api/fleet",
+        )
     observed = repository.list_agent_models(conn, agent_id)
     return read_models.agent_model_intelligence(conn, agent_id, observed=observed)
 
