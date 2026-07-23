@@ -9,7 +9,15 @@ import unittest
 
 from fastapi.testclient import TestClient
 
+from arcnet_server.read_models import (
+    ARG_EXCERPT_CHARS,
+    EXCERPT_CHARS,
+    FULL_TRANSCRIPT_HATCH_KEY,
+    full_transcript_hatch,
+)
+
 LARGE_TOOL_OUTPUT = "SECRET-PAYLOAD " + ("lorem ipsum dolor sit amet " * 400)
+GIANT_TEXT = "Z" * 5000
 
 
 def _transcript() -> dict:
@@ -97,8 +105,67 @@ class ReadModelTests(unittest.TestCase):
         self.assertIn("recorded_output_sha256", step)
         self.assertEqual(step["guard"]["action"], "allow")
         self.assertEqual(
-            agent["data"]["full_transcript"], "/api/sessions/s_rm?include=transcript"
+            agent["data"][FULL_TRANSCRIPT_HATCH_KEY],
+            full_transcript_hatch("s_rm"),
         )
+
+    def test_full_transcript_hatch_is_intentional_pointer(self) -> None:
+        """A15: bounded agent-view + explicit human API pointer (localhost trust)."""
+        agent = self.client.get("/api/agent-view/session/s_rm").json()
+        hatch = agent["data"][FULL_TRANSCRIPT_HATCH_KEY]
+        self.assertEqual(hatch, "/api/sessions/s_rm?include=transcript")
+        self.assertNotIn(LARGE_TOOL_OUTPUT, json.dumps(agent))
+        human = self.client.get(hatch).json()
+        self.assertEqual(
+            human["transcript"]["steps"][1]["recorded_output"], LARGE_TOOL_OUTPUT
+        )
+
+    def test_excerpt_bounds_incident_and_signals(self) -> None:
+        conn = self.m.get_conn()
+        from arcnet_server.db import now_ms
+
+        ts = now_ms()
+        conn.execute(
+            """INSERT INTO threats (threat_id, session_id, agent_id, checkpoint, action, category,
+               subcategory, risk_score, trust_level, evidence, trace_id, span_id, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                "thr_big", "s_rm", "agent_j", "tool_call", "block", "leakage",
+                "pii", 0.9, "tool_output", GIANT_TEXT, "trace_rm", "span1", ts,
+            ),
+        )
+        conn.execute(
+            """INSERT INTO signals (signal_id, session_id, agent_id, kind, severity,
+               reason, guidance, source, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (
+                "sig_big", "s_rm", "agent_j", "steer", "warn",
+                GIANT_TEXT, GIANT_TEXT, "inline", "pending", ts,
+            ),
+        )
+        conn.execute(
+            "UPDATE sessions SET goal=? WHERE session_id=?",
+            (GIANT_TEXT, "s_rm"),
+        )
+        conn.commit()
+
+        incident = self.client.get("/api/agent-view/incident/s_rm").json()
+        rc = incident["data"]["root_cause"]
+        self.assertLessEqual(len(rc["evidence_excerpt"]), EXCERPT_CHARS)
+        self.assertNotIn(GIANT_TEXT, json.dumps(incident))
+        self.assertLessEqual(len(incident["data"]["goal"]), EXCERPT_CHARS)
+
+        signals = self.client.get("/api/agent-view/signals/s_rm").json()
+        sig = next(s for s in signals["data"]["signals"] if s["signal_id"] == "sig_big")
+        self.assertLessEqual(len(sig["reason_excerpt"]), EXCERPT_CHARS)
+        self.assertLessEqual(len(sig["guidance_excerpt"]), EXCERPT_CHARS)
+        self.assertNotIn("reason", sig)
+        self.assertNotIn("guidance", sig)
+        self.assertNotIn(GIANT_TEXT, json.dumps(signals))
+
+        session = self.client.get("/api/agent-view/session/s_rm").json()
+        step = session["data"]["timeline"][1]
+        self.assertLessEqual(len(step["args_excerpt"]), ARG_EXCERPT_CHARS)
+        self.assertLessEqual(len(session["data"]["final_output_excerpt"]), EXCERPT_CHARS)
 
     def test_human_session_excludes_transcript_by_default(self) -> None:
         human = self.client.get("/api/sessions/s_rm").json()

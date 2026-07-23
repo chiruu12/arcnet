@@ -22,6 +22,11 @@ EXCERPT_CHARS = 200
 ARG_EXCERPT_CHARS = 120
 TIMELINE_MAX_STEPS = 40
 
+# A15 escape hatch (docs/15): agent session envelope includes a pointer to the human
+# transcript API (`?include=transcript`) which returns full tool payloads. Intentional
+# under the localhost-trust model — bounded timeline/excerpts are the default agent path.
+FULL_TRANSCRIPT_HATCH_KEY = "full_transcript"
+
 # ---------------------------------------------------------------- human
 
 
@@ -99,6 +104,11 @@ def _excerpt(text: Any, limit: int) -> str | None:
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
+def full_transcript_hatch(session_id: str | None) -> str:
+    """Intentional A15 hatch URL — full payloads only via the human session API."""
+    return f"/api/sessions/{session_id}?include=transcript"
+
+
 def _timeline_step(step: dict[str, Any]) -> dict[str, Any]:
     """Bounded evidence view of one transcript step — pointers, never payloads."""
     out: dict[str, Any] = {"i": step.get("i"), "type": step.get("type")}
@@ -164,7 +174,7 @@ def agent_session_context(session: dict[str, Any]) -> dict[str, Any]:
         "timeline": [_timeline_step(s) for s in steps[:TIMELINE_MAX_STEPS]],
         "timeline_truncated": len(steps) > TIMELINE_MAX_STEPS,
         "final_output_excerpt": _excerpt(transcript.get("final_output"), EXCERPT_CHARS),
-        "full_transcript": f"/api/sessions/{session.get('session_id')}?include=transcript",
+        FULL_TRANSCRIPT_HATCH_KEY: full_transcript_hatch(session.get("session_id")),
     }
 
 
@@ -234,8 +244,9 @@ def incident_data(
         except json.JSONDecodeError:
             transcript = {}
     cause = root_cause(threats)
+    goal_raw = session.get("goal") or transcript.get("goal")
     return {
-        "goal": session.get("goal") or transcript.get("goal"),
+        "goal": _excerpt(goal_raw, EXCERPT_CHARS),
         "agent": {
             "agent_id": agent.get("agent_id"),
             "name": agent.get("name"),
@@ -512,7 +523,7 @@ def case_file_markdown(env: dict[str, Any], session: dict[str, Any]) -> str:
         f"- agent: `{(data.get('agent') or {}).get('agent_id')}` "
         f"({(data.get('agent') or {}).get('role')}) · exposure=`{data.get('exposure')}`"
     )
-    lines.append(f"- goal: {data.get('goal')}")
+    lines.append(f"- goal: {_excerpt(data.get('goal'), EXCERPT_CHARS)}")
     lines.append(f"- outcome: `{json.dumps(data.get('outcome'))}`")
     lines.append("")
     lines.append("## Root cause")
