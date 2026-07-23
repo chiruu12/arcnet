@@ -211,7 +211,9 @@ class ApiCoherenceTests(unittest.TestCase):
         db_ids = {
             row[0]
             for row in conn.execute(
-                "SELECT signal_id FROM signals WHERE session_id=? ORDER BY created_at DESC LIMIT 50",
+                # Contract scoping (repository.list_signals): session rows + fleet-wide rows.
+                "SELECT signal_id FROM signals WHERE (session_id=? OR session_id IS NULL) "
+                "ORDER BY created_at DESC, signal_id DESC LIMIT 50",
                 ("s_coherence",),
             ).fetchall()
         }
