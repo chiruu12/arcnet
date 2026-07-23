@@ -135,8 +135,9 @@ uv lock --check
 # Frontend
 cd hq && pnpm build
 
-# Hero replay stability gate (needs OPENAI_API_KEY + running services)
-uv run python scripts/phase4_g4_check.py
+# Hero replay stability gate (needs OPENAI_API_KEY + running services;
+# session ids = the recorded heroes shipped in data/arcnet.db)
+uv run python scripts/phase4_g4_check.py --s1 s_ecfdb55d --s4 s_2af44726
 ```
 
 ## Judging criteria map
