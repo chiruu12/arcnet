@@ -37,7 +37,7 @@ No quality blockers for Phase 5 start. Optional live AgentOS screenshot remains 
 | Improve (HQ Agent propose→apply→pin) | **API/CI E2E** | Dry-run green; live reload still operator restart (by design) |
 | TabFM forecast | **Not built** | Required Phase 7; MAD-only honesty strings in HQ/Griffin |
 
-**HQ views:** cascade (Case Files / Time Machine / HQ Agent) **usable**; Fleet Health MAD strip **usable** (cold honesty OK); Time Machine / Case File **usable** with seed; HQ Agent **usable** for propose/apply/pin + reload banner. Gaps: HITL UI missing; `api_down` does not auto-recover on focus; no dedicated threats table; TabFM absent.
+**HQ views:** Case Files / Time Machine cascade (agent→version→model→session) **usable**; HQ Agent diagnose strip (agent→version→session) + apply-form model **usable**; Fleet Health MAD strip **usable** (cold honesty OK); Time Machine / Case File **usable** with seed; HQ Agent **usable** for propose/apply/pin + reload banner. Gaps: HITL UI missing; `api_down` does not auto-recover on focus; no dedicated threats table; TabFM absent.
 
 **Operator feedback:** pagination “showing N of Total” landed (Phase 4); reload banner + probe note landed; shell `api_down` seam exists but **one-shot mount probe** (A21 → Phase 6).
 

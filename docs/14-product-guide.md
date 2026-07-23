@@ -127,7 +127,7 @@ Env defaults: `VITE_ARCNET_API` empty (same-origin via Vite proxy). Override onl
 
 Global chrome: sidebar (`// observe` · `// improve`), mini fleet dots, breadcrumb `· live` / `· api_down`, **`human_view | agent_view`** toggle.
 
-**How views evolved:** early HQ was a flat six-panel demo HUD. Product rework added **Agent → version → model → session cascade** (Case Files, Time Machine, HQ Agent), Fleet **MAD** strip, pagination **“showing N of Total”**, apply **reload honesty** (`agentos_reload_required` + probe — restart is operator step), and hash deep-links. HITL approve UI and `api_down` auto-recover are still deferred (Phase 6). Full story: [`23`](23-product-overview.md).
+**How views evolved:** early HQ was a flat six-panel demo HUD. Product rework added **Agent → version → model → session cascade** on Case Files and Time Machine; HQ Agent uses a diagnose strip (**agent → version → session**) with **model typed in the apply form** (not a fourth cascade selector), Fleet **MAD** strip, pagination **“showing N of Total”**, apply **reload honesty** (`agentos_reload_required` + probe — restart is operator step), and hash deep-links. HITL approve UI and `api_down` auto-recover are still deferred (Phase 6). Full story: [`23`](23-product-overview.md).
 
 | View | Human mode | Agent mode | Buttons / actions |
 |---|---|---|---|
@@ -136,7 +136,7 @@ Global chrome: sidebar (`// observe` · `// improve`), mini fleet dots, breadcru
 | **sources_trust** | Ingested-source ledger: origin, trust_level, scan_action | Bounded sources agent-view when available | — |
 | **time_machine** | **Cascade** agent→version→model→session · candidate · baseline vs candidate · verdict · history | `GET /api/agent-view/replay/{id}` after a verdict exists | **`replay.run()`** (needs key + AgentOS); **`hand_to(claude_code)`** downloads Case File |
 | **case_files** | Same **cascade** · incident preview (root cause, actions, HTTP-prefer MCP hint) | Incident agent-view envelope | **`export_case_file()`** → zip (`case-file.md` + `.json`) |
-| **hq_agent** | Proposals inbox · version timeline · apply with `confirm` · reload banner | Tools via `arcnet.hq_tools` | Propose → human apply → pin; **not** auto AgentOS restart |
+| **hq_agent** | Diagnose strip (agent/version/session) · proposals · version timeline · apply form (model + version + `confirm`) · reload banner | Tools via `arcnet.hq_tools` | Propose → human apply → pin; **not** auto AgentOS restart |
 | **dashboards** | SigNoz deep-links + live `/api/signoz/status` probe | Status + link list JSON | Opens SigNoz in a new tab; MCP PARTIAL |
 
 **Toggle tip:** flip to `agent_view` on an incident/replay before the Case File handoff beat — that is the machine-optimal twin coding agents consume.

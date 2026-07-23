@@ -69,7 +69,7 @@ Prefer **fix → test → measure** over feature theater. Surfaces that exist wi
 | Dashboards / SigNoz status | Usable as launcher + probe; MCP PARTIAL |
 | HQ Agent propose→apply→pin | API/CI + dry-run E2E; live AgentOS restart is **operator step** (probe + banner) |
 | Pagination “showing N of Total” | Shipped (Phase 4) |
-| Agent → version → model → session cascade | Shipped (Wave A/B); polish open |
+| Agent → version → model → session cascade | Shipped on Case Files / Time Machine; HQ Agent = agent/version/session + apply-form model |
 | Tests / CI (e2e, hq-test, tool matrix) | Phase 2 exits met |
 
 ### Deferred / required next

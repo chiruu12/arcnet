@@ -31,7 +31,7 @@ flowchart LR
 ```
 
 1. **Discover** — **default = a hardcoded allowlist of the `arcnet.*` counters we emit ourselves**: `arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `arcnet.tokens.total`, error rate — expanded per `agent_id` dimension, capped at top-N series (default 12). (No documented metrics-listing endpoint exists, and `gen_ai.*` metrics don't exist in this pipeline — see `04`. Auto-enumeration is the P1 stretch, not the plan.)
-2. **Pull** — last `H` (default 6h, or whatever exists) at 1m buckets via Query Range API (or SQLite proxy when SigNoz is down).
+2. **Pull** — **Today:** seed file (`data/griffin_series.json`) if present, else in-memory SQLite proxy series (`series_source=seed|sqlite_proxy` in `griffin.py`). SigNoz Query Range is **not** Griffin’s evaluate input yet (it powers evidence/status seams elsewhere). Target shape remains last `H` at 1m buckets per (metric × agent).
 3. **Forecast** — features per bucket: running index, minute-of-hour, rolling mean/std (5m, 15m), lag values. **Today:** MAD band. **Phase 7:** TabFM point forecast + conformal band (see Model section).
 4. **Judge** — outlier iff `observed` outside the band **and** `|observed − forecast| > noise_floor(metric)` **and** series is warm (≥ 30 points; else status `warming`). Cooldown: same series can't re-fire within 5m.
 5. **Report** — one path, through SigNoz when available (anomalies are telemetry, not a side channel):
@@ -41,7 +41,7 @@ flowchart LR
 
 ## Integration points (already-built rails it rides on)
 
-- **In**: SigNoz Query Range API (same client the server already has) and/or SQLite proxy series.
+- **In (today)**: seed file or SQLite proxy series only. Query Range is used for SigNoz evidence/status — not wired into Griffin pull yet.
 - **Out**: OTLP + the existing alert→webhook→signal pipeline when SigNoz is up.
 - **Runtime**: MAD task inside `server/` (`griffin.py`); config in `griffin.toml`.
 - **UI**: MAD strip / honesty on Fleet Health (+ HQ Agent tools labeled MAD).
