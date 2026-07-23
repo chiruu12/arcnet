@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
+import { API_RECOVER_INTERVAL_MS, apiBreadcrumbStatus, shouldRecoverProbe } from "./apiRecover";
 import { formatHash, navigate, parseHash, type HashState, writeHash } from "./hash";
 import type { Mode, View } from "./types";
 import { CaseFiles } from "./views/CaseFiles";
@@ -37,12 +38,10 @@ export function App() {
     }
   }, [hash]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const probeApi = useCallback(() => {
     api
       .fleet()
       .then((f) => {
-        if (cancelled) return;
         setApiUp(true);
         setMiniFleet(
           f.map((a) => ({
@@ -51,13 +50,25 @@ export function App() {
           })),
         );
       })
-      .catch(() => {
-        if (!cancelled) setApiUp(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setApiUp(false));
   }, []);
+
+  useEffect(() => {
+    probeApi();
+  }, [probeApi]);
+
+  useEffect(() => {
+    if (!shouldRecoverProbe(apiUp)) return;
+    const onFocus = () => probeApi();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [apiUp, probeApi]);
+
+  useEffect(() => {
+    if (!shouldRecoverProbe(apiUp)) return;
+    const id = window.setInterval(() => probeApi(), API_RECOVER_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [apiUp, probeApi]);
 
   function setView(view: View) {
     setHash((cur) => ({ view, agent: cur.agent }));
@@ -119,7 +130,7 @@ export function App() {
             {view}
             {hash.agent ? ` · ${hash.agent}` : ""}
             {hash.version ? ` · ${hash.version}` : ""}
-            {apiUp === null ? " · connecting" : apiUp ? " · live" : " · api_down"}
+            {` · ${apiBreadcrumbStatus(apiUp)}`}
           </div>
           <span className="tag">local</span>
           <div className="toggle" role="group" aria-label="view mode">
