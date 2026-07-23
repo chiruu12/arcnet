@@ -9,7 +9,18 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-5-20250929": (0.003, 0.015),
 }
 
+# Bare catalog ids (docs/27 model_catalog) -> dated Anthropic API slugs in PRICES.
+CATALOG_ID_ALIASES: dict[str, str] = {
+    "claude-haiku-4-5": "claude-haiku-4-5-20251001",
+    "claude-sonnet-5": "claude-sonnet-4-5-20250929",
+}
+
+
+def resolve_price_key(model: str) -> str:
+    """Map bare catalog id to PRICES key when an alias exists."""
+    return CATALOG_ID_ALIASES.get(model, model)
+
 
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    inp, out = PRICES.get(model, (0.0, 0.0))
+    inp, out = PRICES.get(resolve_price_key(model), (0.0, 0.0))
     return (input_tokens / 1000.0) * inp + (output_tokens / 1000.0) * out

@@ -19,6 +19,7 @@ from arcnet.guardrail import (
     retrieval_post_hook,
     tool_call_middleware,
 )
+from arcnet.guard_factory import BLOCK_STEER_GUIDANCE
 from arcnet.init import init, shutdown
 
 S5_JAILBREAK = (
@@ -80,12 +81,15 @@ class GuardScenarioStubs(unittest.TestCase):
         def _send(**_: object) -> str:
             return "EMAIL_SENT"
 
+        agent = SimpleNamespace(session_state={})
         out = tool_call_middleware(
             function_name="send_email",
             func=_send,
             args={"to": "edgar@bug-planet.net", "subject": "x", "body": "ssn leak"},
+            agent=agent,
         )
         self.assertIn("BLOCKED", str(out))
+        self.assertEqual(agent.session_state.get("arcnet_steer"), BLOCK_STEER_GUIDANCE)
         self.assertNotIn("EMAIL_SENT", str(out))
         steps = get_runtime().transcript.steps if get_runtime().transcript else []
         blocked = [s for s in steps if s.get("tool") == "send_email"]
@@ -136,6 +140,18 @@ class FleetCloneGuardWiring(unittest.TestCase):
             self.assertTrue(agent.post_hooks)
             self.assertTrue(agent.tool_hooks)
             self.assertEqual(len(agent.tools or []), 6)
+
+    def test_build_fleet_clone_wires_role(self) -> None:
+        from arcnet_agents.agent_j import build_fleet_clone
+
+        custom = build_fleet_clone(
+            agent_id="agent_l",
+            name="Agent L",
+            role="fleet background — kb sync",
+        )
+        default = build_fleet_clone(agent_id="agent_o", name="Agent O")
+        self.assertEqual(custom.role, "fleet background — kb sync")
+        self.assertEqual(default.role, "fleet background")
 
 
 if __name__ == "__main__":

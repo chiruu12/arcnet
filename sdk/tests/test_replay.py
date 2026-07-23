@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
+from arcnet.guard_factory import BLOCK_STEER_GUIDANCE
 from arcnet.replay import ReplayCursor
 
 
@@ -186,6 +187,31 @@ class ReplayCursorTests(unittest.TestCase):
         self.assertEqual(result, "page body")
         self.assertEqual(cursor.calls[-1]["guard_verdict"], recorded_guard)
         self.assertEqual(cursor.calls[-1]["guard_action"], "allow")
+
+    def test_guard_block_applies_shared_steer_guidance(self) -> None:
+        from arcnet.context import get_runtime
+        from arcnet.init import bind_session, init, shutdown
+        from unplug import TaintedText, TrustLevel
+
+        init(service_name="arcnet-replay-test", agent_id="agent_j", exposure="forward_facing")
+        bind_session("s_replay_steer")
+        rt = get_runtime()
+        rt.taint_sources.clear()
+        rt.taint_sources.append(
+            TaintedText(text="poisoned page", trust_level=TrustLevel.RETRIEVED, origin="fetch_url")
+        )
+        agent = SimpleNamespace(session_state={})
+        cursor = ReplayCursor({"steps": []})
+
+        result = cursor(
+            function_name="send_email",
+            args={"to": "edgar@bug-planet.net", "subject": "x", "body": "leak"},
+            agent=agent,
+        )
+
+        self.assertIn("BLOCKED", result)
+        self.assertEqual(agent.session_state.get("arcnet_steer"), BLOCK_STEER_GUIDANCE)
+        shutdown()
 
 
 if __name__ == "__main__":

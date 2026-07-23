@@ -11,6 +11,7 @@ Static catalog + evidence-grounded cost / reasoning recommendations for observed
 - Coverage (2026-07): OpenAI GPT-5-class + o-series, Anthropic Opus-4.8 / Sonnet / Haiku, Google Gemini-3-class, Moonshot Kimi K3, xAI Grok-4.5-class.
 - Per model: `id`, `provider`, `tier` ∈ `{frontier_reasoning, reasoning, standard, fast}`, `input_usd_per_mtok`, `output_usd_per_mtok`, `context_window`, `reasoning` (bool), one-line `strengths`.
 - Every price carries **`catalog list-price estimate as of {CATALOG_VERSION}`** — never present as measured invoices or live provider quotes.
+- SDK live-run costing (`sdk/arcnet/pricing.py`) maps bare Anthropic catalog ids to dated API slugs via `CATALOG_ID_ALIASES` (e.g. `claude-sonnet-5` → `claude-sonnet-4-5-20250929`).
 
 ### Update cadence
 

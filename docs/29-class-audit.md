@@ -12,16 +12,16 @@ Checks: dead code, error handling, cross-module duplication, docstring accuracy 
 | `signals.Signal` + `SignalClient` | Inline POST + background SSE queue; steer/kill/pause | `replay_progress` accepted in filter but intentionally not queued (HQ uses native SSE) | Flagged (by design) |
 | `transcript.TranscriptRecorder` | Replay-ready step recorder + server persist | IO failures logged, not swallowed silently | — |
 | `replay.ReplayCursor` + `run_agent_replay` | Counterfactual harness; tool stub middleware | Dead `_action_name` wrapper; recorded `guard_verdict` missing when no runtime | **Fixed** |
-| `guardrail.UnplugGuardrail` + hooks | Four Unplug checkpoints for Agno | `_BLOCK_STEER_GUIDANCE` duplicated vs `replay.py` (same string) | Flagged |
+| `guardrail.UnplugGuardrail` + hooks | Four Unplug checkpoints for Agno | `_BLOCK_STEER_GUIDANCE` duplicated vs `replay.py` (same string) | **Fixed** |
 | `telemetry` | OTel spans/metrics + threat/source POST | IO failures logged with warning | — |
 | `guard_factory` | Shared Guard build + verdict serialization | Single source of truth for action/findings | — |
 | `init` | `arcnet.init()` wiring | Docstring still said "stub signal client" post-P8 | **Fixed** |
-| `pricing` | Per-1k token costs for live runs | Anthropic ids in `PRICES` use dated slugs not in `model_catalog` (different id namespace) | Flagged; overlapping OpenAI ids aligned |
+| `pricing` | Per-1k token costs for live runs | Anthropic ids in `PRICES` use dated slugs not in `model_catalog` (different id namespace) | **Fixed** |
 | `ids` | Prefixed short ids | Clean | — |
 | `arcnet.__init__` | Public SDK exports | Re-exports match hq_tools + model_explore | — |
 | `bus.EventBus` + `BusEvent` | In-process SSE fan-out | Dead-queue cleanup on full queues | — |
 | `repository` | Sole SQL layer | `insert_webhook_event` relies on caller `commit` (webhook path commits) | — |
-| `read_models` | Human vs agent projections | `except JSONDecodeError: findings = findings` no-op branch | Flagged (cosmetic) |
+| `read_models` | Human vs agent projections | `except JSONDecodeError: findings = findings` no-op branch | **Fixed** |
 | `replay_service` | 3-run Time Machine + verdict | Clean; threat-session signature logic documented | — |
 | `griffin` | MAD anomaly worker + cache | `BUS.publish` failure was silent `pass` | **Fixed** |
 | `model_catalog` | Static list-price catalog (docs/27) | `gpt-4o` / `gpt-4o-mini` rates match `sdk/pricing` | Verified + test |
@@ -29,7 +29,7 @@ Checks: dead code, error handling, cross-module duplication, docstring accuracy 
 | `errors` | Structured 404/409 hints | Clean | — |
 | `db` | Schema + additive `_ensure_column` | P8 columns (`guard_verdict`, `findings_detail`) present | — |
 | `agents/app.py` | AgentOS + `/internal/replay` | `_goal_reached` S4 uses behavioral loop-break metric | — |
-| `agents/agent_j.py` | Agent J factory | `build_fleet_clone(role=…)` param unused | Flagged (cosmetic) |
+| `agents/agent_j.py` | Agent J factory | `build_fleet_clone(role=…)` param unused | **Fixed** |
 | `agents/tools.py` | Demo tools + `retrieval_post_hook` on fetch | Clean | — |
 | `scenarios/runner.py` | Bug Suite S0–S5 | Griffin/S4 choreography uses print on failure (not bare pass) | — |
 
@@ -46,11 +46,9 @@ SDK `SignalClient` subscribes to all four event names; only `signal` and `hitl_r
 
 ## Flagged (larger / deferred)
 
-1. **Steer guidance string duplication** — identical quarantine text in `guardrail.tool_call_middleware` and `replay.ReplayCursor`. Extract to `guard_factory` or shared constant in a follow-up (touches two hot paths).
-2. **Anthropic pricing id drift** — `sdk/pricing.PRICES` uses `claude-haiku-4-5-20251001` / `claude-sonnet-4-5-20250929`; `model_catalog` uses `claude-haiku-4-5` / `claude-sonnet-5`. No numeric contradiction (different keys); align ids or document mapping when Anthropic path is funded.
-3. **`POST /api/sources` has no SSE publish** — sources_trust is poll-only today; not in HQ SSE list, no action required.
-4. **HITL decide does not relay to live AgentOS** — documented honesty pin in `read_models.agent_hitl_data`; no code change (API additive-only).
-5. **TabFM live path** — `tabfm_worker.forecast(backend="tabfm")` returns `error/tabfm_not_wired`; Griffin runtime stays MAD-only until P7-B.
+1. **`POST /api/sources` has no SSE publish** — sources_trust is poll-only today; not in HQ SSE list, no action required.
+2. **HITL decide does not relay to live AgentOS** — documented honesty pin in `read_models.agent_hitl_data`; no code change (API additive-only).
+3. **TabFM live path** — shipped in P7-B (opt-in `ARCNET_TABFM=1` async worker, MAD degrade); default runtime stays MAD; see docs/07 + docs/22 P7-B row for live-verify status.
 
 ## Fixes shipped this packet
 
@@ -61,12 +59,16 @@ SDK `SignalClient` subscribes to all four event names; only `signal` and `hitl_r
 | Log Griffin `BUS.publish` failures | existing griffin tests |
 | Correct `init()` docstring (live SignalClient) | — |
 | Cross-check `pricing` vs `model_catalog` for shared ids | `sdk/tests/test_pricing.py` (2 tests) |
+| Extract `BLOCK_STEER_GUIDANCE` to `guard_factory` | `test_block_steer_guidance_is_stable_quarantine_text`, `test_guard_block_applies_shared_steer_guidance`, `test_s1_tool_call_blocks_tainted_send_email` (steer assertion) |
+| Anthropic catalog id aliases in `sdk/pricing` | `test_anthropic_catalog_ids_resolve_through_pricing` |
+| Explicit `JSONDecodeError` pass in `_source_agent_row` | existing read_models suite |
+| Wire `build_fleet_clone(role=…)` to Agno `Agent.role` | `test_build_fleet_clone_wires_role` |
 
 ## Test counts (post-audit)
 
 | Suite | Result |
 |---|---|
-| `server/tests` | **149 passed** |
-| `agents/tests` | **17 passed** |
-| `sdk/tests` | **11 passed** (+3 vs baseline: replay guard test + 2 pricing alignment) |
+| `server/tests` | **159 passed** |
+| `agents/tests` | **18 passed** |
+| `sdk/tests` | **14 passed** |
 | `scripts/check_import_boundaries.py` | **clean** |

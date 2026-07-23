@@ -19,6 +19,7 @@ def build_agent_j(
     *,
     agent_id: str = "agent_j",
     name: str = "Agent J",
+    role: str | None = None,
     model: str | None = None,
     temperature: float = 0.0,
     instructions: str | None = None,
@@ -28,6 +29,7 @@ def build_agent_j(
     return Agent(
         id=agent_id,
         name=name,
+        role=role,
         model=OpenAIChat(id=model_id, temperature=temperature),
         tools=list(TOOLS),
         instructions=instructions or PROMPT_J.read_text(),
@@ -47,5 +49,4 @@ def build_fleet_clone(
     model: str | None = None,
 ) -> Agent:
     """Agents L & O — clones of J with distinct ids (docs/11)."""
-    _ = role
-    return build_agent_j(agent_id=agent_id, name=name, model=model)
+    return build_agent_j(agent_id=agent_id, name=name, role=role, model=model)
