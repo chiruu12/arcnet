@@ -55,6 +55,21 @@ Operator-flow shots (optional, from the dry-run):
 - After AgentOS restart with `ARCNET_MODEL=gpt-4o` — probe `models_match=true`
 - Case Files — version filter showing session totals under `agent_version`
 
+## Cold-laptop gotchas (hit + fixed during rehearsal)
+
+- `run-demo.sh` now exports `.env` itself (commit `export .env in demo bring-up`) — server sees
+  `SIGNOZ_API_KEY` without manual shell exports.
+- **Dashboard resolution**: the SigNoz list API double-nests titles (`data.data.title`), so
+  title-resolve misses — pin `SIGNOZ_DASHBOARD_FLEET/THREATS/COST/AGNO` UUIDs in `.env`
+  (current IDs `019f8883-fc38/-fc4a/-fc57/-fc67…`). `/api/signoz/status` then shows all four.
+- **`foundryctl cast` regenerates the compose and DROPS `SIGNOZ_USER_ROOT_PASSWORD`** → the
+  signoz container crash-loops with `failed to validate config "user"`. Re-inject the password
+  env (from `.signoz-local-admin`) into `deploy/pours/deployment/compose.yaml` and
+  `docker compose -p signoz up -d signoz-signoz-0`. Metastore volume survives — dashboards,
+  alerts, and the service-account key are NOT lost.
+- Root login API (v0.133): `POST /api/v2/sessions/email_password` with `{email, password, orgID}`;
+  get orgID from `GET /api/v2/sessions/context?email=…`.
+
 ## Known-avoids on camera
 
 - Don't open HQ via `127.0.0.1` (blank — Vite binds `localhost`).
