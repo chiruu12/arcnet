@@ -154,14 +154,14 @@ uv run python scripts/phase4_g4_check.py
 
 - **No auth** — localhost surface by design; not auth theater.
 - **SQLite-primary local path is the default** (`./scripts/run-demo.sh`). SigNoz (Docker) is optional
-  depth: dashboards/alerts provision when a service-account key is present; live MCP stdio
-  handoff remains PARTIAL. README screenshots and the submission video are still human tasks
-  (`docs/14-product-guide.md` §10).
+  depth: dashboards/alerts provision when a service-account key is present; **MCP PARTIAL** (live
+  stdio handoff may hang — prefer HTTP Query Range + Case File). README screenshots and the
+  submission video are still human tasks (`docs/14-product-guide.md` §10).
 - **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live in HQ/README.
   TabFM required on roadmap; TabPFN deferred. See [`docs/20`](docs/20-honest-progress.md) /
   [`docs/21`](docs/21-next-phases-plan.md).
 - **HITL decide** updates SQLite today — not a live AgentOS pause relay yet (Phase 6).
-- **Apply `confirm: true`** is a human gate, not auth. **SigNoz MCP** remains PARTIAL.
+- **Apply `confirm: true`** is a human gate, not auth.
 - **Live AgentOS restart** after apply is an operator step (`agentos_reload_required` + probe);
   auto-restart is unproven / out of scope for now.
 - Overall readiness **~57% / ≤60%** — no 74/80/95 theater ([`docs/20`](docs/20-honest-progress.md)).

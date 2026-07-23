@@ -205,7 +205,7 @@ See [§ Frontend audit](#11-frontend-audit-done-vs-left) below for per-view APIs
 
 - **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live. TabFM required on roadmap (`21`/`22`); TabPFN deferred.
 - **HITL** — `POST /api/hitl/{id}` updates SQLite; does **not** yet relay/pause live AgentOS (Phase 6). Apply `confirm` ≠ auth.
-- **SigNoz MCP** — binary installable; live stdio handoff remains **PARTIAL** (Case File + Query Range HTTP preferred).
+- **MCP PARTIAL** — SigNoz MCP binary installable; live stdio handoff may hang (Case File + Query Range HTTP preferred).
 - **Live AgentOS restart** after apply — operator step; probe/banner honesty only (auto-restart unproven).
 - **Overall readiness ~57% / ≤60%** — [`20`](20-honest-progress.md). No 74/80/95 theater.
 - **Screenshots / video** — human content tasks (slots listed in README + §12).

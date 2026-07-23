@@ -210,7 +210,7 @@ flowchart LR
 | Packet | Status | PR / notes |
 |---|---|---|
 | P5-A | **TODO** | |
-| P5-B | **TODO** | |
+| P5-B | **DONE** | honesty greps clean; excerpt bounds + A15 hatch tested |
 | P6-A | **TODO** | blocked on Phase 5 |
 | P6-B | **TODO** | blocked on Phase 5 |
 | P6-C | **TODO** | defer-or-build |

@@ -1,5 +1,9 @@
 # ArcNet — Demo Script v2 (target < 3:00)
 
+> **Narration ≠ product framing.** This script is hackathon camera copy. Product limitations
+> (MAD, MCP PARTIAL, no TabFM) live in README + `14-product-guide.md` §9 — do not overclaim on
+> camera what the build does not ship.
+
 The v2 thesis: **agents that watch themselves and get better.** Attacks are the visceral instance; the Time Machine is the headline. Two windows: **ArcNet UI** (primary) + **SigNoz** (proof). Terminal only to launch scenarios. Deadpan, technical narration.
 
 ## Cold open (0:00–0:18)
@@ -22,9 +26,9 @@ Run S1. The forward-facing agent scrapes a page with a hidden instruction.
 ## Beat 3 — Griffin (1:20–1:40)
 S4 The Worms: token rate spikes. **Griffin flags the outlier first** (forecast band vs the observed dot) — before any static threshold — then the cost alert confirms and a `kill` signal stops the run.
 
-> "Griffin — a foundation model forecasting every metric's normal — catches runaway agents before any threshold trips. Outlier, report; normal, silence."
+> "Griffin — a **MAD statistical baseline** on each metric — catches runaway agents before any threshold trips. Outlier, report; normal, silence."
 
-*(Name the model only if it's the one running at record time; ordering guaranteed by the S4 choreography in `07`.)*
+*(Griffin = **MAD** today, not TabFM. Ordering guaranteed by the S4 choreography in `07`.)*
 
 ## Beat 4 — Agent-view hand-off (1:40–2:10)
 Flip the incident with the **`human_view ⇄ agent_view`** toggle → the same incident as machine-optimal JSON (root cause, trust provenance, recommended actions, a `signoz:` trace pointer). Hand it to Claude Code — which has the **SigNoz MCP server** connected — and it pulls the raw spans itself and proposes the fix.
@@ -57,3 +61,12 @@ SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
 - [ ] Video < 3 min, unlisted + linked in submission
 - [ ] Backup captures for Beats 4 & 5 recorded in Phase 5
 - [ ] Rehearse the full take **the day before the deadline**; deadline day (Sun Jul 26) = ship/submit only
+
+## Limitations (honest — mirror README / `14`)
+
+- **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live on camera or in slides.
+- **SigNoz MCP PARTIAL** — Beat 4 may use MCP for drama; product path prefers HTTP Query Range + Case File
+  evidence (stdio may hang).
+- **HITL / apply confirm** — SQLite bookkeeping today, not live AgentOS pause relay (Phase 6).
+- **Temp-0 replay** — variance reduction, not determinism; narrate numbers the run actually produced.
+- Overall readiness **~57% / ≤60%** — see [`20-honest-progress.md`](20-honest-progress.md).
