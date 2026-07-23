@@ -41,6 +41,27 @@ agent_os = create_os()
 app = agent_os.get_app()
 
 
+@app.get("/internal/runtime")
+def internal_runtime() -> dict[str, Any]:
+    """Process-level model truth for apply-model reload honesty (Phase 4).
+
+    SQLite ``agents.model`` can change without restarting this process; operators
+    compare ``model`` here to the applied SQLite model to know when reload is done.
+    """
+    model = os.getenv("ARCNET_MODEL", "gpt-4o-mini")
+    agent_ids = [str(a.id) for a in (agent_os.agents or []) if getattr(a, "id", None)]
+    return {
+        "process": "agentos",
+        "model": model,
+        "agent_ids": agent_ids,
+        "note": (
+            "Live AgentOS serves ARCNET_MODEL from process env until restart. "
+            "ArcNet apply-model updates SQLite only — set ARCNET_MODEL and reload "
+            "this process for new sessions to use the applied model."
+        ),
+    }
+
+
 def _goal_reached(
     scenario: str | None,
     result: dict[str, Any],

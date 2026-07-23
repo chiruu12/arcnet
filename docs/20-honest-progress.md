@@ -1,7 +1,7 @@
 # ArcNet — Honest progress measurement (post Phase 2 / Phase 1 remeasure)
 
 **Date:** 2026-07-23  
-**Branch:** `main` @ PR #17 merge (`2401ab1`); Phase 3 work on `phase-3-evidence-griffin`  
+**Branch:** `main` @ PR #18 merge; Phase 4 work on `phase-4-live-ops`  
 **Rule:** overall product readiness **≤60%** until measurable exits pass. No 74/80/95 theater.
 
 Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research).
@@ -13,11 +13,11 @@ Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acc
 | Slice | Honest % | Evidence basis |
 |---|---:|---|
 | Shipped surface (APIs/UI/tools exist) | **62** | Routes, HQ views, HQ tools present; many empty/error paths thin |
-| Reliability (timeouts, flakes, reload honesty) | **56** | HQ tool matrix + e2e propose→apply→pin in CI; live AgentOS reload still unproven |
-| Evidence fidelity (TM / Griffin / SigNoz) | **54** | Phase 3 fixtures + cold soak + HTTP-prefer; live MCP still PARTIAL |
-| Demo readiness (cold laptop → hero loop) | **48** | Heroes + seed scripts exist; operator dry-run → Phase 4 |
+| Reliability (timeouts, flakes, reload honesty) | **56** | HQ tool matrix + e2e + Phase 4 dry-run/probe; live AgentOS restart still operator step |
+| Evidence fidelity (TM / Griffin / SigNoz) | **54** | Phase 3 fixtures + cold soak + HTTP-prefer on main; live MCP still PARTIAL |
+| Demo readiness (cold laptop → hero loop) | **50** | Phase 4 dry-run checklist; optional restart screenshot open |
 | Hackathon assets (WS11) | **35** | Separate track — **excluded from overall** |
-| **Overall (excl. WS11)** | **~57%** | Phase 2+3 exits; **cap ≤60** — not 70%+ |
+| **Overall (excl. WS11)** | **~57%** | Phases 2–4 exits; **cap ≤60** — not 70%+ |
 
 **Do not claim Wave B / Phase 2 reached 74/80/95.** CI gates landed; evidence trust and live ops still open.
 
@@ -31,16 +31,16 @@ Inflation ban: move a cell only when that area’s exit in `19` §2 passes. “C
 |---|---|---:|---:|---:|---|
 | 1 | Positioning / framing | 58 | ~60 | **58** | Partial — honesty pins OK; demo chrome still mixed |
 | 2 | HQ frontend / IA | 55 | ~70 | **64** | Partial — cascade/hash FE tests + `hq-test` CI (Phase 2); polish open |
-| 3 | Human APIs | 58 | ~72 | **64** | Partial — pagination/write secret exist; not all filters proven |
+| 3 | Human APIs | 58 | ~72 | **66** | Partial — pagination + HQ “showing N of Total” (Phase 4) |
 | 4 | Agent APIs / tools | 64 | ~68 | **66** | Partial — envelopes + timeouts; not every twin battle-tested |
-| 5 | HQ Agent | 56 | ~60 | **60** | Partial — propose→apply→pin **e2e in CI** (Phase 2); live loop → Phase 4 |
+| 5 | HQ Agent | 56 | ~60 | **62** | Partial — propose→apply→pin CI + live_ops dry-run (Phase 4); TabFM not coded |
 | 6 | Version timeline / pinpoint | 52 | ~78 | **68** | Partial — pinpoint fields exist; cascade polish open |
 | 7 | Model explore / sims | 50 | ~62 | **56** | Partial — TM session-scoped ranking + majority winners; no corpus loop |
 | 8 | Griffin (MAD) | 46 | ~48 | **54** | Partial — cold soak: no seed write, `sqlite_proxy`, status not stuck cold (Phase 3) |
 | 9 | SigNoz | 54 | ~58 | **58** | Partial — golden Query Range fixtures + HTTP preferred before MCP (Phase 3) |
 | 10 | Unplug coverage | 68 | ~72 | **70** | Partial — fleet + HQ Agent; ingest audit incomplete |
 | 11 | Tests / CI / e2e | 48 | ~55 | **58** | **Phase 2 exits met** — e2e + hq-test + tool matrix in CI |
-| **Overall (1–11)** | **~48** | **~62–68 est. (rejected)** | **~57** | Cap ≤60; Phases 2–3 ≠ 70%+ |
+| **Overall (1–11)** | **~48** | **~62–68 est. (rejected)** | **~57** | Cap ≤60; Phases 2–4 ≠ 70%+ |
 | 12 | Hackathon assets | 35 | — | **35** | Track only |
 
 Equal-weight of areas drifts higher than the honesty pin; **authoritative overall = ~57% / ≤60%**. TabFM remains **required Phase 7** — not claimed.
@@ -88,10 +88,10 @@ P1 regression exits (must stay green):
 |---|---|
 | ~~SigNoz MCP stdio hang~~ | **Phase 3:** HTTP/Query Range preferred in skills + Case File; MCP optional |
 | ~~Live Fleet Health without seed~~ | **Phase 3:** cold soak script + tests (`sqlite_proxy`, no seed write) |
-| Demo dry-run end-to-end | Phase 4 |
-| TabFM / TabPFN | Not claimed; MAD only until **required** TabFM Phase 7 ([`21`](21-next-phases-plan.md)) |
+| Demo dry-run end-to-end | ~~Phase 4~~ — `scripts/live_ops_dry_run.py` + probe |
+| TabFM / TabPFN | Not claimed; MAD only until **required** TabFM Phase 7 ([`21`](21-next-phases-plan.md)) — **code NOT implemented** |
 
-### Phase 3 exits (met on this branch)
+### Phase 3 exits (met on `main` via PR #18)
 
 | Exit | Evidence |
 |---|---|
@@ -100,14 +100,25 @@ P1 regression exits (must stay green):
 | HTTP before MCP | HQ Agent prompt/SKILL + Case File hints + status `mcp_note` |
 | ≥3 distinct dashboard UUIDs | env + list-API unit tests |
 
+### Phase 4 exits (met on this branch)
+
+| Exit | Evidence |
+|---|---|
+| Live ops dry-run | `scripts/live_ops_dry_run.py` + `test_phase4_live_ops.py` |
+| Reload honesty + probe | apply `agentos_probe`; AgentOS `/internal/runtime`; HQ banner |
+| Pagination labels | HQ signals/proposals/versions/Case Files “showing N of Total” |
+| Session filters e2e | `agent_version` / `version_id` in dry-run + unit tests |
+
+**No further SigNoz/seed/fixture data polish** (user pin after Phase 3).
+
 ---
 
 ## 4. What works vs broken vs untested
 
 | Component | Works | Broken / weak | Untested |
 |---|---|---|---|
-| Apply-model + reload flag | API returns `agentos_reload_required`; e2e asserts it | AgentOS not restarted by server (by design) | Live AgentOS reload UX |
-| Griffin MAD status | Estimator=mad, honesty string, proxy in-memory | Anomaly usefulness without seed still low | Cold soak multi-cycle (Phase 3) |
+| Apply-model + reload flag | API returns `agentos_reload_required` + `agentos_probe`; dry-run asserts | AgentOS not restarted by server (by design) | Optional live restart screenshot |
+| Griffin MAD status | Estimator=mad, honesty string, proxy in-memory | Anomaly usefulness without seed still low | Cold soak multi-cycle (Phase 3 on main) |
 | Model explore | Session-scoped TM promote; majority dim winners | Explore loop off by default | Live OpenAI catalog + real replays |
 | SigNoz evidence | Links + bounded spans when Query Range shape is span-like | MCP hang; key-less honest empty | Golden fixtures + HTTP prefer (Phase 3) |
 | HQ Agent tools | Timeouts/errors structured; recommend uses deploy URL | Full agent conversation quality | Scripted multi-tool diagnose |
@@ -118,25 +129,26 @@ P1 regression exits (must stay green):
 
 ## 5. Next plan — harden framework first (Wave C = backlog)
 
-**Authoritative phase bundles:** [`21-next-phases-plan.md`](21-next-phases-plan.md). Phases 2–3 done. Phase 1 remeasure done (~57% / ≤60%). **Next = Phase 4 (Live ops loop)**. TabFM = **required** Phase 7 (not optional).
+**Authoritative phase bundles:** [`21-next-phases-plan.md`](21-next-phases-plan.md). Phases 2–4 done (Phase 4 on branch). Phase 1 remeasure done (~57% / ≤60%). **Next = Phase 5 (Safety matrix)**. TabFM = **required Phase 7 (not coded yet)**.
 
-Order: **fix → test → measure → then new features**. Wave C items stay backlog until measurement exits move. Overall stays **~57% / ≤60%** — Phase 2/3 do not unlock 70%+.
+Order: **fix → test → measure → then new features**. Wave C items stay backlog until measurement exits move. Overall stays **~57% / ≤60%** — Phase 2–4 do not unlock 70%+.
 
 ### Top 5 concrete hardening items
 
 1. ~~**WS9 e2e script + CI job**~~ — **Phase 2 done**
 2. ~~**HQ FE cascade tests**~~ — **Phase 2 done** (`node:test` cascade + hash; CI `hq-test`)
-3. ~~**Griffin cold-path soak**~~ — **Phase 3 done**
-4. ~~**SigNoz evidence contract**~~ — **Phase 3 done**
+3. ~~**Griffin cold-path soak**~~ — **Phase 3 done** (PR #18)
+4. ~~**SigNoz evidence contract**~~ — **Phase 3 done** (PR #18)
 5. ~~**HQ tool error matrix**~~ — **Phase 2 done**
 
 ### Explicit backlog (not % fuel)
 
-- **Phase 4 live ops loop** (AgentOS reload UX, live propose→apply→pin, pagination labels)
+- ~~**Phase 4 live ops loop**~~ — **done on branch** (dry-run + pagination labels + probe)
 - Wave C feature expansion (corpus scorecard, HITL pause UI polish)
-- **TabFM integration (required Phase 7)** — HF `google/tabfm-1.0.0-pytorch` `regression/`; MAD degrade OK; TabPFN deferred
+- **TabFM integration (required Phase 7)** — HF `google/tabfm-1.0.0-pytorch` `regression/`; MAD degrade OK; TabPFN deferred — **NOT implemented**
 - WS11 hackathon capture (screenshots/video) — track only
-- Claiming ≥70% overall before Phase 4–5 exits + measured re-score
+- Claiming ≥70% overall before Phase 5+ exits + measured re-score
+- Further SigNoz/seed/fixture polish — **stopped per user**
 
 ---
 

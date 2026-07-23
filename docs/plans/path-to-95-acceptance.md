@@ -129,7 +129,8 @@ curl -sD- 'http://127.0.0.1:8000/api/sessions?agent_id=agent_j&limit=2&offset=0'
 
 ```bash
 PYTHONPATH="sdk:server" uv run python scripts/e2e_path_to_95.py
-# expect: seed → versions → sessions filter → case-file zip → propose → apply → pin → check pinpoint
+PYTHONPATH="sdk:server" uv run python scripts/live_ops_dry_run.py
+# expect: seed → propose → apply → pin → filters → pagination totals → reload probe
 cd hq && pnpm test
 ```
 

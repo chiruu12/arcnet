@@ -8,6 +8,7 @@ import {
   type CascadeState,
 } from "../cascade";
 import { AgentJson, Empty, Seam, ts } from "../components";
+import { showingOfTotal } from "../pageLabel";
 import type {
   AgentEnvelope,
   AgentModelRow,
@@ -50,6 +51,7 @@ export function CaseFiles({
   const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
   const [models, setModels] = useState<AgentModelRow[]>([]);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [sessionsTotal, setSessionsTotal] = useState(0);
   const [versionHasNoPins, setVersionHasNoPins] = useState(false);
   const [envelope, setEnvelope] = useState<AgentEnvelope | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -177,6 +179,7 @@ export function CaseFiles({
   useEffect(() => {
     if (!agentId || !model) {
       setSessions([]);
+      setSessionsTotal(0);
       setCascade((s) => (s.sessionId ? cascadeReducer(s, { type: "set_session", sessionId: "" }) : s));
       return;
     }
@@ -203,6 +206,8 @@ export function CaseFiles({
         if (cancelled) return;
         setVersionHasNoPins(noPins);
         setSessions(rows);
+        // api.sessions() already walks all pages — loaded length is the total.
+        setSessionsTotal(rows.length);
         const want = prefer.current.session;
         prefer.current.session = undefined;
         const next = preferHeroSession(
@@ -403,6 +408,12 @@ export function CaseFiles({
               ))}
             </select>
           </label>
+          {sessions && sessions.length > 0 && (
+            <span className="dim" role="status">
+              {showingOfTotal(sessions.length, sessionsTotal || sessions.length)}
+              {lane === "versioned" && versionId ? " · filter=agent_version" : ""}
+            </span>
+          )}
           {sessionId && (
             <a className="btn" href={api.caseFileUrl(sessionId)} download>
               export_case_file()

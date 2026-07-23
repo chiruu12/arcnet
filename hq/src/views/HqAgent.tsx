@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { api, type AgentVersionRow } from "../api";
 import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
 import { Empty, Seam, ts } from "../components";
+import { showingOfTotal } from "../pageLabel";
 import type { CascadeLink, SignalRow } from "../types";
 
 const RUN_HINT =
   'PYTHONPATH=sdk:agents uv run python -m hq_agent "fleet health + griffin MAD + proposals"';
+
+const PROPOSALS_PAGE = 40;
+const VERSIONS_PAGE = 50;
 
 /** Pull trailing model id from proposal guidance like "…: gpt-4o-mini → gpt-4o." */
 function parseProposedModel(guidance: string | null): string {
@@ -40,7 +44,9 @@ export function HqAgent({
     sessionId: deepLink?.session ?? "",
   }));
   const [proposals, setProposals] = useState<SignalRow[] | null>(null);
+  const [proposalsTotal, setProposalsTotal] = useState(0);
   const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
+  const [versionsTotal, setVersionsTotal] = useState(0);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,22 +108,26 @@ export function HqAgent({
     setProposals(null);
     setVersions(null);
     Promise.all([
-      api.signals({ agent_id: agentId, source: "hq_agent", limit: 40 }),
+      api.signalsPage({ agent_id: agentId, source: "hq_agent", limit: PROPOSALS_PAGE }),
       api.agentVersionTimeline(agentId),
+      api.agentVersionsPage(agentId, { limit: VERSIONS_PAGE }),
     ])
-      .then(([sigs, tl]) => {
+      .then(([sigs, tl, versPage]) => {
         if (cancelled) return;
-        setProposals(sigs);
-        setVersions(tl.versions);
+        setProposals(sigs.rows);
+        setProposalsTotal(sigs.total);
+        setVersions(versPage.rows);
+        setVersionsTotal(versPage.total);
         setCurrentModel(tl.current_model);
         setErr(null);
         const wantV = prefer.current.version;
         const wantM = prefer.current.model;
         prefer.current.version = undefined;
         prefer.current.model = undefined;
+        const versionRows = versPage.rows.length > 0 ? versPage.rows : tl.versions;
         setCascade((s) => {
-          if (wantV && tl.versions.some((v) => v.version_id === wantV)) {
-            const row = tl.versions.find((v) => v.version_id === wantV)!;
+          if (wantV && versionRows.some((v) => v.version_id === wantV)) {
+            const row = versionRows.find((v) => v.version_id === wantV)!;
             return cascadeReducer(s, {
               type: "set_version",
               versionId: wantV,
@@ -127,7 +137,7 @@ export function HqAgent({
           if (s.versionId) {
             // Deep link / user already chose — do not overwrite with newest.
             if (!s.model) {
-              const row = tl.versions.find((v) => v.version_id === s.versionId);
+              const row = versionRows.find((v) => v.version_id === s.versionId);
               if (row?.model) {
                 return cascadeReducer(s, {
                   type: "hydrate",
@@ -137,11 +147,11 @@ export function HqAgent({
             }
             return s;
           }
-          if (tl.versions[0]) {
+          if (versionRows[0]) {
             return cascadeReducer(s, {
               type: "set_version",
-              versionId: tl.versions[0].version_id,
-              model: tl.versions[0].model ?? "",
+              versionId: versionRows[0].version_id,
+              model: versionRows[0].model ?? "",
             });
           }
           return s;
@@ -242,10 +252,18 @@ export function HqAgent({
       });
       const pinNote = sessionId.trim() ? ` · pinned ${sessionId.trim()}` : "";
       setFlash(`applied ${out.model} as ${out.version.version}${pinNote}`);
-      if (out.agentos_reload_required !== false) {
+      if (out.agentos_reload_required) {
+        const probeNote = out.agentos_probe?.note ? ` — ${out.agentos_probe.note}` : "";
+        setReloadBanner(
+          (out.agentos_reload_instructions ||
+            "AgentOS still on old model until restart — SQLite updated; do not auto-restart from server.") +
+            probeNote,
+        );
+      } else {
         setReloadBanner(
           out.agentos_reload_instructions ||
-            "AgentOS still on old model until restart — SQLite updated; do not auto-restart from server.",
+            out.agentos_probe?.note ||
+            "SQLite and AgentOS model already match — no restart needed.",
         );
       }
       setApplyConfirm(false);
@@ -435,39 +453,44 @@ export function HqAgent({
         <Empty hint="no hq_agent proposals — run the agent or call propose_model_change" />
       )}
       {proposals && proposals.length > 0 && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>time</th>
-              <th>reason</th>
-              <th>guidance</th>
-              <th>status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {proposals.map((p) => (
-              <tr key={p.signal_id}>
-                <td className="dim">{ts(p.created_at)}</td>
-                <td className="wrap">{p.reason}</td>
-                <td className="dim wrap">{p.guidance ?? "—"}</td>
-                <td>{p.status}</td>
-                <td>
-                  {p.status !== "applied" && (
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={() => prepApply(p)}
-                      disabled={busy}
-                    >
-                      prep_apply
-                    </button>
-                  )}
-                </td>
+        <>
+          <p className="dim" role="status">
+            {showingOfTotal(proposals.length, proposalsTotal)}
+          </p>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>time</th>
+                <th>reason</th>
+                <th>guidance</th>
+                <th>status</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {proposals.map((p) => (
+                <tr key={p.signal_id}>
+                  <td className="dim">{ts(p.created_at)}</td>
+                  <td className="wrap">{p.reason}</td>
+                  <td className="dim wrap">{p.guidance ?? "—"}</td>
+                  <td>{p.status}</td>
+                  <td>
+                    {p.status !== "applied" && (
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => prepApply(p)}
+                        disabled={busy}
+                      >
+                        prep_apply
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
 
       <p className="eyebrow">{"// agent_versions"}</p>
@@ -476,44 +499,49 @@ export function HqAgent({
         <Empty hint="no registered versions — register_agent_version or apply-model after a deploy" />
       )}
       {versions && versions.length > 0 && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>time</th>
-              <th>version</th>
-              <th>model</th>
-              <th>source_ref</th>
-              <th>notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {versions.map((v) => (
-              <tr
-                key={v.version_id}
-                className={versionId === v.version_id ? "active" : undefined}
-                onClick={() =>
-                  setCascade((s) =>
-                    cascadeReducer(s, {
-                      type: "set_version",
-                      versionId: v.version_id,
-                      model: v.model ?? undefined,
-                    }),
-                  )
-                }
-                style={{ cursor: "pointer" }}
-              >
-                <td className="dim">{ts(v.created_at)}</td>
-                <td>{v.version}</td>
-                <td>
-                  {v.model ?? "—"}
-                  {v.model_version ? ` @ ${v.model_version}` : ""}
-                </td>
-                <td className="dim wrap">{v.source_ref ?? "—"}</td>
-                <td className="dim wrap">{v.notes ?? "—"}</td>
+        <>
+          <p className="dim" role="status">
+            {showingOfTotal(versions.length, versionsTotal)}
+          </p>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>time</th>
+                <th>version</th>
+                <th>model</th>
+                <th>source_ref</th>
+                <th>notes</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {versions.map((v) => (
+                <tr
+                  key={v.version_id}
+                  className={versionId === v.version_id ? "active" : undefined}
+                  onClick={() =>
+                    setCascade((s) =>
+                      cascadeReducer(s, {
+                        type: "set_version",
+                        versionId: v.version_id,
+                        model: v.model ?? undefined,
+                      }),
+                    )
+                  }
+                  style={{ cursor: "pointer" }}
+                >
+                  <td className="dim">{ts(v.created_at)}</td>
+                  <td>{v.version}</td>
+                  <td>
+                    {v.model ?? "—"}
+                    {v.model_version ? ` @ ${v.model_version}` : ""}
+                  </td>
+                  <td className="dim wrap">{v.source_ref ?? "—"}</td>
+                  <td className="dim wrap">{v.notes ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </>
   );
