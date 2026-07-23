@@ -24,14 +24,17 @@ export type PageMeta = {
 
 export type Paged<T> = { rows: T[] } & PageMeta;
 
+function parseHeaderInt(raw: string | null, fallback: number): number {
+  if (raw == null || raw.trim() === "") return fallback;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : fallback;
+}
+
 function pageMetaFromHeaders(headers: Headers, rowCount: number): PageMeta {
-  const headerTotal = headers.get("X-Total-Count");
-  const headerLimit = headers.get("X-Limit");
-  const headerOffset = headers.get("X-Offset");
   return {
-    total: headerTotal != null ? Number(headerTotal) : rowCount,
-    limit: headerLimit != null ? Number(headerLimit) : rowCount,
-    offset: headerOffset != null ? Number(headerOffset) : 0,
+    total: parseHeaderInt(headers.get("X-Total-Count"), rowCount),
+    limit: parseHeaderInt(headers.get("X-Limit"), rowCount),
+    offset: parseHeaderInt(headers.get("X-Offset"), 0),
   };
 }
 

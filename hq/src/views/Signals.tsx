@@ -79,11 +79,15 @@ export function Signals({
       if (!row.signal_id) return;
       if (agentRef && row.agent_id !== agentRef) return;
       setSignals((prev) => {
-        const rest = (prev ?? []).filter((s) => s.signal_id !== row.signal_id);
+        const list = prev ?? [];
+        const existed = list.some((s) => s.signal_id === row.signal_id);
+        if (!existed) {
+          setTotal((n) => n + 1);
+          setLiveCount((n) => n + 1);
+        }
+        const rest = list.filter((s) => s.signal_id !== row.signal_id);
         return [row, ...rest].slice(0, SIGNALS_PAGE);
       });
-      setTotal((n) => n + 1);
-      setLiveCount((n) => n + 1);
     });
     return () => {
       cancelled = true;

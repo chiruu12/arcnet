@@ -206,17 +206,8 @@ export function CaseFiles({
         if (cancelled) return;
         setVersionHasNoPins(noPins);
         setSessions(rows);
-        // Prefer header total when filtered; fall back to loaded length.
-        try {
-          const page = await api.sessionsPage({
-            ...params,
-            ...(noPins ? { agent_version: undefined } : {}),
-            limit: 1,
-          });
-          if (!cancelled) setSessionsTotal(page.total);
-        } catch {
-          if (!cancelled) setSessionsTotal(rows.length);
-        }
+        // api.sessions() already walks all pages — loaded length is the total.
+        setSessionsTotal(rows.length);
         const want = prefer.current.session;
         prefer.current.session = undefined;
         const next = preferHeroSession(
