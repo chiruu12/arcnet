@@ -1,7 +1,7 @@
-# ArcNet — Honest progress measurement (post Phases 5–6 + P7-A remeasure)
+# ArcNet — Honest progress measurement (post P8 remeasure)
 
-**Date:** 2026-07-23 (evening remeasure; morning baseline ~57%)  
-**Branch:** `main` @ Phases 5–6 merged (P5-A/P5-B/P6-A/P6-B; P6-C DEFER) + P7-A spike  
+**Date:** 2026-07-24 (P8 remeasure; 07-23 PM baseline ~62%, AM ~57%)  
+**Branch:** `main` @ Phases 5–6 + P7-A + P8 wave merged (P8-A graph / P8-B twins / P8-C model-intel / P8-D verdict metadata)  
 **Rule:** overall product readiness **≤65%** until the next exits pass (live S1/S2/S5 rerun, P7-B TabFM ship, demo capture). No 74/80/95 theater.
 
 Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research), [`23-product-overview.md`](23-product-overview.md) (product overview).
@@ -12,12 +12,12 @@ Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acc
 
 | Slice | Honest % | Evidence basis |
 |---|---:|---|
-| Shipped surface (APIs/UI/tools exist) | **68** | + HITL view/API, threats panel, dashboards twin, api_down recover — all test-covered (Phase 6) |
+| Shipped surface (APIs/UI/tools exist) | **72** | + P8: agent-view twin for every HQ view w/ cross-links, `model-intel` endpoint + catalog, home landing, frontend map — all test-covered |
 | Reliability (timeouts, flakes, reload honesty) | **60** | + shell recover helper w/ tests; excerpt bounds proven; live AgentOS restart still operator step |
-| Evidence fidelity (TM / Griffin / SigNoz) | **58** | + Unplug coverage matrix (0 silent gaps); P7-A spike measured; live MCP still PARTIAL |
+| Evidence fidelity (TM / Griffin / SigNoz) | **60** | + P8-D: guard verdict metadata (rule/pattern_class/findings) persisted into threats/sources/signals + case files; live MCP still PARTIAL |
 | Demo readiness (cold laptop → hero loop) | **58** | Run-3 rehearsal: cold bring-up + e2e + dry-run PASS, capture checklist; **live replays blocked on OpenAI quota** |
 | Hackathon assets (WS11) | **38** | Capture checklist landed; screenshots/video still human — **excluded from overall** |
-| **Overall (excl. WS11)** | **~62%** | Phases 5–6 exits + P7-A; **cap ≤65** until live reruns + P7-B |
+| **Overall (excl. WS11)** | **~64%** | Phases 5–6 + P7-A + P8 exits; **cap ≤65** until live reruns + P7-B |
 
 **Do not claim 70%+.** Live S1/S2/S5 rerun (quota), P7-B TabFM ship, and demo capture are still open; MCP stdio still PARTIAL.
 
@@ -43,7 +43,19 @@ Inflation ban: move a cell only when that area’s exit in `19` §2 passes. “C
 | **Overall (1–11)** | **~48** | **~57** | **~62** | Cap ≤65; live reruns + P7-B + capture still open |
 | 12 | Hackathon assets | 35 | 35 | **38** | Track only — capture checklist landed; media human |
 
-Equal-weight of areas drifts higher than the honesty pin; **authoritative overall = ~62% / ≤65%**. TabFM remains **required Phase 7** — spike measured (P7-A), ship (P7-B) not started; never claim live.
+Equal-weight of areas drifts higher than the honesty pin; **authoritative overall = ~64% / ≤65%**. TabFM remains **required Phase 7** — spike measured (P7-A), ship (P7-B) not started; never claim live.
+
+### P8 remeasure (2026-07-24) — area moves, each citing a measured exit
+
+| # | Area | PM 07-23 | **P8 (07-24)** | Exit evidence |
+|---|---|---:|---:|---|
+| 2 | HQ frontend / IA | 72 | **74** | P8-A: `docs/25` graph + completeness proof (zero unknowns); loading/id fixes across 6 views; FE suite 26 → **40** green |
+| 3 | Human APIs | 70 | **72** | P8-B: 404/409 = `{detail, hint}` everywhere (tested); dup version_id → 409 |
+| 4 | Agent APIs / tools | 72 | **78** | P8-B: twin for EVERY HQ view + `graph_links` walkable graph + `docs/26` guide; 12 new twin tests |
+| 7 | Model explore / sims | 56 | **64** | P8-C: `model_catalog` (2026-07, reasoning tiers) + additive `GET /api/agents/{id}/model-intel` — projections from recorded tokens only, rec cites DB evidence; 4 tests + live-verified vs hero DB |
+| 10 | Unplug coverage | 76 | **80** | P8-D: shared `guard_factory` config; verdict metadata persisted on threats/sources/signals + case files; matrix updated; 5 new tests |
+| 11 | Tests / CI / e2e | 64 | **68** | Suite grew: server 130 → **149**, sdk 6 → **8**, hq 26 → **40** (agents 17), boundaries clean |
+| — | Overall (1–11) | ~62 | **~64** | Cap **≤65** holds — live S1/S2/S5 rerun (quota), P7-B TabFM ship, capture still open |
 
 ---
 

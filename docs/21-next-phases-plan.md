@@ -12,8 +12,8 @@
 
 | Fact | Value |
 |---|---|
-| Overall (areas 1–11) | **~57%** — do not inflate; no 74/80/95 theater |
-| Cap until exits pass | **≤60%** |
+| Overall (areas 1–11) | **~64%** — current authority in [`20`](20-honest-progress.md); do not inflate; no 74/80/95 theater |
+| Cap until exits pass | **≤65%** |
 | Wave A / Wave B surfaces | Landed (cascade, MAD strip, evidence helpers, HQ tools, P1 fixes) |
 | Phase 2 gates | e2e script + CI, HQ FE cascade/hash tests + CI, HQ tool error matrix — **on main** |
 | Phase 3 gates | Query Range golden fixtures; Griffin cold soak (no seed); HTTP preferred before MCP; ≥3 distinct dashboard UUIDs — **on main via PR #18** |

@@ -289,7 +289,7 @@ Inventory of `hq/` as of this guide (live APIs only — Phase 3 mock route remov
 
 | Doc | Role |
 |---|---|
-| [`23-product-overview.md`](23-product-overview.md) | **Product overview** — is/isn't, loop, HQ evolution, ~57% |
+| [`23-product-overview.md`](23-product-overview.md) | **Product overview** — is/isn't, loop, HQ evolution, ~64% |
 | [`20-honest-progress.md`](20-honest-progress.md) | **Measured scorecard** (source of truth) |
 | [`21-next-phases-plan.md`](21-next-phases-plan.md) | **Phase plan + required TabFM** |
 | [`22-next-agent-packets.md`](22-next-agent-packets.md) | **Next agent packets** Phases 5–7 |

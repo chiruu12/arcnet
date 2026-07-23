@@ -182,7 +182,7 @@ export function Home({ mode }: { mode: Mode }) {
       </section>
 
       <p className="honesty-strip">
-        griffin=mad (tabfm phase 7) · signoz mcp partial · localhost trust · readiness ~62%
+        griffin=mad (tabfm phase 7) · signoz mcp partial · localhost trust · readiness ~64%
       </p>
     </>
   );

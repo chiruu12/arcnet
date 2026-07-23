@@ -1,7 +1,7 @@
 # ArcNet — Product overview
 
 **Audience:** operators, reviewers, next agents.  
-**Honesty pin:** overall readiness **~57% / ≤60%** ([`20-honest-progress.md`](20-honest-progress.md)). No 74/80/95 theater.  
+**Honesty pin:** overall readiness **~64% / ≤65%** ([`20-honest-progress.md`](20-honest-progress.md)). No 74/80/95 theater.  
 **Measurement / roadmap source of truth:** [`20`](20-honest-progress.md) · [`21`](21-next-phases-plan.md) · [`22`](22-next-agent-packets.md).
 
 ---
@@ -110,8 +110,8 @@ Chrome framing moved from “demo fleet” language toward **operator enhancemen
 
 | Pin | Value |
 |---|---|
-| Overall (excl. hackathon assets) | **~57%** |
-| Cap until further measured exits | **≤60%** |
+| Overall (excl. hackathon assets) | **~64%** |
+| Cap until further measured exits | **≤65%** |
 | Withdrawn estimates | 74 / 80 / 95 theater |
 
 Cite exits in [`20`](20-honest-progress.md) §3 before moving cells. Phases 2–4 done ≠ “70%+ product.”

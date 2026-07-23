@@ -4,7 +4,7 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 
 | Related | Role |
 |---|---|
-| [`23-product-overview.md`](23-product-overview.md) | **Product overview** — enhancement-layer vision, HQ evolution, ~57% |
+| [`23-product-overview.md`](23-product-overview.md) | **Product overview** — enhancement-layer vision, HQ evolution, ~64% |
 | [`20-honest-progress.md`](20-honest-progress.md) | **Measured scorecard** (authoritative readiness) |
 | [`21-next-phases-plan.md`](21-next-phases-plan.md) · [`22-next-agent-packets.md`](22-next-agent-packets.md) | Next phases + packets (incl. **required TabFM**) |
 | [`16-product-review-brief.md`](16-product-review-brief.md) §11 | Founder decisions (authoritative) |

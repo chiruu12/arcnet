@@ -815,7 +815,7 @@ def agent_home_data(conn: sqlite3.Connection) -> dict[str, Any]:
             {"stage": "case_file", "view": "case_files", "path": "/api/agent-view/case_files/<session_id>"},
             {"stage": "improve", "view": "hq_agent", "path": "/api/agent-view/hq_agent/<agent_id>"},
         ],
-        "readiness_honesty": "~62% (cap <=65); Griffin=MAD; SigNoz MCP=PARTIAL",
+        "readiness_honesty": "~64% (cap <=65); Griffin=MAD; SigNoz MCP=PARTIAL",
     }
 
 

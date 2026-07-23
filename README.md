@@ -11,7 +11,7 @@ Then the two pillars that close the improve loop at the **agent-session** level:
 - **Agent-view** — every datum has a machine-optimal twin (`GET /api/agent-view/{view}/{id}`), so the coding agents you already run (Claude Code, Codex, Cursor) can read fleet health, signals, and incidents in *their* format and improve the agents.
 - **The Time Machine** — replay a recorded incident against a different model or prompt (tool outputs mocked from the transcript, **same guardrail**) and *prove* it would behave better: goal reached, fewer steps, lower cost, attack resisted. Your trace history becomes a behavioral regression suite — the answer to "can we upgrade the model?" that isn't swap-and-pray. (LangSmith and Braintrust replay a *call* or a dataset example against a new model; ArcNet replays the **whole recorded agent session** — goal, tools, and trust checks live.)
 
-**Product overview (start here):** [`docs/23-product-overview.md`](docs/23-product-overview.md) — what ArcNet is/isn’t, core loop, shipped vs deferred, HQ view evolution, honesty **~57% / ≤60%**. **Measurement / roadmap source of truth:** [`docs/20-honest-progress.md`](docs/20-honest-progress.md) · [`docs/21-next-phases-plan.md`](docs/21-next-phases-plan.md) · [`docs/22-next-agent-packets.md`](docs/22-next-agent-packets.md). Usage guide: [`docs/14-product-guide.md`](docs/14-product-guide.md). Productization: [`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md). Concept: `docs/08-vision-v2.md`. Demo narration: `docs/06-demo-script.md`.
+**Product overview (start here):** [`docs/23-product-overview.md`](docs/23-product-overview.md) — what ArcNet is/isn’t, core loop, shipped vs deferred, HQ view evolution, honesty **~64% / ≤65%**. Machine consumers: [`docs/26-agent-consumer-guide.md`](docs/26-agent-consumer-guide.md) (agent-view twins + improve loop) · [`docs/27-model-intelligence.md`](docs/27-model-intelligence.md) (model catalog + evidence-grounded recommendations) · [`docs/25-frontend-map.md`](docs/25-frontend-map.md) (HQ relationship graph). **Measurement / roadmap source of truth:** [`docs/20-honest-progress.md`](docs/20-honest-progress.md) · [`docs/21-next-phases-plan.md`](docs/21-next-phases-plan.md) · [`docs/22-next-agent-packets.md`](docs/22-next-agent-packets.md). Usage guide: [`docs/14-product-guide.md`](docs/14-product-guide.md). Productization: [`docs/17-product-rework-plan.md`](docs/17-product-rework-plan.md). Concept: `docs/08-vision-v2.md`. Demo narration: `docs/06-demo-script.md`.
 
 ## Provenance disclosure
 
@@ -165,7 +165,7 @@ uv run python scripts/phase4_g4_check.py --s1 s_ecfdb55d --s4 s_2af44726
 - **Apply `confirm: true`** is a human gate, not auth.
 - **Live AgentOS restart** after apply is an operator step (`agentos_reload_required` + probe);
   auto-restart is unproven / out of scope for now.
-- Overall readiness **~57% / ≤60%** — no 74/80/95 theater ([`docs/20`](docs/20-honest-progress.md)).
+- Overall readiness **~64% / ≤65%** — no 74/80/95 theater ([`docs/20`](docs/20-honest-progress.md)).
 - Temp-0 replay is variance reduction, not determinism — hence the 3-run majority and the
   honest `inconclusive` verdict.
 - APIs return epoch-millisecond timestamps (documented drift from `docs/12`'s ISO-8601 note;
