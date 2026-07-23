@@ -60,6 +60,10 @@ export function Signals({
   useEffect(() => {
     let cancelled = false;
     seenIdsRef.current = new Set();
+    // Clear immediately on agentRef change so the label never flashes a prior filter's total.
+    setSignals(null);
+    setTotal(0);
+    setErr(null);
     const params = {
       ...(agentRef ? { agent_id: agentRef } : {}),
       limit: SIGNALS_PAGE,
