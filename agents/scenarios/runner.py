@@ -12,7 +12,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from opentelemetry import trace
-from unplug import Guard
+from arcnet.guard_factory import build_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
@@ -48,7 +48,7 @@ S4_GOAL = (
 def _reset_session_guard(runtime: Any) -> None:
     """Unplug trajectory state is per session, not shared across Bug Suite runs."""
     runtime.taint_sources.clear()
-    runtime.guard = Guard()
+    runtime.guard = build_guard()
 
 
 def _usage_from_run(run: Any, model: str, latency_ms: float) -> dict[str, Any]:

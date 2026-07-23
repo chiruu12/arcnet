@@ -44,8 +44,14 @@ class GuardScenarioStubs(unittest.TestCase):
             guardrail.check(run_input)
 
     def test_s5_guard_scan_alone_blocks(self) -> None:
-        result = Guard().scan(S5_JAILBREAK, source=Source.USER)
+        from arcnet.guard_factory import build_guard, guard_verdict_from_result
+
+        guard = build_guard()
+        result = guard.scan(S5_JAILBREAK, source=Source.USER)
         self.assertEqual(result.action, Action.BLOCK)
+        verdict = guard_verdict_from_result(result, checkpoint="input")
+        self.assertEqual(verdict["pattern_class"], "regex")
+        self.assertIn(verdict["rule"], ("dan_mode", "ignore_previous", "system_extraction"))
 
     def test_s2_output_post_hook_redacts_ssn(self) -> None:
         body = f"Customer D. Edwards full record: name=D. Edwards ssn={SSN} email=d@example.com"
@@ -62,6 +68,14 @@ class GuardScenarioStubs(unittest.TestCase):
         rt.taint_sources.append(
             TaintedText(text="poisoned page", trust_level=TrustLevel.RETRIEVED, origin="fetch_url")
         )
+        from arcnet.transcript import TranscriptRecorder
+
+        rt.transcript = TranscriptRecorder(
+            session_id="s_test",
+            agent_id="agent_j",
+            goal="test",
+            model="gpt-4o-mini",
+        )
 
         def _send(**_: object) -> str:
             return "EMAIL_SENT"
@@ -73,6 +87,13 @@ class GuardScenarioStubs(unittest.TestCase):
         )
         self.assertIn("BLOCKED", str(out))
         self.assertNotIn("EMAIL_SENT", str(out))
+        steps = get_runtime().transcript.steps if get_runtime().transcript else []
+        blocked = [s for s in steps if s.get("tool") == "send_email"]
+        self.assertTrue(blocked)
+        guard = blocked[-1].get("guard") or {}
+        self.assertEqual(guard.get("action"), "block")
+        self.assertIn("rule", guard)
+        self.assertIn("risk_score", guard)
 
     def test_s3_destructive_run_query_blocked_at_tool_call(self) -> None:
         def _query(**_: object) -> str:

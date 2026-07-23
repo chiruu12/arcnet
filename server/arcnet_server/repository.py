@@ -309,11 +309,17 @@ def session_or_agent_exists(conn: sqlite3.Connection, ref_id: str) -> bool:
 
 
 def insert_threat(conn: sqlite3.Connection, threat_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    findings_detail = fields.get("findings_detail")
+    guard_verdict = fields.get("guard_verdict")
+    pattern_class = fields.get("pattern_class")
+    if not pattern_class and isinstance(guard_verdict, dict):
+        pattern_class = guard_verdict.get("pattern_class")
     conn.execute(
         """INSERT INTO threats
            (threat_id, session_id, agent_id, checkpoint, action, category, subcategory,
-            risk_score, trust_level, evidence, trace_id, span_id, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            risk_score, trust_level, evidence, trace_id, span_id, findings_detail,
+            pattern_class, guard_verdict, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             threat_id,
             fields.get("session_id"),
@@ -327,12 +333,15 @@ def insert_threat(conn: sqlite3.Connection, threat_id: str, fields: dict[str, An
             fields.get("evidence"),
             fields.get("trace_id"),
             fields.get("span_id"),
+            dumps(findings_detail),
+            pattern_class,
+            dumps(guard_verdict),
             now_ms(),
         ),
     )
     conn.commit()
     row = conn.execute("SELECT * FROM threats WHERE threat_id=?", (threat_id,)).fetchone()
-    d = row_to_dict(row)
+    d = row_to_dict(row, json_fields=["findings_detail", "guard_verdict"])
     assert d is not None
     return d
 
@@ -374,7 +383,7 @@ def list_threats(
     q += " ORDER BY created_at DESC, threat_id DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
-    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+    return [row_to_dict(r, json_fields=["findings_detail", "guard_verdict"]) for r in rows]  # type: ignore[misc]
 
 
 def threats_for_session(conn: sqlite3.Connection, session_id: str) -> list[dict[str, Any]]:
@@ -382,17 +391,28 @@ def threats_for_session(conn: sqlite3.Connection, session_id: str) -> list[dict[
         "SELECT * FROM threats WHERE session_id=? ORDER BY created_at ASC, threat_id ASC",
         (session_id,),
     ).fetchall()
-    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+    return [row_to_dict(r, json_fields=["findings_detail", "guard_verdict"]) for r in rows]  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------- sources
 
 
 def insert_source(conn: sqlite3.Connection, source_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    findings_detail = fields.get("findings_detail")
+    guard_verdict = fields.get("guard_verdict")
+    findings_raw = fields.get("findings")
+    if isinstance(findings_raw, list):
+        findings_detail = findings_detail or findings_raw
+        findings_count = len(findings_raw)
+    elif isinstance(findings_detail, list):
+        findings_count = len(findings_detail)
+    else:
+        findings_count = int(findings_raw or 0)
     conn.execute(
         """INSERT INTO sources
-           (source_id, session_id, agent_id, origin, trust_level, scan_action, findings, created_at)
-           VALUES (?,?,?,?,?,?,?,?)""",
+           (source_id, session_id, agent_id, origin, trust_level, scan_action, findings,
+            findings_detail, guard_verdict, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
         (
             source_id,
             fields.get("session_id"),
@@ -400,13 +420,15 @@ def insert_source(conn: sqlite3.Connection, source_id: str, fields: dict[str, An
             fields.get("origin"),
             fields.get("trust_level"),
             fields.get("scan_action"),
-            fields.get("findings") or 0,
+            findings_count,
+            dumps(findings_detail),
+            dumps(guard_verdict),
             now_ms(),
         ),
     )
     conn.commit()
     row = conn.execute("SELECT * FROM sources WHERE source_id=?", (source_id,)).fetchone()
-    d = row_to_dict(row)
+    d = row_to_dict(row, json_fields=["findings_detail", "guard_verdict"])
     assert d is not None
     return d
 
@@ -448,7 +470,7 @@ def list_sources(
     q += " ORDER BY created_at DESC, source_id DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
-    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+    return [row_to_dict(r, json_fields=["findings_detail", "guard_verdict"]) for r in rows]  # type: ignore[misc]
 
 
 def sources_for_ref(conn: sqlite3.Connection, ref_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
@@ -458,7 +480,7 @@ def sources_for_ref(conn: sqlite3.Connection, ref_id: str, *, limit: int = 200) 
         "ORDER BY created_at DESC, source_id DESC LIMIT ?",
         (ref_id, ref_id, limit),
     ).fetchall()
-    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+    return [row_to_dict(r, json_fields=["findings_detail", "guard_verdict"]) for r in rows]  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------- signals
@@ -473,8 +495,9 @@ def insert_signal(
 ) -> dict[str, Any]:
     conn.execute(
         """INSERT INTO signals
-           (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance, source, status, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+           (signal_id, session_id, agent_id, kind, severity, reason, evidence_link, guidance,
+            source, status, guard_verdict, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             signal_id,
             fields.get("session_id"),
@@ -486,12 +509,13 @@ def insert_signal(
             fields.get("guidance"),
             fields.get("source") or "inline",
             status,
+            dumps(fields.get("guard_verdict")),
             now_ms(),
         ),
     )
     conn.commit()
     row = conn.execute("SELECT * FROM signals WHERE signal_id=?", (signal_id,)).fetchone()
-    d = row_to_dict(row)
+    d = row_to_dict(row, json_fields=["guard_verdict"])
     assert d is not None
     return d
 
@@ -554,7 +578,7 @@ def list_signals(
     q += " ORDER BY created_at DESC, signal_id DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     rows = conn.execute(q, params).fetchall()
-    return [row_to_dict(r) for r in rows]  # type: ignore[misc]
+    return [row_to_dict(r, json_fields=["guard_verdict"]) for r in rows]  # type: ignore[misc]
 
 
 def expire_alert_signals(conn: sqlite3.Connection, agent_id: str, *, window_ms: int) -> None:

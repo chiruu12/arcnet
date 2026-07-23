@@ -166,7 +166,15 @@ def _timeline_step(step: dict[str, Any]) -> dict[str, Any]:
         if guard:
             out["guard"] = {
                 k: guard.get(k)
-                for k in ("checkpoint", "action", "top_category", "risk_score")
+                for k in (
+                    "checkpoint",
+                    "action",
+                    "top_category",
+                    "risk_score",
+                    "rule",
+                    "pattern_class",
+                    "top_score",
+                )
                 if guard.get(k) is not None
             }
     else:
@@ -239,8 +247,12 @@ def root_cause(threats: list[dict[str, Any]]) -> dict[str, Any] | None:
         "trust_level": top.get("trust_level"),
         "category": top.get("category"),
         "subcategory": top.get("subcategory"),
+        "rule": top.get("subcategory") or (top.get("guard_verdict") or {}).get("rule"),
+        "pattern_class": top.get("pattern_class") or (top.get("guard_verdict") or {}).get("pattern_class"),
         "risk_score": top.get("risk_score"),
+        "top_score": (top.get("guard_verdict") or {}).get("top_score"),
         "evidence_excerpt": _excerpt(top.get("evidence") or "", EXCERPT_CHARS),
+        "findings": (top.get("findings_detail") or (top.get("guard_verdict") or {}).get("findings") or [])[:5],
     }
 
 
@@ -329,7 +341,13 @@ SIGNAL_LIST_CAP = 50
 
 def _signal_agent_row(row: dict[str, Any]) -> dict[str, Any]:
     """Bounded signal projection — excerpts only (docs/12 additive signals view)."""
-    return {
+    guard = row.get("guard_verdict")
+    if isinstance(guard, str):
+        try:
+            guard = json.loads(guard)
+        except json.JSONDecodeError:
+            guard = None
+    out: dict[str, Any] = {
         "signal_id": row.get("signal_id"),
         "session_id": row.get("session_id"),
         "agent_id": row.get("agent_id"),
@@ -342,6 +360,21 @@ def _signal_agent_row(row: dict[str, Any]) -> dict[str, Any]:
         "created_at": row.get("created_at"),
         "evidence_link": row.get("evidence_link"),
     }
+    if isinstance(guard, dict):
+        out["guard_verdict"] = {
+            k: guard.get(k)
+            for k in (
+                "checkpoint",
+                "action",
+                "top_category",
+                "rule",
+                "pattern_class",
+                "risk_score",
+                "top_score",
+            )
+            if guard.get(k) is not None
+        }
+    return out
 
 
 def agent_signals_data(
@@ -511,7 +544,9 @@ SOURCE_LIST_CAP = 40
 
 def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
     """Bounded source projection — no raw body dumps."""
-    findings = row.get("findings")
+    findings = row.get("findings_detail")
+    if findings is None:
+        findings = row.get("findings")
     if isinstance(findings, str):
         try:
             findings = json.loads(findings)
@@ -524,6 +559,9 @@ def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
                 finding_excerpts.append(
                     {
                         "category": item.get("category") or item.get("type"),
+                        "rule": item.get("subcategory"),
+                        "pattern_class": item.get("stage"),
+                        "score": item.get("score"),
                         "excerpt": _excerpt(
                             item.get("evidence") or item.get("message") or json.dumps(item, default=str),
                             EXCERPT_CHARS,
@@ -532,9 +570,15 @@ def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
                 )
             else:
                 finding_excerpts.append(_excerpt(str(item), EXCERPT_CHARS))
-    elif findings is not None:
+    elif findings is not None and not isinstance(findings, int):
         finding_excerpts.append(_excerpt(str(findings), EXCERPT_CHARS))
-    return {
+    guard = row.get("guard_verdict")
+    if isinstance(guard, str):
+        try:
+            guard = json.loads(guard)
+        except json.JSONDecodeError:
+            guard = None
+    out: dict[str, Any] = {
         "source_id": row.get("source_id"),
         "session_id": row.get("session_id"),
         "agent_id": row.get("agent_id"),
@@ -542,8 +586,16 @@ def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
         "trust_level": row.get("trust_level"),
         "scan_action": row.get("scan_action"),
         "findings_excerpt": finding_excerpts,
+        "findings_count": row.get("findings") if isinstance(row.get("findings"), int) else len(finding_excerpts),
         "created_at": row.get("created_at"),
     }
+    if isinstance(guard, dict):
+        out["guard_verdict"] = {
+            k: guard.get(k)
+            for k in ("checkpoint", "action", "top_category", "rule", "pattern_class", "risk_score")
+            if guard.get(k) is not None
+        }
+    return out
 
 
 def agent_sources_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
@@ -800,8 +852,11 @@ def case_file_markdown(env: dict[str, Any], session: dict[str, Any]) -> str:
         )
         lines.append(
             f"- category: `{rc.get('category')}` / `{rc.get('subcategory')}` "
+            f"· rule: `{rc.get('rule')}` · pattern: `{rc.get('pattern_class')}` "
             f"· risk_score: `{rc.get('risk_score')}`"
         )
+        if rc.get("findings"):
+            lines.append(f"- findings: `{json.dumps(rc.get('findings'))[:EXCERPT_CHARS]}`")
         lines.append(f"- evidence: `{rc.get('evidence_excerpt')}`")
     else:
         lines.append("- no guard finding recorded for this session (clean run).")
@@ -812,7 +867,8 @@ def case_file_markdown(env: dict[str, Any], session: dict[str, Any]) -> str:
             guard = step.get("guard") or {}
             lines.append(
                 f"- step {step.get('i')}: tool=`{step.get('tool')}` "
-                f"guard=`{guard.get('action')}` trust=`{step.get('trust_level')}`"
+                f"guard=`{guard.get('action')}` rule=`{guard.get('rule')}` "
+                f"trust=`{step.get('trust_level')}`"
             )
         else:
             lines.append(f"- step {step.get('i')}: model_turn")

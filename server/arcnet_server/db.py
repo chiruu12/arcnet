@@ -151,6 +151,12 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str)
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     _ensure_column(conn, "sessions", "agent_version", "TEXT")
+    _ensure_column(conn, "threats", "findings_detail", "TEXT")
+    _ensure_column(conn, "threats", "pattern_class", "TEXT")
+    _ensure_column(conn, "threats", "guard_verdict", "TEXT")
+    _ensure_column(conn, "sources", "findings_detail", "TEXT")
+    _ensure_column(conn, "sources", "guard_verdict", "TEXT")
+    _ensure_column(conn, "signals", "guard_verdict", "TEXT")
     conn.commit()
 
 

@@ -62,8 +62,9 @@ class SignalClient:
         guidance: str | None = None,
         evidence_link: str | None = None,
         source: str = "inline",
+        guard_verdict: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
-        payload = {
+        payload: dict[str, Any] = {
             "session_id": self.session_id,
             "agent_id": self.agent_id,
             "kind": kind,
@@ -73,6 +74,8 @@ class SignalClient:
             "evidence_link": evidence_link,
             "source": source,
         }
+        if guard_verdict:
+            payload["guard_verdict"] = guard_verdict
         try:
             with httpx.Client(timeout=5.0) as client:
                 r = client.post(f"{self.server_url}/api/signal", json=payload)

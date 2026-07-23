@@ -8,7 +8,7 @@ from typing import Any
 from agno.os import AgentOS
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
-from unplug import Guard
+from arcnet.guard_factory import build_guard
 
 from arcnet import bind_session, init
 from arcnet.context import get_runtime
@@ -108,7 +108,7 @@ async def internal_replay(request: Request) -> dict[str, Any]:
     bind_session(str(body.get("replay_id") or transcript.get("session_id") or "replay"))
     # Unplug's trajectory scanner is stateful. Each counterfactual run gets the
     # same default guard configuration with fresh session state.
-    get_runtime().guard = Guard()
+    get_runtime().guard = build_guard()
     agent = build_agent_j(
         model=str(candidate_model),
         temperature=0.0,

@@ -14,6 +14,7 @@ import httpx
 from unplug import Action, Source, TaintedText, TrustLevel
 
 from arcnet.context import try_get_runtime
+from arcnet.guard_factory import action_name, guard_verdict_from_result
 from arcnet.pricing import cost_usd
 from arcnet.telemetry import LatencyTimer, emit_guard_telemetry
 
@@ -54,7 +55,7 @@ def load_session(
 
 
 def _action_name(action: Any) -> str:
-    return action.value if hasattr(action, "value") else str(action)
+    return action_name(action)
 
 
 _BLOCK_STEER_GUIDANCE = (
@@ -206,15 +207,18 @@ class ReplayCursor:
                 call_args,
                 taint_sources=list(runtime.taint_sources) or None,
             )
-            action = _action_name(result.action)
+            verdict = guard_verdict_from_result(result, checkpoint="tool_call")
+            action = verdict["action"]
             call["guard_action"] = action
+            call["guard_verdict"] = verdict
             emit_guard_telemetry(
                 checkpoint="tool_call",
                 action=action,
-                risk_score=float(result.risk_score or 0.0),
+                risk_score=verdict["risk_score"],
                 findings=list(result.findings or []),
                 latency_ms=result.latency_ms if result.latency_ms is not None else timer.ms(),
                 trust_level="tool_output",
+                guard_verdict=verdict,
             )
             if result.action == Action.BLOCK:
                 # Same steer semantics as tool_call_middleware, without POSTing
@@ -248,15 +252,18 @@ class ReplayCursor:
         if step.get("trust_level") == "retrieved" and runtime is not None:
             timer = LatencyTimer()
             result = runtime.guard.scan(str(output), source=Source.RETRIEVED)
-            action = _action_name(result.action)
+            verdict = guard_verdict_from_result(result, checkpoint="retrieved")
+            action = verdict["action"]
             call["retrieval_action"] = action
+            call["guard_verdict"] = verdict
             emit_guard_telemetry(
                 checkpoint="retrieved",
                 action=action,
-                risk_score=float(result.risk_score or 0.0),
+                risk_score=verdict["risk_score"],
                 findings=list(result.findings or []),
                 latency_ms=result.latency_ms if result.latency_ms is not None else timer.ms(),
                 trust_level="retrieved",
+                guard_verdict=verdict,
             )
             if result.action == Action.BLOCK:
                 call["result"] = "quarantined"

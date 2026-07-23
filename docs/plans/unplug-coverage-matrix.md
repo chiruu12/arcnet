@@ -1,7 +1,7 @@
-# ArcNet — Unplug coverage matrix (WS8 / P5-A)
+# ArcNet — Unplug coverage matrix (WS8 / P5-A, hardened P8-D)
 
-**Date:** 2026-07-23  
-**Packet:** P5-A ([`docs/22-next-agent-packets.md`](../22-next-agent-packets.md))  
+**Date:** 2026-07-24  
+**Packet:** P5-A ([`docs/22-next-agent-packets.md`](../22-next-agent-packets.md)) · P8-D verdict metadata  
 **Scope:** In-process Unplug at four Agno checkpoints — no guard threshold changes in this packet.
 
 ## Summary
@@ -12,6 +12,8 @@
 | COVERED | 99 |
 | N/A (checkpoint not on tool path) | 29 |
 | DEFER (explicit gap) | 0 |
+
+**P8-D hardening:** shared guard config in `sdk/arcnet/guard_factory.py` (`build_guard` / `arcnet_guard_config`); verdict metadata (`rule`, `pattern_class`, `risk_score`, `findings`) threaded through transcript steps, `POST /api/threats`, `POST /api/sources`, steer `POST /api/signal`, and case-file export (`root_cause.findings`, timeline `guard.rule`). Proof: `sdk/tests/test_guard_factory.py`, `server/tests/test_unplug_verdict_metadata.py`, `agents/tests/test_guard_scenarios.py::test_s1_tool_call_blocks_tainted_send_email`.
 
 **In-scope agents:** Agent J, fleet clones L & O, HQ Agent.  
 **Out of scope (explicit DEFER below):** model-explore MCP agent, SigNoz MCP stdio, server-only ingest paths.
@@ -28,12 +30,12 @@ This worktree has **no `.env` / API key** — live scenario re-runs are **DEFER*
 
 ### Checkpoint → unplug call (reference)
 
-| Checkpoint | Agno surface | unplug call |
-|---|---|---|
-| `input` | `pre_hooks` → `UnplugGuardrail` | `guard.scan(text, USER)` |
-| `retrieved` | `fetch_url` `post_hook` + middleware fallback | `scan(RETRIEVED)` + `wrap_for_context` + `notify_taint_source` |
-| `tool_call` | `tool_hooks` middleware | `check_tool_call(name, args, taint_sources=…)` |
-| `output` | `post_hooks` | `scan_output(text)` → redact |
+| Checkpoint | Agno surface | unplug call | verdict persisted |
+|---|---|---|---|
+| `input` | `pre_hooks` → `UnplugGuardrail` | `guard.scan(text, USER)` | `threats` + `sources` rows via `sdk/arcnet/telemetry.py` |
+| `retrieved` | `fetch_url` `post_hook` + middleware fallback | `scan(RETRIEVED)` + `wrap_for_context` + `notify_taint_source` | transcript `guard` + `sources` row |
+| `tool_call` | `tool_hooks` middleware | `check_tool_call(name, args, taint_sources=…)` | transcript `guard` + `threats` + steer `signals.guard_verdict` |
+| `output` | `post_hooks` | `scan_output(text)` → redact | `threats` row (`findings_detail`) |
 
 ## Coverage table
 
@@ -174,7 +176,7 @@ This worktree has **no `.env` / API key** — live scenario re-runs are **DEFER*
 |---|---|
 | Model explore Agno agent / `skills/arcnet-model-explore` MCP | Out of P5-A product-agent scope; exploration-only |
 | SigNoz MCP stdio | Documented PARTIAL; HQ Agent prefers HTTP `signoz_evidence` |
-| `POST /api/signal` reason/guidance | Server ingest — not an agent tool |
+| `POST /api/signal` reason/guidance | Server ingest — unplug scan of free-text **DEFER** (driver session); steer rows from runtime carry `guard_verdict` JSON when emitted by `tool_call_middleware` |
 | Live S1/S2/S5 `runner.py` E2E | Requires `OPENAI_API_KEY` + server — driver session |
 | Agent K (P2) | Not built; L & O satisfy fleet background |
 
@@ -183,7 +185,8 @@ This worktree has **no `.env` / API key** — live scenario re-runs are **DEFER*
 ```bash
 PYTHONPATH=sdk:server:. uv run python -m unittest discover -s agents/tests
 uv run python scripts/check_import_boundaries.py
-uv run python -m unittest discover -s server/tests
+uv run pytest server/tests
+PYTHONPATH=sdk:agents uv run pytest agents/tests
 uv run python -m unittest discover -s sdk/tests
 cd hq && pnpm test && pnpm build
 ```
