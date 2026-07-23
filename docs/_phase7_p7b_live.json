@@ -1,0 +1,14 @@
+{
+  "verified_at": "2026-07-23T20:35:46.596341+00:00",
+  "cycle_s": 123.7,
+  "estimator": "tabfm",
+  "model": "tabfm",
+  "tabfm": {
+    "enabled": true,
+    "loaded": true,
+    "last_forecast_ms": 1784838946593,
+    "degrade_reason": null
+  },
+  "honesty": "Griffin estimator = TabFM (google/tabfm-1.0.0-pytorch regression) with MAD z-score bands; N=1 series per 360s async cycle.",
+  "db": "copy of data/arcnet.db (driver live-verify, P7-B)"
+}

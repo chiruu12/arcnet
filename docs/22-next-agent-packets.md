@@ -215,7 +215,7 @@ flowchart LR
 | P6-B | **DONE** | shell api_down recovers on focus + 20s interval (`apiRecover.ts`); threats table on fleet_health; sources agent-view already shipped — dashboards twin wired via `AgentJson` + `/api/agent-view/dashboards/all` |
 | P6-C | **DEFER** | no corpus endpoint on server; docs/12 P1 row is contract-only |
 | P7-A | **DONE** | spike `docs/_phase7_g7.json` — load~54s, fit+predict median~80s/series CPU; decision N=1 @ 360s cadence; `tabfm_worker.py` stub + MAD fallback test; not wired / no HQ `tabfm` label |
-| P7-B | **DONE-pending-live-verify** | async TabFM worker (`ARCNET_TABFM=1`, N=1 @ 360s); `tabfm_worker.forecast(backend=tabfm)` lazy path; `GET /api/griffin/status` additive `tabfm{}` + honest `estimator`; MAD degrade on any failure; driver live-verify with cached weights |
+| P7-B | **DONE** | async TabFM worker (`ARCNET_TABFM=1`, N=1 @ 360s) + MAD degrade; **live-verified 2026-07-24** — real weights, one cycle 123.7s, estimator flipped `tabfm` honestly ([`_phase7_p7b_live.json`](_phase7_p7b_live.json)); default runtime stays MAD |
 | H-1 | **TODO** | Track H |
 | P8-A | **DONE** | [`docs/25-frontend-map.md`](25-frontend-map.md) — full HQ relationship graph + completeness proof (9 views / 22 api exports / 31 routes, zero unknowns); loading + `<code>` id fixes across 6 views |
 | P8-B | **DONE** | HQ view twins on `/api/agent-view/*` (home, fleet_health, threats, hitl, hq_agent, case_files, time_machine, sources_trust) + `graph_links` cross-links + structured `{detail, hint}` 404/409; [`docs/26-agent-consumer-guide.md`](26-agent-consumer-guide.md) |

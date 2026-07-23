@@ -28,6 +28,8 @@
 
 This worktree has **no `.env` / API key** — live scenario re-runs are **DEFER** to the operator driver session. Unit stubs above are CI-equivalent for checkpoint behavior.
 
+**Driver close-out (2026-07-24, funded key):** live re-runs **PASS** — S1 `s_352fb834` (exfil blocked + steer), S2 `s_2458eb25` (redact; threat row carries `findings_detail`/`pattern_class`/`guard_verdict` end-to-end), S5 `s_ac9f30b3` (jailbreak block, 7 rules recorded). Hero re-verify G4 **PASS** (3/3 stable both heroes, [`../_phase4_g4.json`](../_phase4_g4.json)). The live-rerun DEFER is closed.
+
 ### Checkpoint → unplug call (reference)
 
 | Checkpoint | Agno surface | unplug call | verdict persisted |
