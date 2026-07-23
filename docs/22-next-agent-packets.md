@@ -221,6 +221,7 @@ flowchart LR
 | P8-B | **DONE** | HQ view twins on `/api/agent-view/*` (home, fleet_health, threats, hitl, hq_agent, case_files, time_machine, sources_trust) + `graph_links` cross-links + structured `{detail, hint}` 404/409; [`docs/26-agent-consumer-guide.md`](26-agent-consumer-guide.md) |
 | P8-C | **DONE** | `model_catalog.py` (2026-07, reasoning tiers) + additive `GET /api/agents/{id}/model-intel` — cost projections from recorded tokens only, reasoning rec cites DB evidence; HqAgent surface; [`docs/27-model-intelligence.md`](27-model-intelligence.md) |
 | P8-D | **DONE** | `sdk/arcnet/guard_factory.py` shared unplug config; guard verdict metadata (`rule`, `pattern_class`, `findings_detail`, `guard_verdict`) persisted on threats/sources/signals + case-file export; coverage matrix updated |
+| P9-C | **DONE** | `scripts/e2e_product_coherence.py` — offline graph-walk + model-intel + verdict + HITL + seed sanity (TestClient + temp SQLite) |
 
 ---
 

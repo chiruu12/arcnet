@@ -182,6 +182,8 @@ PYTHONPATH="sdk:server" uv run python -m unittest discover -s sdk/tests
 PYTHONPATH="sdk:server" uv run python -m unittest discover -s server/tests
 uv run python scripts/check_import_boundaries.py
 cd hq && pnpm build
+# offline product self-check (graph walk + model-intel + verdict + HITL; no API keys):
+.venv/bin/python scripts/e2e_product_coherence.py
 # optional live heroes (needs OPENAI_API_KEY + demo stack):
 uv run python scripts/phase4_g4_check.py
 ```
