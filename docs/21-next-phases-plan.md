@@ -1,8 +1,9 @@
 # ArcNet next phases plan
 
-**Status:** Phase 3 (Evidence & Griffin) **implemented** on `phase-3-evidence-griffin`. Phase 2 on `main` (PR #17). Phase 1 remeasure: readiness **~57%** (≤60% cap).  
+**Status:** Phase 3 **merged** (PR #18 → `main`). Phase 4 (Live ops) **in progress** on `phase-4-live-ops`. Phase 2 on `main` (PR #17). Readiness **~57%** (≤60% cap).  
 **Date:** 2026-07-23  
-**Baseline:** PR #17 merged on `main`; post–Phase-2 remeasure **~57%** (≤60% cap).  
+**Baseline:** PR #18 merged on `main`; post–Phase-2/3 remeasure **~57%** (≤60% cap).  
+**User pin:** no further SigNoz/seed/fixture/data polish beyond what already landed in Phase 3.  
 **Companions:** [`20-honest-progress.md`](20-honest-progress.md) (measured scorecard), [`19-path-to-95.md`](19-path-to-95.md) (workstream catalog), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (exit scripts).
 
 ---
@@ -15,14 +16,16 @@
 | Cap until exits pass | **≤60%** |
 | Wave A / Wave B surfaces | Landed (cascade, MAD strip, evidence helpers, HQ tools, P1 fixes) |
 | Phase 2 gates | e2e script + CI, HQ FE cascade/hash tests + CI, HQ tool error matrix — **on main** |
-| Phase 3 gates | Query Range golden fixtures; Griffin cold soak (no seed); HTTP preferred before MCP; ≥3 distinct dashboard UUIDs |
-| What did **not** land | Live propose→apply→pin operator loop, Wave C product, TabFM path |
+| Phase 3 gates | Query Range golden fixtures; Griffin cold soak (no seed); HTTP preferred before MCP; ≥3 distinct dashboard UUIDs — **on main via PR #18** |
+| What did **not** land | Wave C product, **TabFM path (Phase 7 — required, not coded yet)** |
+| User pin | **No further data/fixture/seed polish** after Phase 3 |
 | Griffin estimator | **MAD locked** until TabFM phase exits; TabPFN deferred |
 | Hackathon assets (WS11) | Parallel track — **excluded from %** |
 
 **Phase 1:** inventoring leftovers, bundling by dependency, writing measurable exits; **remeasured after Phase 2** (~55→~57).  
 **Phase 2:** test/CI gates — **done** (PR #17).  
-**Phase 3:** Evidence & Griffin trust — this implementation.
+**Phase 3:** Evidence & Griffin trust — **done** (PR #18 merged).  
+**Phase 4:** Live ops loop — this implementation.
 
 ---
 
@@ -150,7 +153,7 @@ Leftover sources folded below: `20` §5 top-5 harden list, `19` WS3/WS6/WS7/WS8/
 | **Exit** | Fixture tests green without live cloud; soak script/log: ≥N cycles no seed write; HQ Agent instructions name HTTP fallback before MCP; provisioned status → ≥3 distinct UUIDs |
 | **Depends on** | Phase 2 preferred (soak/e2e can share harness); fixtures can start in parallel with late Phase 2 |
 | **Effort** | **M** |
-| **Status** | **Done** (exits met on this branch; overall still ≤60 / ~57 — no theater) |
+| **Status** | **Done** (exits met on `main` via PR #18; overall still ≤60 / ~57 — no theater). **No further data/fixture polish per user.** |
 
 ### Phase 3 checklist
 
@@ -170,6 +173,17 @@ Leftover sources folded below: `20` §5 top-5 harden list, `19` WS3/WS6/WS7/WS8/
 | **Exit** | Documented dry-run checklist pass (commands + screenshots optional); apply shows reload required; after restart, model matches; signals/proposals lists show totals when >page |
 | **Depends on** | Phase 2 (automated guard) strongly; Phase 3 helpful for evidence refs in live propose |
 | **Effort** | **M** |
+| **Status** | **Done on this branch** (exits met; overall still ~57 / ≤60 — no inflation). Remainder: optional live AgentOS screenshot after human restart. |
+
+### Phase 4 checklist
+
+- [x] `scripts/live_ops_dry_run.py` — propose→apply→pin + reload flag + `agentos_probe` + session filters + pagination totals > page
+- [x] Apply returns `agentos_probe` (best-effort `ARCNET_AGENTOS_URL/internal/runtime`); HQ banner shows reload + probe note
+- [x] AgentOS `GET /internal/runtime` exposes process `ARCNET_MODEL` for match-after-restart
+- [x] HQ “showing N of Total” on signals, proposals, versions, Case Files sessions
+- [x] Session filters `agent_version` / `version_id` asserted in dry-run + unit tests
+- [x] Unit tests `server/tests/test_phase4_live_ops.py` + HQ `pageLabel.test.ts`
+- [ ] Optional operator screenshot after real AgentOS restart (human) — not blocking exit
 
 ---
 
@@ -270,20 +284,21 @@ flowchart TB
 
 1. ~~Phase 2 (Test & CI gates)~~ — **done** (PR #17).
 2. ~~Brief Phase 1 revisit~~ — **done** (~57% / ≤60%).
-3. ~~Phase 3 (Evidence & Griffin)~~ — **done** on this branch.
-4. **Phase 4 (Live ops loop)** — next implementation track.
+3. ~~Phase 3 (Evidence & Griffin)~~ — **done** (PR #18 merged).
+4. ~~Phase 4 (Live ops loop)~~ — **done on this branch** (exits met; % stays ≤60).
 5. Phase 5 → 6 as exits unlock.
-6. **Phase 7 TabFM integration (required)** — after Griffin soak; MAD degrade OK at runtime.
+6. **Phase 7 TabFM integration (required)** — **not started / not coded**; after Griffin soak (done); MAD degrade OK at runtime.
 
 ---
 
 ## Anti-inflation reminders
 
 - Updating [`20`](20-honest-progress.md) / [`19` §5.2](19-path-to-95.md) requires citing Phase exits, not “landed UI.”
-- Overall stays **≤60%** / honest **~57%** after Phases 2–3 — does **not** unlock 70%+.
+- Overall stays **≤60%** / honest **~57%** after Phases 2–4 — does **not** unlock 70%+.
 - TabFM research ≠ TabFM shipped; Phase 7 required before any TabFM-live claim.
 - Track H/D excluded from overall.
+- **No further SigNoz/seed/fixture data polish** after Phase 3 (user pin).
 
 ---
 
-*Phase 3 implementation + Phase 1 remeasure. TabFM remains required Phase 7.*
+*Phase 4 live ops + Phase 3 merge. TabFM remains required Phase 7 — not implemented yet.*
