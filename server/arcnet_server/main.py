@@ -14,12 +14,13 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from arcnet_server import read_models, repository
 from arcnet_server.bus import BUS
 from arcnet_server.db import connect, init_db, now_ms, row_to_dict
+from arcnet_server.errors import api_error, infer_hint, normalize_error_body
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
@@ -164,6 +165,15 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(HTTPException)
+async def structured_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
+    """Additive: every 404/409 includes ``detail`` + optional ``hint`` (docs/12 P8-B)."""
+    body = normalize_error_body(
+        status_code=exc.status_code, detail=exc.detail, path=str(request.url.path)
+    )
+    return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
+
+
 def _new_id(prefix: str) -> str:
     return f"{prefix}{secrets.token_hex(4)}"
 
@@ -171,7 +181,11 @@ def _new_id(prefix: str) -> str:
 def _require_session(session_id: str) -> dict[str, Any]:
     session = repository.get_session(get_conn(), session_id)
     if session is None:
-        raise HTTPException(404, f"session {session_id} not found")
+        raise api_error(
+            404,
+            f"session {session_id} not found",
+            hint="list ids via GET /api/sessions",
+        )
     return session
 
 
@@ -292,7 +306,11 @@ def list_agent_models(agent_id: str) -> list[dict[str, Any]]:
     """Distinct models for cascade pickers (docs/12 additive)."""
     conn = get_conn()
     if repository.get_agent(conn, agent_id) is None:
-        raise HTTPException(404, f"agent {agent_id} not found")
+        raise api_error(
+            404,
+            f"agent {agent_id} not found",
+            hint="list agents via GET /api/fleet",
+        )
     return repository.list_agent_models(conn, agent_id)
 
 
@@ -319,7 +337,11 @@ def _require_session_for_agent(conn: Any, session_id: str, agent_id: str) -> dic
     """Session must exist and belong to agent_id (blocks cross-agent pins)."""
     sess = repository.get_session(conn, session_id)
     if sess is None:
-        raise HTTPException(404, f"session {session_id} not found")
+        raise api_error(
+            404,
+            f"session {session_id} not found",
+            hint="list ids via GET /api/sessions",
+        )
     if sess.get("agent_id") != agent_id:
         raise HTTPException(
             400,
@@ -335,7 +357,11 @@ def _require_hq_proposal_for_agent(conn: Any, proposal_signal_id: str, agent_id:
     ).fetchone()
     prop = row_to_dict(sig)
     if prop is None:
-        raise HTTPException(404, f"proposal {proposal_signal_id} not found")
+        raise api_error(
+            404,
+            f"proposal {proposal_signal_id} not found",
+            hint="list hq_agent proposals via GET /api/signals?source=hq_agent",
+        )
     if prop.get("source") != "hq_agent":
         raise HTTPException(400, f"proposal {proposal_signal_id} is not source=hq_agent")
     if prop.get("agent_id") != agent_id:
@@ -396,7 +422,11 @@ async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
         raise HTTPException(400, "version is required")
     conn = get_conn()
     if repository.get_agent(conn, agent_id) is None:
-        raise HTTPException(404, f"agent {agent_id} not found")
+        raise api_error(
+            404,
+            f"agent {agent_id} not found",
+            hint="list agents via GET /api/fleet",
+        )
     session_id = body.get("session_id")
     if session_id is not None:
         session_id = str(session_id).strip() or None
@@ -423,7 +453,14 @@ async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
             proposal_signal_id=proposal_signal_id,
         )
     except repository.ApplyModelError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        msg = str(exc)
+        if "already exists" in msg:
+            raise api_error(
+                409,
+                msg,
+                hint="omit version_id to auto-generate or pick a fresh version_id",
+            ) from exc
+        raise HTTPException(400, msg) from exc
     # Best-effort probe — never blocks apply; informs HQ reload banner.
     probe = await _probe_agentos_runtime(applied_model)
     out["agentos_probe"] = probe
@@ -582,45 +619,240 @@ async def post_replay(request: Request) -> dict[str, Any]:
 def replay_agent_view(replay_id: str) -> dict[str, Any]:
     replay = repository.get_replay(get_conn(), replay_id)
     if replay is None:
-        raise HTTPException(404, f"replay {replay_id} not found")
+        raise api_error(
+            404,
+            f"replay {replay_id} not found",
+            hint="list replays via GET /api/replays?session_id=<session_id>",
+        )
+    session_id = replay.get("session_id")
+    session = repository.get_session(get_conn(), str(session_id)) if session_id else None
+    agent_id = (session or {}).get("agent_id")
     return read_models.envelope(
         "replay",
         replay_id,
         replay["verdict"],
         trace_id=replay.get("trace_id"),
         human_view=f"/time-machine/{replay_id}",
+        extra_links=read_models.graph_links(
+            agent_id=str(agent_id) if agent_id else None,
+            session_id=str(session_id) if session_id else None,
+            replay_id=replay_id,
+        ),
     )
 
 
 @app.get("/api/agent-view/{view}/{id}")
 def agent_view(view: str, id: str) -> dict[str, Any]:
-    """Machine-optimal twin of any view (docs/12). replay has its own route."""
+    """Machine-optimal twin of any HQ view (docs/12). replay has its own route."""
     conn = get_conn()
+
+    def _no_ref() -> None:
+        raise api_error(
+            404,
+            f"no agent or session '{id}'",
+            hint="list sessions via GET /api/sessions or agents via GET /api/fleet",
+        )
+
+    if view == "home":
+        if id != "all":
+            raise api_error(
+                404,
+                f"unknown home scope '{id}' (use all)",
+                hint="use id=all",
+            )
+        data = read_models.agent_home_data(conn)
+        return read_models.envelope(
+            "home",
+            id,
+            data,
+            trace_id=None,
+            human_view="/",
+            extra_links={
+                "fleet_health": "/api/agent-view/fleet_health/all",
+                "griffin_status": "/api/griffin/status",
+            },
+        )
+
+    if view in ("fleet", "fleet_health"):
+        view_name = "fleet_health" if view == "fleet_health" else "fleet"
+        data = read_models.agent_fleet_health_data(conn)
+        return read_models.envelope(
+            view_name,
+            id,
+            data,
+            trace_id=None,
+            human_view="/fleet_health",
+            extra_links={"threats": "/api/agent-view/threats/all"},
+        )
+
+    if view in ("sources", "sources_trust"):
+        view_name = "sources_trust" if view == "sources_trust" else "sources"
+        if not repository.session_or_agent_exists(conn, id):
+            _no_ref()
+        session = repository.get_session(conn, id)
+        agent = repository.get_agent(conn, id)
+        data = read_models.agent_sources_data(conn, ref_id=id)
+        return read_models.envelope(
+            view_name,
+            id,
+            data,
+            trace_id=session.get("trace_id") if session else None,
+            human_view="/sources_trust",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent["agent_id"]) if agent else None,
+                session_id=str(session["session_id"]) if session else None,
+            ),
+        )
+
+    if view == "threats":
+        try:
+            data = read_models.agent_threats_data(conn, ref_id=id)
+        except LookupError:
+            _no_ref()
+        session = repository.get_session(conn, id) if id != "all" else None
+        agent = repository.get_agent(conn, id) if id != "all" and session is None else None
+        return read_models.envelope(
+            "threats",
+            id,
+            data,
+            trace_id=session.get("trace_id") if session else None,
+            human_view="/fleet_health",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent["agent_id"]) if agent else (id if data["scope"] == "agent" else None),
+                session_id=str(session["session_id"]) if session else (id if data["scope"] == "session" else None),
+            ),
+        )
+
+    if view == "hitl":
+        if id != "all" and repository.get_session(conn, id) is None:
+            raise api_error(
+                404,
+                f"session {id} not found",
+                hint="list ids via GET /api/sessions or use id=all",
+            )
+        data = read_models.agent_hitl_data(conn, ref_id=id)
+        session = repository.get_session(conn, id) if id != "all" else None
+        return read_models.envelope(
+            "hitl",
+            id,
+            data,
+            trace_id=session.get("trace_id") if session else None,
+            human_view="/hitl",
+            extra_links=read_models.graph_links(
+                session_id=str(session["session_id"]) if session else None,
+            ),
+        )
+
+    if view == "hq_agent":
+        try:
+            data = read_models.agent_hq_agent_data(conn, agent_id=id)
+        except LookupError:
+            raise api_error(
+                404,
+                f"agent {id} not found",
+                hint="list agents via GET /api/fleet",
+            )
+        return read_models.envelope(
+            "hq_agent",
+            id,
+            data,
+            trace_id=None,
+            human_view="/hq_agent",
+            extra_links=read_models.graph_links(agent_id=id),
+        )
+
+    if view == "case_files":
+        session = _require_session(id)
+        agent_id = session.get("agent_id")
+        replay = repository.latest_replay_for_session(conn, id)
+        data = read_models.agent_case_files_data(conn, session)
+        return read_models.envelope(
+            "case_files",
+            id,
+            data,
+            trace_id=session.get("trace_id"),
+            human_view="/case_files",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent_id) if agent_id else None,
+                session_id=id,
+                replay_id=replay.get("replay_id") if replay else None,
+            ),
+        )
+
+    if view == "time_machine":
+        try:
+            data = read_models.agent_time_machine_data(conn, ref_id=id)
+        except LookupError:
+            raise api_error(
+                404,
+                f"no replay or session '{id}'",
+                hint="list sessions via GET /api/sessions or replays via GET /api/replays",
+            )
+        session = repository.get_session(conn, id)
+        replay = repository.get_replay(conn, id)
+        sid = data.get("session_id") or (session or {}).get("session_id") or id
+        sess_row = repository.get_session(conn, str(sid)) if sid else None
+        agent_id = (sess_row or {}).get("agent_id")
+        return read_models.envelope(
+            "time_machine",
+            id,
+            data,
+            trace_id=(sess_row or {}).get("trace_id"),
+            human_view="/time_machine",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent_id) if agent_id else None,
+                session_id=str(sid) if sid else None,
+                replay_id=id if replay else data.get("latest_replay_id"),
+            ),
+        )
+
     if view == "incident":
         return read_models.incident_envelope(conn, _require_session(id))
+
     if view == "session":
         session = _require_session(id)
+        agent_id = session.get("agent_id")
         return read_models.envelope(
             "session",
             id,
             read_models.agent_session_context(session),
             trace_id=session.get("trace_id"),
             human_view=f"/sessions/{id}",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent_id) if agent_id else None,
+                session_id=id,
+            ),
         )
+
     if view == "check":
         session = _require_session(id)
+        agent_id = session.get("agent_id")
         return read_models.envelope(
             "check",
             id,
             read_models.session_check_data(conn, session),
             trace_id=session.get("trace_id"),
             human_view=f"/sessions/{id}",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent_id) if agent_id else None,
+                session_id=id,
+            ),
         )
+
     if view == "signals":
+        if id == "all":
+            data = read_models.agent_signals_fleet_data(conn)
+            return read_models.envelope(
+                "signals",
+                id,
+                data,
+                trace_id=None,
+                human_view="/signals",
+            )
         session = repository.get_session(conn, id)
         agent = repository.get_agent(conn, id)
         if session is None and agent is None:
-            raise HTTPException(404, f"no agent or session '{id}'")
+            _no_ref()
         is_session = session is not None
         data = read_models.agent_signals_data(conn, ref_id=id, is_session=is_session)
         return read_models.envelope(
@@ -629,21 +861,19 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
             data,
             trace_id=session.get("trace_id") if session else None,
             human_view="/signals" if not is_session else f"/signals?session={id}",
+            extra_links=read_models.graph_links(
+                agent_id=str(agent["agent_id"]) if agent else None,
+                session_id=str(session["session_id"]) if session else None,
+            ),
         )
-    if view == "fleet":
-        data = {"agents": read_models.human_fleet(repository.fleet_records(conn))}
-        return read_models.envelope("fleet", id, data, trace_id=None, human_view="/fleet")
-    if view == "sources":
-        # id may be a session_id or an agent_id
-        if not repository.session_or_agent_exists(conn, id):
-            raise HTTPException(404, f"no agent or session '{id}'")
-        data = read_models.agent_sources_data(conn, ref_id=id)
-        return read_models.envelope("sources", id, data, trace_id=None, human_view=f"/sources/{id}")
+
     if view == "dashboards":
-        # id is a scope token (all/status) — payload is fleet-wide SigNoz launcher state.
         if id not in ("all", "status"):
-            raise HTTPException(404, f"unknown dashboards scope '{id}' (use all or status)")
-        # Thin status twin — not embedded charts. Prefer SigNoz UI / MCP for depth.
+            raise api_error(
+                404,
+                f"unknown dashboards scope '{id}' (use all or status)",
+                hint="use id=all or id=status",
+            )
         status = _signoz_status_payload()
         data = {
             "signoz": status,
@@ -651,6 +881,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 "HQ dashboards are a launcher + status probe. "
                 "Use SigNoz UI deep-links or SigNoz MCP for query depth."
             ),
+            "status_api": "/api/signoz/status",
             "links": {
                 "signoz_ui": status.get("signoz_url"),
                 "status_api": "/api/signoz/status",
@@ -662,8 +893,17 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
             data,
             trace_id=None,
             human_view="/dashboards",
+            extra_links={
+                "signoz_ui": status.get("signoz_url"),
+                "signoz_status": "/api/signoz/status",
+            },
         )
-    raise HTTPException(404, f"unknown agent-view '{view}'")
+
+    raise api_error(
+        404,
+        f"unknown agent-view '{view}'",
+        hint=infer_hint(status_code=404, detail=f"unknown agent-view '{view}'", path=f"/api/agent-view/{view}/{id}"),
+    )
 
 
 # ---------------------------------------------------------------- case file
@@ -772,7 +1012,11 @@ async def decide_hitl(hitl_id: str, request: Request) -> dict[str, Any]:
         raise HTTPException(400, "decision must be approved|rejected")
     conn = get_conn()
     if repository.get_hitl(conn, hitl_id) is None:
-        raise HTTPException(404, f"hitl {hitl_id} not found")
+        raise api_error(
+            404,
+            f"hitl {hitl_id} not found",
+            hint="list rows via GET /api/hitl",
+        )
     row = repository.decide_hitl(conn, hitl_id, decision)
     BUS.publish("hitl_request", row)
     return row
@@ -991,7 +1235,11 @@ def _signoz_evidence_payload(session_id: str) -> dict[str, Any]:
     conn = get_conn()
     sess = repository.get_session(conn, session_id)
     if sess is None:
-        raise HTTPException(404, f"session {session_id} not found")
+        raise api_error(
+            404,
+            f"session {session_id} not found",
+            hint="list ids via GET /api/sessions",
+        )
     trace_id = sess.get("trace_id")
     out: dict[str, Any] = {
         "session_id": session_id,

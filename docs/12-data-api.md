@@ -152,7 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /api/replays?session_id=&limit=&offset=` | query | replay index (no `runs` blob) + pagination headers (**additive**) |
 | `POST /api/replay` | `{session_id, candidate_model?, candidate_prompt?}` (exactly one candidate) | the verdict object (`10`) — synchronous; progress streams over SSE |
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |
-| `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources, signals, check, dashboards` | agent-view envelope (below). **`signals` + `check` + bounded `sources` + `dashboards` additive** |
+| `GET /api/agent-view/{view}/{id}` | HQ twins: `home`, `fleet_health`, `signals`, `time_machine`, `case_files`, `hq_agent`, `hitl`, `dashboards`, `sources_trust`, `threats` (+ legacy `incident`, `fleet`, `session`, `replay`, `sources`, `check`) | agent-view envelope (below). **P8-B:** every HQ view has a twin; `links` include graph cross-links (`case_file`, `models`, `versions`, …) |
 | `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons). Optional `ARCNET_WRITE_SECRET` (**additive** Wave A) | created signal row (401 if write secret set and wrong/missing) |
 | `GET /api/hitl?session_id=&status=&limit=&offset=` | query | `[hitl row]` + pagination headers (**additive** P6-A) |
 | `POST /api/hitl` | `{run_id, session_id?, payload?}` | created `hitl_requests` row (`pending`); publishes SSE `hitl_request` |
@@ -166,7 +166,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /api/agents/{agent_id}/versions?limit=&offset=` | path + page | `[agent_version row]` + pagination headers (**additive** HQ Agent) |
 | `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?, session_id?}` | created version row; optional `session_id` pins `sessions.agent_version` to the new `version_id` (**additive**) |
 | `GET /api/agents/{agent_id}/versions/timeline` | path | `{agent_id, versions[], current_model?}` (**additive**) |
-| `POST /api/agents/{agent_id}/apply-model` | `{confirm: true, model, version, model_version?, source_ref?, notes?, session_id?, proposal_signal_id?}` | bumps `agents.model`, registers version, optional session pin + marks proposal `status=applied`. Response includes **`agentos_reload_required: true`** + instructions (SQLite updated; AgentOS not auto-restarted) (**additive** Wave B). **Requires `confirm: true`** (human-gated) |
+| `POST /api/agents/{agent_id}/apply-model` | `{confirm: true, model, version, model_version?, source_ref?, notes?, session_id?, proposal_signal_id?}` | bumps `agents.model`, registers version, optional session pin + marks proposal `status=applied`. Response includes **`agentos_reload_required: true`** + instructions (SQLite updated; AgentOS not auto-restarted) (**additive** Wave B). **Requires `confirm: true`** (human-gated). Duplicate `version_id` → **409** with `{detail, hint}` (**additive** P8-B) |
+
+**Structured errors (additive, P8-B):** endpoints that return **404** or **409** use JSON `{detail, hint?}` — `hint` suggests the next fetch (e.g. `list ids via GET /api/sessions`). Other status codes unchanged.
 
 **Pagination convention (additive, 2026-07-22):** list bodies remain JSON **arrays** so existing HQ/clients keep working. Clients that need totals read `X-Total-Count` (and echo `X-Limit` / `X-Offset`). `offset` defaults to `0`; `limit` keeps prior defaults/caps.
 
@@ -207,6 +209,15 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 - `check` (`id` = `session_id`): compact session inspection including **`version_pinpoint`** (`pin`, `version_id`, `version`, `model`, `model_version`, `source_ref`, `notes`, `created_at`, `pinned_session_matches`, `pinned_version`, `fleet_current_model`, `recent_versions`, `narrative`) — no full tool outputs. Flat fields **additive**; `pinned_version` kept for compatibility.
 - `sources` (`id` = agent or session): bounded `{sources: [{…, findings_excerpt}], truncated}` — not raw findings dumps.
 - `dashboards` (`id` opaque, e.g. `status`): SigNoz status probe twin + deep-link hints (not embedded charts).
+- `home` (`id=all`): loop stages + live stats snapshot for machine consumers.
+- `fleet_health` (`id=all`): fleet cards + Griffin status pointer (alias of legacy `fleet`).
+- `time_machine` (`id` = `session_id` or `replay_id`): replay history or stored verdict.
+- `case_files` (`id` = `session_id`): incident summary + `export.zip` pointer.
+- `hq_agent` (`id` = `agent_id`): proposals inbox, version timeline slice, models list.
+- `hitl` (`id` = `all` or `session_id`): bounded HITL queue rows.
+- `threats` (`id` = `all`, `agent_id`, or `session_id`): bounded threat ledger.
+- `sources_trust` (alias of `sources`): bounded source ledger for agent or session.
+- `signals` (`id` = `all`, `agent_id`, or `session_id`): fleet/agent/session signal feed.
 
 Session list rows also expose optional **`agent_version`** (additive column) when pinned.
 

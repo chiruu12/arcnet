@@ -61,6 +61,38 @@ def _signoz_url() -> str:
     return os.getenv("SIGNOZ_URL", "http://localhost:8080").rstrip("/")
 
 
+def graph_links(
+    *,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    replay_id: str | None = None,
+) -> dict[str, str | None]:
+    """Cross-links so a coding agent can walk the graph without guessing URLs."""
+    out: dict[str, str | None] = {}
+    if session_id:
+        out["case_file"] = f"/export/case-file/{session_id}"
+        out["session"] = f"/api/agent-view/session/{session_id}"
+        out["incident"] = f"/api/agent-view/incident/{session_id}"
+        out["case_files"] = f"/api/agent-view/case_files/{session_id}"
+        out["check"] = f"/api/agent-view/check/{session_id}"
+        out["signals"] = f"/api/agent-view/signals/{session_id}"
+        out["threats"] = f"/api/agent-view/threats/{session_id}"
+        out["time_machine"] = f"/api/agent-view/time_machine/{session_id}"
+        out["signoz_evidence"] = f"/api/signoz/evidence?session_id={session_id}"
+    if agent_id:
+        out["models"] = f"/api/agents/{agent_id}/models"
+        out["versions"] = f"/api/agents/{agent_id}/versions"
+        out["versions_timeline"] = f"/api/agents/{agent_id}/versions/timeline"
+        out["hq_agent"] = f"/api/agent-view/hq_agent/{agent_id}"
+        out["sources"] = f"/api/agent-view/sources_trust/{agent_id}"
+        out["signals_agent"] = f"/api/agent-view/signals/{agent_id}"
+        out["threats_agent"] = f"/api/agent-view/threats/{agent_id}"
+    if replay_id:
+        out["replay"] = f"/api/agent-view/replay/{replay_id}"
+        out["time_machine_replay"] = f"/api/agent-view/time_machine/{replay_id}"
+    return out
+
+
 def envelope(
     view: str,
     id_: str,
@@ -68,18 +100,24 @@ def envelope(
     *,
     trace_id: str | None,
     human_view: str,
+    extra_links: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """The agent-view wrapper — one shape for every view (docs/12)."""
+    links: dict[str, str | None] = {
+        "human_view": human_view,
+        "signoz_trace": f"{_signoz_url()}/trace/{trace_id}" if trace_id else None,
+        "self": f"/api/agent-view/{view}/{id_}",
+    }
+    if extra_links:
+        for key, val in extra_links.items():
+            if val:
+                links[key] = val
     return {
         "view": view,
         "id": id_,
         "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "data": data,
-        "links": {
-            "human_view": human_view,
-            "signoz_trace": f"{_signoz_url()}/trace/{trace_id}" if trace_id else None,
-            "self": f"/api/agent-view/{view}/{id_}",
-        },
+        "links": links,
         "hints": {
             "raw_evidence": (
                 # Prefer HTTP / Query Range before SigNoz MCP (stdio may hang — Phase 3).
@@ -264,7 +302,8 @@ def incident_data(
 def incident_envelope(conn: sqlite3.Connection, session: dict[str, Any]) -> dict[str, Any]:
     """Assemble the incident agent-view from shared repository primitives."""
     session_id = session["session_id"]
-    agent = repository.get_agent(conn, session.get("agent_id") or "")
+    agent_id = session.get("agent_id")
+    agent = repository.get_agent(conn, agent_id or "")
     threats = repository.threats_for_session(conn, session_id)
     replay = repository.latest_replay_for_session(conn, session_id)
     data = incident_data(session, agent, threats, replay)
@@ -274,6 +313,11 @@ def incident_envelope(conn: sqlite3.Connection, session: dict[str, Any]) -> dict
         data,
         trace_id=session.get("trace_id"),
         human_view=f"/sessions/{session_id}",
+        extra_links=graph_links(
+            agent_id=str(agent_id) if agent_id else None,
+            session_id=session_id,
+            replay_id=replay.get("replay_id") if replay else None,
+        ),
     )
 
 
@@ -315,6 +359,18 @@ def agent_signals_data(
     return {
         "ref": ref_id,
         "scope": "session" if is_session else "agent",
+        "signals": [_signal_agent_row(r) for r in rows],
+        "total": total,
+        "truncated": total > len(rows),
+    }
+
+
+def agent_signals_fleet_data(conn: sqlite3.Connection) -> dict[str, Any]:
+    rows = repository.list_signals(conn, limit=SIGNAL_LIST_CAP)
+    total = repository.count_signals(conn)
+    return {
+        "ref": "all",
+        "scope": "fleet",
         "signals": [_signal_agent_row(r) for r in rows],
         "total": total,
         "truncated": total > len(rows),
@@ -498,6 +554,216 @@ def agent_sources_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, An
         "total": len(rows),
         "truncated": len(rows) >= SOURCE_LIST_CAP,
         "note": "bounded excerpts only — use human /api/sources for full ledger",
+    }
+
+
+# ---------------------------------------------------------------- HQ view twins (P8-B)
+
+
+THREAT_LIST_CAP = 50
+HITL_LIST_CAP = 50
+HOME_THREAT_SAMPLE = 500
+
+
+def _threat_agent_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "threat_id": row.get("threat_id"),
+        "session_id": row.get("session_id"),
+        "agent_id": row.get("agent_id"),
+        "checkpoint": row.get("checkpoint"),
+        "action": row.get("action"),
+        "category": row.get("category"),
+        "subcategory": row.get("subcategory"),
+        "risk_score": row.get("risk_score"),
+        "trust_level": row.get("trust_level"),
+        "evidence_excerpt": _excerpt(row.get("evidence"), EXCERPT_CHARS),
+        "trace_id": row.get("trace_id"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def agent_threats_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
+    if ref_id == "all":
+        rows = repository.list_threats(conn, limit=THREAT_LIST_CAP)
+        total = repository.count_threats(conn)
+        scope = "fleet"
+    elif repository.get_session(conn, ref_id) is not None:
+        all_rows = repository.threats_for_session(conn, ref_id)
+        rows = all_rows[:THREAT_LIST_CAP]
+        total = len(all_rows)
+        scope = "session"
+    elif repository.get_agent(conn, ref_id) is not None:
+        rows = repository.list_threats(conn, agent_id=ref_id, limit=THREAT_LIST_CAP)
+        total = repository.count_threats(conn, agent_id=ref_id)
+        scope = "agent"
+    else:
+        raise LookupError(ref_id)
+    return {
+        "ref": ref_id,
+        "scope": scope,
+        "threats": [_threat_agent_row(r) for r in rows],
+        "total": total,
+        "truncated": total > len(rows),
+    }
+
+
+def _hitl_agent_row(row: dict[str, Any]) -> dict[str, Any]:
+    payload = row.get("payload")
+    summary = None
+    if isinstance(payload, dict):
+        summary = _excerpt(json.dumps(payload, default=str), EXCERPT_CHARS)
+    elif payload is not None:
+        summary = _excerpt(str(payload), EXCERPT_CHARS)
+    return {
+        "hitl_id": row.get("hitl_id"),
+        "run_id": row.get("run_id"),
+        "session_id": row.get("session_id"),
+        "status": row.get("status"),
+        "payload_excerpt": summary,
+        "created_at": row.get("created_at"),
+        "decided_at": row.get("decided_at"),
+    }
+
+
+def agent_hitl_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
+    if ref_id == "all":
+        rows = repository.list_hitl(conn, limit=HITL_LIST_CAP)
+        total = repository.count_hitl(conn)
+        scope = "fleet"
+    elif repository.get_session(conn, ref_id) is not None:
+        rows = repository.list_hitl(conn, session_id=ref_id, limit=HITL_LIST_CAP)
+        total = repository.count_hitl(conn, session_id=ref_id)
+        scope = "session"
+    else:
+        raise LookupError(ref_id)
+    return {
+        "ref": ref_id,
+        "scope": scope,
+        "requests": [_hitl_agent_row(r) for r in rows],
+        "total": total,
+        "truncated": total > len(rows),
+        "relay_honesty": (
+            "HITL rows persist in SQLite; approving/rejecting does not stop a live "
+            "AgentOS run unless the operator also acts on the runtime."
+        ),
+    }
+
+
+def agent_hq_agent_data(conn: sqlite3.Connection, *, agent_id: str) -> dict[str, Any]:
+    agent = repository.get_agent(conn, agent_id)
+    if agent is None:
+        raise LookupError(agent_id)
+    proposals = repository.list_signals(
+        conn, agent_id=agent_id, source="hq_agent", limit=20
+    )
+    timeline = repository.agent_version_timeline(conn, agent_id)
+    models = repository.list_agent_models(conn, agent_id)
+    return {
+        "agent": {
+            "agent_id": agent.get("agent_id"),
+            "name": agent.get("name"),
+            "role": agent.get("role"),
+            "exposure": agent.get("exposure"),
+            "model": agent.get("model"),
+        },
+        "current_model": timeline.get("current_model"),
+        "proposals": [_signal_agent_row(p) for p in proposals],
+        "proposals_total": repository.count_signals(
+            conn, agent_id=agent_id, source="hq_agent"
+        ),
+        "versions": (timeline.get("versions") or [])[:10],
+        "models": models,
+        "apply_endpoint": f"/api/agents/{agent_id}/apply-model",
+        "honesty": (
+            "Griffin = MAD runtime (not TabFM-live). apply-model requires confirm:true; "
+            "SQLite update does not auto-restart AgentOS."
+        ),
+    }
+
+
+def agent_time_machine_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
+    replay = repository.get_replay(conn, ref_id)
+    if replay is not None:
+        session_id = replay.get("session_id")
+        session = repository.get_session(conn, str(session_id)) if session_id else None
+        return {
+            "kind": "replay",
+            "replay_id": ref_id,
+            "session_id": session_id,
+            "agent_id": (session or {}).get("agent_id"),
+            "candidate_model": replay.get("candidate_model"),
+            "candidate_prompt_ref": replay.get("candidate_prompt_ref"),
+            "verdict": replay.get("verdict"),
+            "duration_ms": replay.get("duration_ms"),
+            "created_at": replay.get("created_at"),
+        }
+    session = repository.get_session(conn, ref_id)
+    if session is not None:
+        replays = repository.list_replays(conn, session_id=ref_id, limit=20)
+        latest = repository.latest_replay_for_session(conn, ref_id)
+        return {
+            "kind": "session",
+            "session": {
+                k: session.get(k)
+                for k in ("session_id", "agent_id", "scenario", "model", "status", "trace_id")
+            },
+            "replays": replays,
+            "latest_replay_id": latest.get("replay_id") if latest else None,
+            "latest_verdict": latest.get("verdict") if latest else None,
+            "replay_endpoint": "POST /api/replay",
+        }
+    raise LookupError(ref_id)
+
+
+def agent_case_files_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dict[str, Any]:
+    """Case Files twin — incident summary + export pointer (docs/12 additive)."""
+    session_id = session["session_id"]
+    agent_id = session.get("agent_id")
+    agent = repository.get_agent(conn, agent_id or "")
+    threats = repository.threats_for_session(conn, session_id)
+    replay = repository.latest_replay_for_session(conn, session_id)
+    data = incident_data(session, agent, threats, replay)
+    data["export"] = {
+        "zip": f"/export/case-file/{session_id}",
+        "formats": ["case-file.md", "case-file.json"],
+    }
+    return data
+
+
+def agent_fleet_health_data(conn: sqlite3.Connection) -> dict[str, Any]:
+    agents = human_fleet(repository.fleet_records(conn))
+    return {
+        "agents": agents,
+        "griffin_status": "/api/griffin/status",
+        "threats_fleet": "/api/agent-view/threats/all",
+    }
+
+
+def agent_home_data(conn: sqlite3.Connection) -> dict[str, Any]:
+    fleet = human_fleet(repository.fleet_records(conn))
+    sessions_total = repository.count_sessions(conn)
+    threats_total = repository.count_threats(conn)
+    signals_total = repository.count_signals(conn)
+    replays_total = repository.count_replays(conn)
+    threat_sample = repository.list_threats(conn, limit=HOME_THREAT_SAMPLE)
+    blocked = sum(1 for t in threat_sample if t.get("action") == "block")
+    return {
+        "stats": {
+            "agents": len(fleet),
+            "sessions": sessions_total,
+            "threats_blocked": blocked,
+            "threats_blocked_partial": len(threat_sample) < threats_total,
+            "signals": signals_total,
+            "replays": replays_total,
+        },
+        "loop": [
+            {"stage": "observe", "view": "fleet_health", "path": "/api/agent-view/fleet_health/all"},
+            {"stage": "defend", "view": "signals", "path": "/api/agent-view/signals/all"},
+            {"stage": "replay", "view": "time_machine", "path": "/api/agent-view/time_machine/<session_id>"},
+            {"stage": "case_file", "view": "case_files", "path": "/api/agent-view/case_files/<session_id>"},
+            {"stage": "improve", "view": "hq_agent", "path": "/api/agent-view/hq_agent/<agent_id>"},
+        ],
+        "readiness_honesty": "~62% (cap <=65); Griffin=MAD; SigNoz MCP=PARTIAL",
     }
 
 
