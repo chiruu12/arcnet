@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, subscribeBus } from "../api";
 import { AgentJson, Empty, Seam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
@@ -27,6 +27,8 @@ export function Signals({
   const [liveCount, setLiveCount] = useState(0);
   const [fleet, setFleet] = useState<FleetRow[]>([]);
   const [agentRef, setAgentRef] = useState(agentId ?? "");
+  /** Track seen ids outside React updaters — setState inside setSignals is impure under StrictMode. */
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (agentId && agentId !== agentRef) setAgentRef(agentId);
@@ -57,6 +59,7 @@ export function Signals({
 
   useEffect(() => {
     let cancelled = false;
+    seenIdsRef.current = new Set();
     const params = {
       ...(agentRef ? { agent_id: agentRef } : {}),
       limit: SIGNALS_PAGE,
@@ -66,6 +69,9 @@ export function Signals({
       .signalsPage(params)
       .then((page) => {
         if (!cancelled) {
+          seenIdsRef.current = new Set(
+            page.rows.map((s) => s.signal_id).filter(Boolean),
+          );
           setSignals(page.rows);
           setTotal(page.total);
         }
@@ -78,14 +84,14 @@ export function Signals({
       const row = ev.data as unknown as SignalRow;
       if (!row.signal_id) return;
       if (agentRef && row.agent_id !== agentRef) return;
+      const isNew = !seenIdsRef.current.has(row.signal_id);
+      if (isNew) {
+        seenIdsRef.current.add(row.signal_id);
+        setTotal((n) => n + 1);
+        setLiveCount((n) => n + 1);
+      }
       setSignals((prev) => {
-        const list = prev ?? [];
-        const existed = list.some((s) => s.signal_id === row.signal_id);
-        if (!existed) {
-          setTotal((n) => n + 1);
-          setLiveCount((n) => n + 1);
-        }
-        const rest = list.filter((s) => s.signal_id !== row.signal_id);
+        const rest = (prev ?? []).filter((s) => s.signal_id !== row.signal_id);
         return [row, ...rest].slice(0, SIGNALS_PAGE);
       });
     });
