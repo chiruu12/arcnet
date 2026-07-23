@@ -285,8 +285,8 @@ flowchart TB
 1. ~~Phase 2 (Test & CI gates)~~ — **done** (PR #17).
 2. ~~Brief Phase 1 revisit~~ — **done** (~57% / ≤60%).
 3. ~~Phase 3 (Evidence & Griffin)~~ — **done** (PR #18 merged).
-4. ~~Phase 4 (Live ops loop)~~ — **done on this branch** (exits met; % stays ≤60).
-5. Phase 5 → 6 as exits unlock.
+4. ~~Phase 4 (Live ops loop)~~ — **done** (PR #19 merged).
+5. Phase 5 → 6 as exits unlock — run order + prompts in [`24-ship-week-plan.md`](24-ship-week-plan.md).
 6. **Phase 7 TabFM integration (required)** — **not started / not coded**; after Griffin soak (done); MAD degrade OK at runtime.
 
 ---
