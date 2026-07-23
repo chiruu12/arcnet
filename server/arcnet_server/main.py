@@ -138,11 +138,12 @@ async def lifespan(_app: FastAPI):
     _log_localhost_trust_once()
     # Griffin worker (MAD) — demo cadence when ARCNET_GRIFFIN_DEMO=1
     try:
-        from arcnet_server.griffin import griffin_loop
+        from arcnet_server.griffin import griffin_loop, start_tabfm_worker
 
         cadence = float(os.getenv("ARCNET_GRIFFIN_CADENCE_S", "60"))
         if os.getenv("ARCNET_GRIFFIN_DEMO", "").strip() in ("1", "true", "yes"):
             cadence = float(os.getenv("ARCNET_GRIFFIN_DEMO_CADENCE_S", "10"))
+        start_tabfm_worker(get_conn)
         _griffin_task = asyncio.create_task(griffin_loop(get_conn, cadence_s=cadence))
     except Exception:  # noqa: BLE001
         _griffin_task = None

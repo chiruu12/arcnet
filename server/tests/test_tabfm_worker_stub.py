@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from arcnet_server.tabfm_worker import (
+    ERROR_TABFM_UNAVAILABLE,
     ESTIMATOR_FALLBACK,
     WORKER_STATUS,
     forecast,
@@ -52,11 +53,11 @@ class TabfmWorkerStubTests(unittest.TestCase):
         self.assertEqual(out["predictions"], [])
         self.assertEqual(out["estimator"], "mad")
 
-    def test_tabfm_backend_not_wired(self) -> None:
+    def test_tabfm_backend_unavailable_without_weights(self) -> None:
         out = forecast(_synthetic_series(40), backend="tabfm")
         self.assertEqual(out["status"], "error")
         self.assertEqual(out["estimator"], "mad")
-        self.assertEqual(out["detail"].get("error"), "tabfm_not_wired")
+        self.assertEqual(out["detail"].get("error"), ERROR_TABFM_UNAVAILABLE)
         self.assertEqual(out["predictions"], [])
 
     def test_empty_history(self) -> None:
