@@ -1,6 +1,7 @@
 import type {
   AgentEnvelope,
   AgentModelRow,
+  AgentModelsResponse,
   FleetRow,
   HitlRow,
   SessionRow,
@@ -9,6 +10,7 @@ import type {
   ThreatRow,
   Verdict,
 } from "./types";
+import { normalizeAgentModelsResponse } from "./modelIntel.ts";
 
 const BASE: string = import.meta.env?.VITE_ARCNET_API ?? "";
 
@@ -155,6 +157,12 @@ export const api = {
   fleet: () => getJSON<FleetRow[]>("/api/fleet"),
   agentModels: (agentId: string) =>
     getJSON<AgentModelRow[]>(`/api/agents/${encodeURIComponent(agentId)}/models`),
+  agentModelsIntel: async (agentId: string): Promise<AgentModelsResponse> => {
+    const raw = await getJSON<unknown>(
+      `/api/agents/${encodeURIComponent(agentId)}/model-intel`,
+    );
+    return normalizeAgentModelsResponse(raw);
+  },
   sessions: (params?: {
     scenario?: string;
     agent_id?: string;

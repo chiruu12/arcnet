@@ -16,7 +16,7 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
-from arcnet_server import repository
+from arcnet_server import model_catalog, repository
 
 EXCERPT_CHARS = 200
 ARG_EXCERPT_CHARS = 120
@@ -816,6 +816,238 @@ def agent_home_data(conn: sqlite3.Connection) -> dict[str, Any]:
             {"stage": "improve", "view": "hq_agent", "path": "/api/agent-view/hq_agent/<agent_id>"},
         ],
         "readiness_honesty": "~62% (cap <=65); Griffin=MAD; SigNoz MCP=PARTIAL",
+    }
+
+
+# ---------------------------------------------------------------- model intelligence (docs/27)
+
+
+def _usage_tokens(usage: Any) -> tuple[int, int]:
+    """Extract input/output token counts from a session usage blob."""
+    if isinstance(usage, str):
+        try:
+            usage = json.loads(usage)
+        except json.JSONDecodeError:
+            usage = {}
+    if not isinstance(usage, dict):
+        return 0, 0
+    inp = usage.get("input_tokens")
+    if inp is None:
+        inp = usage.get("prompt_tokens")
+    out = usage.get("output_tokens")
+    if out is None:
+        out = usage.get("completion_tokens")
+    if inp is None and out is None:
+        total = usage.get("total_tokens") or usage.get("tokens")
+        if total is not None:
+            t = max(0, int(total or 0))
+            # Split unknown total 50/50 so both rates still apply (documented in docs/27).
+            return t // 2, t - (t // 2)
+    return max(0, int(inp or 0)), max(0, int(out or 0))
+
+
+def agent_usage_evidence(conn: sqlite3.Connection, agent_id: str) -> dict[str, Any]:
+    """Aggregate recorded token usage for one agent from SQLite sessions."""
+    rows = conn.execute(
+        """SELECT session_id, model, usage FROM sessions
+           WHERE agent_id=? ORDER BY started_at DESC, session_id DESC""",
+        (agent_id,),
+    ).fetchall()
+    session_count = 0
+    sessions_with_tokens = 0
+    input_tokens = 0
+    output_tokens = 0
+    for _sid, _model, usage_raw in rows:
+        session_count += 1
+        inp, out = _usage_tokens(usage_raw)
+        if inp or out:
+            sessions_with_tokens += 1
+        input_tokens += inp
+        output_tokens += out
+    return {
+        "session_count": session_count,
+        "sessions_with_token_usage": sessions_with_tokens,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+    }
+
+
+def agent_workload_evidence(conn: sqlite3.Connection, agent_id: str) -> dict[str, Any]:
+    """Threat rate + replay verdict counts from DB rows (no fabricated benchmarks)."""
+    sess_n = conn.execute(
+        "SELECT COUNT(*) FROM sessions WHERE agent_id=?", (agent_id,)
+    ).fetchone()
+    session_count = int((sess_n[0] if sess_n else 0) or 0)
+    thr_n = conn.execute(
+        "SELECT COUNT(*) FROM threats WHERE agent_id=?", (agent_id,)
+    ).fetchone()
+    threat_count = int((thr_n[0] if thr_n else 0) or 0)
+    threat_rate = (threat_count / session_count) if session_count > 0 else 0.0
+
+    # Replay verdicts for this agent's sessions (join, not fabricated).
+    vrows = conn.execute(
+        """SELECT r.verdict FROM replays r
+           JOIN sessions s ON s.session_id = r.session_id
+           WHERE s.agent_id=?""",
+        (agent_id,),
+    ).fetchall()
+    verdict_counts: dict[str, int] = {}
+    adversarial_like = 0
+    for (vraw,) in vrows:
+        name = "unknown"
+        if isinstance(vraw, str):
+            try:
+                vobj = json.loads(vraw)
+            except json.JSONDecodeError:
+                vobj = None
+        else:
+            vobj = vraw
+        if isinstance(vobj, dict):
+            name = str(vobj.get("verdict") or "unknown")
+        verdict_counts[name] = verdict_counts.get(name, 0) + 1
+        # "Hard" signal: baseline safer / candidate mixed / regressed / improved under load.
+        if name in ("regressed", "mixed", "improved", "inconclusive"):
+            adversarial_like += 1
+
+    return {
+        "session_count": session_count,
+        "threat_count": threat_count,
+        "threat_rate": round(threat_rate, 4),
+        "replay_count": len(vrows),
+        "verdict_counts": verdict_counts,
+        "adversarial_replay_count": adversarial_like,
+    }
+
+
+def reasoning_recommendation_from_evidence(
+    workload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Recommend a reasoning-tier model when recorded workload looks hard/adversarial."""
+    threat_rate = float(workload.get("threat_rate") or 0.0)
+    threat_count = int(workload.get("threat_count") or 0)
+    session_count = int(workload.get("session_count") or 0)
+    adv = int(workload.get("adversarial_replay_count") or 0)
+    replay_count = int(workload.get("replay_count") or 0)
+    verdict_counts = workload.get("verdict_counts") or {}
+
+    hard = False
+    bits: list[str] = []
+    # Thresholds grounded only in recorded counts (docs/27).
+    if session_count > 0 and threat_rate >= 0.25 and threat_count >= 1:
+        hard = True
+        bits.append(
+            f"recorded threat_rate={threat_rate:.2f} "
+            f"({threat_count} threats / {session_count} sessions)"
+        )
+    if replay_count > 0 and adv >= 1:
+        hard = True
+        vc = ", ".join(f"{k}={v}" for k, v in sorted(verdict_counts.items()))
+        bits.append(
+            f"recorded replay verdicts indicate contested workload "
+            f"({adv}/{replay_count} non-clean; {vc})"
+        )
+    if not hard:
+        return None
+
+    # Prefer mid reasoning tier first; fall back to any reasoning catalog row.
+    pick = model_catalog.get_model("o4-mini") or next(
+        (m for m in model_catalog.list_models() if m.get("reasoning")),
+        None,
+    )
+    if pick is None:
+        return None
+    return {
+        "recommend": True,
+        "model_id": pick["id"],
+        "tier": pick["tier"],
+        "rationale": (
+            "recorded workload looks hard/adversarial — prefer reasoning tier: "
+            + "; ".join(bits)
+        ),
+        "evidence": {
+            "session_count": session_count,
+            "threat_count": threat_count,
+            "threat_rate": threat_rate,
+            "replay_count": replay_count,
+            "verdict_counts": verdict_counts,
+            "adversarial_replay_count": adv,
+        },
+        "price_label": model_catalog.price_label(),
+    }
+
+
+def agent_model_intelligence(
+    conn: sqlite3.Connection,
+    agent_id: str,
+    *,
+    observed: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Full GET /api/agents/{id}/models payload — observed + catalog projections.
+
+    Every dollar figure is catalog list-price estimate applied to this agent's
+    recorded token totals. Unknown current model → baseline_cost null, deltas null.
+    """
+    agent = repository.get_agent(conn, agent_id) or {}
+    current_model = agent.get("model")
+    observed = observed if observed is not None else repository.list_agent_models(conn, agent_id)
+    usage = agent_usage_evidence(conn, agent_id)
+    workload = agent_workload_evidence(conn, agent_id)
+    inp = int(usage["input_tokens"])
+    out = int(usage["output_tokens"])
+
+    baseline_cost = model_catalog.project_cost_usd(
+        current_model, input_tokens=inp, output_tokens=out
+    )
+    candidates: list[dict[str, Any]] = []
+    for row in model_catalog.list_models():
+        proj = model_catalog.project_cost_usd(
+            row["id"], input_tokens=inp, output_tokens=out
+        )
+        delta = None
+        if proj is not None and baseline_cost is not None:
+            delta = round(proj - baseline_cost, 8)
+        candidates.append(
+            {
+                "id": row["id"],
+                "provider": row["provider"],
+                "tier": row["tier"],
+                "input_usd_per_mtok": row["input_usd_per_mtok"],
+                "output_usd_per_mtok": row["output_usd_per_mtok"],
+                "context_window": row["context_window"],
+                "reasoning": row["reasoning"],
+                "strengths": row["strengths"],
+                "projected_cost_usd": proj,
+                "projected_cost_delta": delta,
+                "price_label": model_catalog.price_label(),
+                "is_current": row["id"] == current_model,
+            }
+        )
+
+    # Sort: current first, then cheapest projected, then id.
+    def _sort_key(c: dict[str, Any]) -> tuple[Any, ...]:
+        delta = c.get("projected_cost_delta")
+        # None deltas sort last among non-current
+        dkey = float("inf") if delta is None else float(delta)
+        return (0 if c.get("is_current") else 1, dkey, c["id"])
+
+    candidates.sort(key=_sort_key)
+
+    return {
+        "agent_id": agent_id,
+        "current_model": current_model,
+        "catalog_version": model_catalog.catalog_version(),
+        "price_label": model_catalog.price_label(),
+        "models": observed,  # legacy cascade shape preserved under this key
+        "usage_evidence": usage,
+        "workload_evidence": workload,
+        "baseline_projected_cost_usd": baseline_cost,
+        "candidates": candidates,
+        "reasoning_recommendation": reasoning_recommendation_from_evidence(workload),
+        "honesty": (
+            "projected_cost_* use catalog list-price estimates applied to this agent's "
+            "recorded session token totals — not measured provider invoices or benchmarks"
+        ),
     }
 
 

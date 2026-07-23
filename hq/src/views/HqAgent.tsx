@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { api, type AgentVersionRow } from "../api";
 import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
 import { Empty, Seam, ts } from "../components";
+import { formatCostDelta } from "../modelIntel";
 import { showingOfTotal } from "../pageLabel";
-import type { CascadeLink, SignalRow } from "../types";
+import type { AgentModelsResponse, CascadeLink, SignalRow } from "../types";
 
 const RUN_HINT =
   'PYTHONPATH=sdk:agents uv run python -m hq_agent "fleet health + griffin MAD + proposals"';
@@ -48,6 +49,7 @@ export function HqAgent({
   const [versions, setVersions] = useState<AgentVersionRow[] | null>(null);
   const [versionsTotal, setVersionsTotal] = useState(0);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [modelIntel, setModelIntel] = useState<AgentModelsResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [applyModel, setApplyModel] = useState("");
@@ -107,17 +109,20 @@ export function HqAgent({
     let cancelled = false;
     setProposals(null);
     setVersions(null);
+    setModelIntel(null);
     Promise.all([
       api.signalsPage({ agent_id: agentId, source: "hq_agent", limit: PROPOSALS_PAGE }),
       api.agentVersionTimeline(agentId),
       api.agentVersionsPage(agentId, { limit: VERSIONS_PAGE }),
+      api.agentModelsIntel(agentId),
     ])
-      .then(([sigs, tl, versPage]) => {
+      .then(([sigs, tl, versPage, intel]) => {
         if (cancelled) return;
         setProposals(sigs.rows);
         setProposalsTotal(sigs.total);
         setVersions(versPage.rows);
         setVersionsTotal(versPage.total);
+        setModelIntel(intel);
         setCurrentModel(tl.current_model);
         setErr(null);
         const wantV = prefer.current.version;
@@ -395,6 +400,54 @@ export function HqAgent({
         >
           {flash}
         </p>
+      )}
+
+      <p className="eyebrow">{"// models (catalog projections)"}</p>
+      {modelIntel === null && !err && <p className="lede">loading…</p>}
+      {modelIntel && (
+        <>
+          <p className="dim" role="status">
+            catalog={modelIntel.catalog_version || "—"} ·{" "}
+            {modelIntel.price_label || "list-price estimate"} · usage_tokens=
+            {modelIntel.usage_evidence.total_tokens} (
+            {modelIntel.usage_evidence.session_count} sessions)
+          </p>
+          {modelIntel.reasoning_recommendation && (
+            <p className="lede">
+              reasoning_rec: <code>{modelIntel.reasoning_recommendation.model_id}</code> (
+              {modelIntel.reasoning_recommendation.tier}) —{" "}
+              {modelIntel.reasoning_recommendation.rationale}
+            </p>
+          )}
+          {modelIntel.candidates.length === 0 ? (
+            <Empty hint="no catalog candidates" />
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>model</th>
+                  <th>tier</th>
+                  <th>Δ cost</th>
+                  <th>strengths</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modelIntel.candidates.slice(0, 12).map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      {c.id}
+                      {c.is_current ? " · current" : ""}
+                      {c.reasoning ? " · reasoning" : ""}
+                    </td>
+                    <td className="dim">{c.tier}</td>
+                    <td className="dim">{formatCostDelta(c.projected_cost_delta)}</td>
+                    <td className="dim wrap">{c.strengths}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
 
       <p className="eyebrow">{"// apply_model (human-gated)"}</p>
