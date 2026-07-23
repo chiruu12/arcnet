@@ -142,6 +142,11 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 
 | Route | In | Out |
 |---|---|---|
+| `GET /health` | — | `{status: "ok"}` — process liveness (**additive** P9-A) |
+| `POST /api/agents` | `{agent_id, name, role?, exposure?, model?, …}` | upserted agent row. Optional `ARCNET_WRITE_SECRET` (**additive**) |
+| `POST /api/sessions` | session ingest fields (`agent_id`, `status`, `transcript?`, …) | human session row (`include_transcript` on write). Optional `ARCNET_WRITE_SECRET` (**additive**) |
+| `POST /api/threats` | threat row fields minus id | created threat row. Optional `ARCNET_WRITE_SECRET` (**additive**) |
+| `POST /api/sources` | source row fields minus id | created source row. Optional `ARCNET_WRITE_SECRET` (**additive**) |
 | `GET /api/fleet` | — | `[{agent_id, name, role, exposure, model, last_seen, health: {sessions_24h, threats_24h, blocked_24h, cost_24h_usd, anomalies_24h, active_signals}}]` |
 | `GET /api/threats?since=&agent_id=&limit=&offset=` | query | `[threat row]` (newest first; default cap 200). Headers: `X-Total-Count`, `X-Limit`, `X-Offset` (**additive**) |
 | `GET /api/sources?agent_id=&session_id=&limit=&offset=` | query | `[source row]` + same pagination headers (**additive**) |
@@ -154,6 +159,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `POST /api/replay` | `{session_id, candidate_model?, candidate_prompt?}` (exactly one candidate) | the verdict object (`10`) — synchronous; progress streams over SSE |
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |
 | `GET /api/agent-view/{view}/{id}` | HQ twins: `home`, `fleet_health`, `signals`, `time_machine`, `case_files`, `hq_agent`, `hitl`, `dashboards`, `sources_trust`, `threats` (+ legacy `incident`, `fleet`, `session`, `replay`, `sources`, `check`) | agent-view envelope (below). **P8-B:** every HQ view has a twin; `links` include graph cross-links (`case_file`, `models`, `versions`, …) |
+| `GET /api/agent-view/replay/{replay_id}` | path | agent-view envelope with `view: "replay"` and `data` = stored verdict object (**additive** P9-A) |
 | `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons). Optional `ARCNET_WRITE_SECRET` (**additive** Wave A) | created signal row (401 if write secret set and wrong/missing) |
 | `GET /api/hitl?session_id=&status=&limit=&offset=` | query | `[hitl row]` + pagination headers (**additive** P6-A) |
 | `POST /api/hitl` | `{run_id, session_id?, payload?}` | created `hitl_requests` row (`pending`); publishes SSE `hitl_request` |
@@ -164,6 +170,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `GET /api/signoz/status` | — | `{signoz_url, ui_reachable, api_key_present, query_range_ok, query_note, dashboards: {fleet_ops, threats_trust, cost_tokens, agno}, mcp_note?}` — dashboard ids from `SIGNOZ_DASHBOARD_*` env or title resolve (**additive** `dashboards`; Wave B **additive** `mcp_note`) |
 | `GET /api/signoz/evidence?session_id=` | query | Bounded Query Range / trace summary: `{session_id, trace_id, links.signoz_trace, spans[{name,duration_ns}], truncated, note, mcp_fallback}` — **no full payloads** (**additive** Wave B) |
 | `GET /api/griffin/status` | — | MAD cache: `{estimator:"mad", model:"mad", status, warmth{}, series_count, series_source, last_anomaly, last_evaluate_ms, honesty}` (**additive** Wave B warmth/source fields) |
+| `POST /api/griffin/evaluate` | `{series_id?, observed?}` | on-demand MAD judge result for one series; may emit `source=griffin` signal on outlier (**additive** P9-A) |
 | `GET /api/agents/{agent_id}/versions?limit=&offset=` | path + page | `[agent_version row]` + pagination headers (**additive** HQ Agent) |
 | `POST /api/agents/{agent_id}/versions` | `{version, model?, model_version?, source_ref?, notes?, session_id?}` | created version row; optional `session_id` pins `sessions.agent_version` to the new `version_id` (**additive**) |
 | `GET /api/agents/{agent_id}/versions/timeline` | path | `{agent_id, versions[], current_model?}` (**additive**) |
