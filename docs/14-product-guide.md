@@ -131,6 +131,7 @@ Global chrome: sidebar (`// observe` · `// improve`), mini fleet dots, breadcru
 
 | View | Human mode | Agent mode | Buttons / actions |
 |---|---|---|---|
+| **home** | Judge-facing landing: loop strip, live stat tiles (fleet/sessions/threats/signals/replays), pillar cards into each view, honesty strip | Inline stats JSON | Loop stages + pillar `open →` links |
 | **fleet_health** | Agent cards: exposure, sessions/threats/blocked/cost/anomalies/signals. `[FORWARD]` = higher injection risk. **MAD** Griffin strip | `GET /api/agent-view/fleet/all` JSON | — |
 | **signals** | Table of steer/pause/kill/note; live SSE updates; pagination totals | Agent-view signals envelope when wired | Watch feed |
 | **hitl** | Pending HITL requests with payload summary; approve/reject; live SSE `hitl_request` | Raw `GET /api/hitl` JSON | **approve** / **reject** (SQLite only — see Limitations) |

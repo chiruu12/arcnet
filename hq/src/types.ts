@@ -1,6 +1,7 @@
 export type Mode = "human" | "agent";
 
 export type View =
+  | "home"
   | "fleet_health"
   | "signals"
   | "hitl"

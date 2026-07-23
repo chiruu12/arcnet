@@ -674,3 +674,159 @@ p.honesty {
   margin-bottom: 1rem;
   max-width: 52rem;
 }
+
+.home-hero {
+  margin-bottom: 28px;
+}
+
+.home-wordmark {
+  font-size: 28px;
+  margin: 0 0 12px;
+}
+
+.home-tagline {
+  margin: 0 0 8px;
+  color: var(--bright);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  max-width: 48ch;
+}
+
+.home-subtitle {
+  margin-bottom: 0;
+}
+
+.home-loop,
+.home-stats,
+.home-pillars {
+  margin-bottom: 28px;
+}
+
+.loop-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.loop-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.loop-arrow {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.loop-stage {
+  appearance: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.loop-stage:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .stat-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat-tile {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.stat-tile-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.stat-tile-label {
+  margin-top: 6px;
+  font-size: 10px;
+  text-transform: lowercase;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.pillar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .pillar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pillar-card {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pillar-card h3 {
+  margin: 0;
+  color: var(--bright);
+  font-size: 13px;
+}
+
+.pillar-desc {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-2);
+  flex: 1;
+}
+
+.pillar-link {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pillar-link:hover {
+  color: var(--accent-hover);
+}
+
+.honesty-strip {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}

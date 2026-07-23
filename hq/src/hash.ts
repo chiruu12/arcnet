@@ -1,15 +1,5 @@
+import { resolveViewFromPath } from "./defaultView.ts";
 import type { View } from "./types";
-
-const VIEWS = new Set<View>([
-  "fleet_health",
-  "signals",
-  "hitl",
-  "sources_trust",
-  "time_machine",
-  "case_files",
-  "dashboards",
-  "hq_agent",
-]);
 
 export type HashState = {
   view: View;
@@ -28,7 +18,7 @@ export function parseHash(raw?: string): HashState {
         : "";
   const trimmed = source.replace(/^#/, "");
   const [path, query = ""] = trimmed.split("?");
-  const view = VIEWS.has(path as View) ? (path as View) : "fleet_health";
+  const view = resolveViewFromPath(path);
   const params = new URLSearchParams(query);
   const agent = params.get("agent")?.trim() || undefined;
   const version = params.get("version")?.trim() || undefined;

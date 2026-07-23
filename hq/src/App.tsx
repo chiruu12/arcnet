@@ -6,6 +6,7 @@ import type { Mode, View } from "./types";
 import { CaseFiles } from "./views/CaseFiles";
 import { Dashboards } from "./views/Dashboards";
 import { FleetHealth } from "./views/FleetHealth";
+import { Home } from "./views/Home";
 import { HqAgent } from "./views/HqAgent";
 import { Hitl } from "./views/Hitl";
 import { Signals } from "./views/Signals";
@@ -13,13 +14,14 @@ import { SourcesTrust } from "./views/SourcesTrust";
 import { TimeMachine } from "./views/TimeMachine";
 
 const NAV: { group: string; items: View[] }[] = [
+  { group: "// home", items: ["home"] },
   { group: "// observe", items: ["fleet_health", "signals", "hitl", "sources_trust"] },
   { group: "// improve", items: ["time_machine", "case_files", "dashboards", "hq_agent"] },
 ];
 
 export function App() {
   const [hash, setHash] = useState<HashState>(() =>
-    typeof window !== "undefined" ? parseHash() : { view: "fleet_health" },
+    typeof window !== "undefined" ? parseHash() : { view: "home" },
   );
   const [mode, setMode] = useState<Mode>("human");
   const [apiUp, setApiUp] = useState<boolean | null>(null);
@@ -151,6 +153,7 @@ export function App() {
               API is back.
             </p>
           )}
+          {view === "home" && <Home mode={mode} />}
           {view === "fleet_health" && (
             <FleetHealth
               mode={mode}

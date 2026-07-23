@@ -7,9 +7,9 @@ import { describe, it } from "node:test";
 import { formatHash, parseHash, type HashState } from "./hash.ts";
 
 describe("parseHash", () => {
-  it("defaults to fleet_health", () => {
-    assert.equal(parseHash("").view, "fleet_health");
-    assert.equal(parseHash("#").view, "fleet_health");
+  it("defaults to home", () => {
+    assert.equal(parseHash("").view, "home");
+    assert.equal(parseHash("#").view, "home");
   });
 
   it("parses cascade query keys", () => {
@@ -23,8 +23,8 @@ describe("parseHash", () => {
     assert.equal(h.session, "s_ecfdb55d");
   });
 
-  it("ignores unknown views", () => {
-    assert.equal(parseHash("#not_a_view").view, "fleet_health");
+  it("falls back unknown views to home", () => {
+    assert.equal(parseHash("#not_a_view").view, "home");
   });
 
   it("omits empty query values", () => {
