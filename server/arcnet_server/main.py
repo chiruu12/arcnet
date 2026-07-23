@@ -296,6 +296,16 @@ def list_agent_models(agent_id: str) -> list[dict[str, Any]]:
     return repository.list_agent_models(conn, agent_id)
 
 
+@app.get("/api/agents/{agent_id}/model-intel")
+def agent_model_intel(agent_id: str) -> dict[str, Any]:
+    """Catalog projections + evidence-grounded recommendation (docs/27, additive endpoint)."""
+    conn = get_conn()
+    if repository.get_agent(conn, agent_id) is None:
+        raise HTTPException(404, f"agent {agent_id} not found")
+    observed = repository.list_agent_models(conn, agent_id)
+    return read_models.agent_model_intelligence(conn, agent_id, observed=observed)
+
+
 @app.get("/api/agents/{agent_id}/versions/timeline")
 def agent_versions_timeline(agent_id: str) -> dict[str, Any]:
     """HQ Agent version timeline (docs/18)."""

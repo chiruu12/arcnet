@@ -59,6 +59,58 @@ export type AgentModelRow = {
   latest_started_at: number | null;
 };
 
+/** Additive model-intelligence payload (docs/27). Cascade list is `models`. */
+export type ModelCandidate = {
+  id: string;
+  provider: string;
+  tier: string;
+  input_usd_per_mtok: number;
+  output_usd_per_mtok: number;
+  context_window: number;
+  reasoning: boolean;
+  strengths: string;
+  projected_cost_usd: number | null;
+  projected_cost_delta: number | null;
+  price_label: string;
+  is_current: boolean;
+};
+
+export type ReasoningRecommendation = {
+  recommend: boolean;
+  model_id: string;
+  tier: string;
+  rationale: string;
+  evidence: Record<string, unknown>;
+  price_label: string;
+};
+
+export type AgentModelsResponse = {
+  agent_id: string;
+  current_model: string | null;
+  catalog_version: string;
+  price_label: string;
+  models: AgentModelRow[];
+  usage_evidence: {
+    session_count: number;
+    sessions_with_token_usage: number;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+  };
+  workload_evidence: {
+    session_count: number;
+    threat_count: number;
+    threat_rate: number;
+    replay_count: number;
+    verdict_counts: Record<string, number>;
+    adversarial_replay_count: number;
+  };
+  baseline_projected_cost_usd: number | null;
+  candidates: ModelCandidate[];
+  reasoning_recommendation: ReasoningRecommendation | null;
+  honesty: string;
+};
+
 export type SignalRow = {
   signal_id: string;
   session_id: string | null;
