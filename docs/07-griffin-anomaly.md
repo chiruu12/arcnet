@@ -16,6 +16,7 @@ SigNoz ships anomaly-based alerts (seasonal baseline + z-score). We **use one na
 
 - **Runtime now (locked):** robust z-score on rolling median/MAD — Griffin's I/O contract. Narration = **statistical baseline**. HQ/status labels `estimator=mad`.
 - **Required Phase 7:** **Google TabFM** (`google/tabfm-1.0.0-pytorch`, **`subfolder="regression"`** / `TabFMRegressor`). Sklearn-style `fit/predict`, PyTorch backend. **Phase-2 G2 result (2026-07-21):** install OK; load ~28s; fit+predict ~12–26s/series → ~150s for 12 series (≫15s budget) → needs **async worker / subset series / longer cadence**; MAD degrade at runtime is OK.
+- **Phase-7 P7-A re-measure (2026-07-23, CPU arm64, `docs/_phase7_g7.json`):** weights cached; load ~54s; median fit+predict ~80s/series (7 series timed) → projected ~960s for 12 series (≫15s budget). **Decision (not live):** `series_count=1`, `cadence_s=360`, `hardware=cpu`, verdict `SINGLE_SERIES_LONG_CADENCE`; async worker + MAD degrade required. Interface stub: `server/arcnet_server/tabfm_worker.py` `forecast(history, features) → predictions` (MAD fallback only; **not wired** to Griffin runtime). HQ must **not** label `tabfm` until P7-B exit.
 - **Bands via split-conformal residuals** (TabFM outputs point predictions only): fit on history minus last C=20 calibration points, predict calibration tail, take `q95(|residual|)` → band = `forecast ± that`. Model-agnostic — any regressor can slot into Griffin.
 - **TabPFN:** deferred/out (Prior Labs `TABPFN_TOKEN` friction). Do not block harden phases on it. Reopen only by explicit decision.
 

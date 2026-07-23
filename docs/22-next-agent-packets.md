@@ -214,7 +214,7 @@ flowchart LR
 | P6-A | **DONE** | HQ `hitl` view + GET /api/hitl + SSE decide; honesty in UI + docs/14 |
 | P6-B | **DONE** | shell api_down recovers on focus + 20s interval (`apiRecover.ts`); threats table on fleet_health; sources agent-view already shipped — dashboards twin wired via `AgentJson` + `/api/agent-view/dashboards/all` |
 | P6-C | **DEFER** | no corpus endpoint on server; docs/12 P1 row is contract-only |
-| P7-A | **TODO** | parallel-ok |
+| P7-A | **DONE** | spike `docs/_phase7_g7.json` — load~54s, fit+predict median~80s/series CPU; decision N=1 @ 360s cadence; `tabfm_worker.py` stub + MAD fallback test; not wired / no HQ `tabfm` label |
 | P7-B | **TODO** | blocked on P7-A |
 | H-1 | **TODO** | Track H |
 
