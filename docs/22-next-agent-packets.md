@@ -209,7 +209,7 @@ flowchart LR
 
 | Packet | Status | PR / notes |
 |---|---|---|
-| P5-A | **TODO** | |
+| P5-A | **DONE** | [`docs/plans/unplug-coverage-matrix.md`](plans/unplug-coverage-matrix.md) — 128 rows (99 COVERED / 29 N/A); S1/S2/S5 CI stubs in `agents/tests/`; live runner DEFER driver session |
 | P5-B | **DONE** | honesty greps clean; excerpt bounds + A15 hatch tested |
 | P6-A | **TODO** | blocked on Phase 5 |
 | P6-B | **TODO** | blocked on Phase 5 |
