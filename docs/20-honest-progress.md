@@ -1,8 +1,8 @@
-# ArcNet — Honest progress measurement (post Phase 2 / Phase 1 remeasure)
+# ArcNet — Honest progress measurement (post Phases 5–6 + P7-A remeasure)
 
-**Date:** 2026-07-23  
-**Branch:** `main` @ PR #18 merge; Phase 4 work on `phase-4-live-ops`  
-**Rule:** overall product readiness **≤60%** until measurable exits pass. No 74/80/95 theater.
+**Date:** 2026-07-23 (evening remeasure; morning baseline ~57%)  
+**Branch:** `main` @ Phases 5–6 merged (P5-A/P5-B/P6-A/P6-B; P6-C DEFER) + P7-A spike  
+**Rule:** overall product readiness **≤65%** until the next exits pass (live S1/S2/S5 rerun, P7-B TabFM ship, demo capture). No 74/80/95 theater.
 
 Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (acceptance scripts), [`21-next-phases-plan.md`](21-next-phases-plan.md) (post–Wave B phase bundles + TabFM research), [`23-product-overview.md`](23-product-overview.md) (product overview).
 
@@ -12,14 +12,14 @@ Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acc
 
 | Slice | Honest % | Evidence basis |
 |---|---:|---|
-| Shipped surface (APIs/UI/tools exist) | **62** | Routes, HQ views, HQ tools present; many empty/error paths thin |
-| Reliability (timeouts, flakes, reload honesty) | **56** | HQ tool matrix + e2e + Phase 4 dry-run/probe; live AgentOS restart still operator step |
-| Evidence fidelity (TM / Griffin / SigNoz) | **54** | Phase 3 fixtures + cold soak + HTTP-prefer on main; live MCP still PARTIAL |
-| Demo readiness (cold laptop → hero loop) | **50** | Phase 4 dry-run checklist; optional restart screenshot open |
-| Hackathon assets (WS11) | **35** | Separate track — **excluded from overall** |
-| **Overall (excl. WS11)** | **~57%** | Phases 2–4 exits; **cap ≤60** — not 70%+ |
+| Shipped surface (APIs/UI/tools exist) | **68** | + HITL view/API, threats panel, dashboards twin, api_down recover — all test-covered (Phase 6) |
+| Reliability (timeouts, flakes, reload honesty) | **60** | + shell recover helper w/ tests; excerpt bounds proven; live AgentOS restart still operator step |
+| Evidence fidelity (TM / Griffin / SigNoz) | **58** | + Unplug coverage matrix (0 silent gaps); P7-A spike measured; live MCP still PARTIAL |
+| Demo readiness (cold laptop → hero loop) | **58** | Run-3 rehearsal: cold bring-up + e2e + dry-run PASS, capture checklist; **live replays blocked on OpenAI quota** |
+| Hackathon assets (WS11) | **38** | Capture checklist landed; screenshots/video still human — **excluded from overall** |
+| **Overall (excl. WS11)** | **~62%** | Phases 5–6 exits + P7-A; **cap ≤65** until live reruns + P7-B |
 
-**Do not claim Wave B / Phase 2 reached 74/80/95.** CI gates landed; evidence trust and live ops still open.
+**Do not claim 70%+.** Live S1/S2/S5 rerun (quota), P7-B TabFM ship, and demo capture are still open; MCP stdio still PARTIAL.
 
 ---
 
@@ -27,23 +27,23 @@ Companion: [`19-path-to-95.md`](19-path-to-95.md) (plan), [`plans/path-to-95-acc
 
 Inflation ban: move a cell only when that area’s exit in `19` §2 passes. “Code landed” ≠ exit passed.
 
-| # | Area | Start | After Wave A (est.) | **Measured now** | Exit status |
+| # | Area | Start | AM 2026-07-23 | **Measured now (PM)** | Exit status |
 |---|---|---:|---:|---:|---|
-| 1 | Positioning / framing | 58 | ~60 | **58** | Partial — honesty pins OK; demo chrome still mixed |
-| 2 | HQ frontend / IA | 55 | ~70 | **64** | Partial — cascade/hash FE tests + `hq-test` CI (Phase 2); polish open |
-| 3 | Human APIs | 58 | ~72 | **66** | Partial — pagination + HQ “showing N of Total” (Phase 4) |
-| 4 | Agent APIs / tools | 64 | ~68 | **66** | Partial — envelopes + timeouts; not every twin battle-tested |
-| 5 | HQ Agent | 56 | ~60 | **62** | Partial — propose→apply→pin CI + live_ops dry-run (Phase 4); TabFM not coded |
-| 6 | Version timeline / pinpoint | 52 | ~78 | **68** | Partial — pinpoint fields exist; cascade polish open |
-| 7 | Model explore / sims | 50 | ~62 | **56** | Partial — TM session-scoped ranking + majority winners; no corpus loop |
-| 8 | Griffin (MAD) | 46 | ~48 | **54** | Partial — cold soak: no seed write, `sqlite_proxy`, status not stuck cold (Phase 3) |
-| 9 | SigNoz | 54 | ~58 | **58** | Partial — golden Query Range fixtures + HTTP preferred before MCP (Phase 3) |
-| 10 | Unplug coverage | 68 | ~72 | **70** | Partial — fleet + HQ Agent; ingest audit incomplete |
-| 11 | Tests / CI / e2e | 48 | ~55 | **58** | **Phase 2 exits met** — e2e + hq-test + tool matrix in CI |
-| **Overall (1–11)** | **~48** | **~62–68 est. (rejected)** | **~57** | Cap ≤60; Phases 2–4 ≠ 70%+ |
-| 12 | Hackathon assets | 35 | — | **35** | Track only |
+| 1 | Positioning / framing | 58 | 58 | **66** | **P5-B exits met** — honesty greps 0; MAD + MCP PARTIAL in README/`14`/`06`; Beat-3 narration = MAD; `23` overview |
+| 2 | HQ frontend / IA | 55 | 64 | **72** | **P6-A/P6-B exits met** — `hitl` view, threats panel, api_down recover (helper + tests); 26 FE tests in CI |
+| 3 | Human APIs | 58 | 66 | **70** | Partial — + `GET /api/hitl` w/ pagination headers; threats page consumption |
+| 4 | Agent APIs / tools | 64 | 66 | **72** | **P5-B/P6-B exits met** — excerpt bounds tested; A15 hatch tested; dashboards twin envelope + scope 404 |
+| 5 | HQ Agent | 56 | 62 | **62** | Unchanged — no new exits this pass |
+| 6 | Version timeline / pinpoint | 52 | 68 | **68** | Unchanged — no new exits this pass |
+| 7 | Model explore / sims | 50 | 56 | **56** | Unchanged; corpus scorecard = explicit DEFER (P6-C, no endpoint) |
+| 8 | Griffin (MAD) | 46 | 54 | **58** | **P7-A exits met** — spike re-measured (`_phase7_g7.json`), worker contract + MAD-fallback tests; runtime still MAD |
+| 9 | SigNoz | 54 | 58 | **58** | Unchanged (user pin: no further polish); MCP still PARTIAL |
+| 10 | Unplug coverage | 68 | 70 | **76** | **P5-A exits met** — matrix 128 rows / 0 silent gaps; S1/S2/S5 CI stubs; live rerun DEFER (quota) |
+| 11 | Tests / CI / e2e | 48 | 58 | **64** | Suite grew: server 130 / agents 17 / sdk 6 / hq 26, all green in CI |
+| **Overall (1–11)** | **~48** | **~57** | **~62** | Cap ≤65; live reruns + P7-B + capture still open |
+| 12 | Hackathon assets | 35 | 35 | **38** | Track only — capture checklist landed; media human |
 
-Equal-weight of areas drifts higher than the honesty pin; **authoritative overall = ~57% / ≤60%**. TabFM remains **required Phase 7** — not claimed.
+Equal-weight of areas drifts higher than the honesty pin; **authoritative overall = ~62% / ≤65%**. TabFM remains **required Phase 7** — spike measured (P7-A), ship (P7-B) not started; never claim live.
 
 ---
 
@@ -109,6 +109,26 @@ P1 regression exits (must stay green):
 | Pagination labels | HQ signals/proposals/versions/Case Files “showing N of Total” |
 | Session filters e2e | `agent_version` / `version_id` in dry-run + unit tests |
 
+### Phases 5–6 + P7-A exits (met on `main`, 2026-07-23 PM)
+
+| Exit | Evidence |
+|---|---|
+| P5-A Unplug matrix | `docs/plans/unplug-coverage-matrix.md` — 128 rows (99 COVERED / 29 N/A / 0 silent); `agents/tests/test_guard_scenarios.py` + `test_unplug_coverage_matrix.py` |
+| P5-B honesty + excerpts | `rg 'TabFM live\|demo badge'` → 0; excerpt-bound tests in `test_read_models.py`; A15 `full_transcript` hatch named + tested |
+| P6-A HITL UI | `hq/src/views/Hitl.tsx` + `GET /api/hitl` + SSE decide; `test_hitl_api.py` + `hitl.test.ts`; honesty string UI + `14` |
+| P6-B recover/threats/twins | `apiRecover.ts` + tests; `ThreatsPanel.tsx` on fleet_health; dashboards agent-view envelope + scope 404 |
+| P6-C corpus | **DEFER** — no server endpoint; docs/12 P1 row contract-only |
+| P7-A TabFM spike | `docs/_phase7_g7.json` (load ~54s, ~80s/series CPU, N=1 @ 360s); `tabfm_worker.py` contract + `test_tabfm_worker_stub.py` |
+| Run-3 demo rehearsal | cold bring-up README-verbatim PASS; e2e + dry-run PASS; `docs/plans/capture-checklist.md` |
+
+### Still open (blocks further inflation)
+
+| Gap | Why it blocks |
+|---|---|
+| Live S1/S2/S5 rerun + hero re-verify | **OpenAI key over quota** — recorded `_phase4_g4.json` stands; rerun on top-up |
+| P7-B TabFM ship | worker + degrade + honest labels — not started |
+| Demo capture (screenshots/video/submission) | Track H, human |
+
 **No further SigNoz/seed/fixture data polish** (user pin after Phase 3).
 
 ---
@@ -129,9 +149,9 @@ P1 regression exits (must stay green):
 
 ## 5. Next plan — harden framework first (Wave C = backlog)
 
-**Authoritative phase bundles:** [`21-next-phases-plan.md`](21-next-phases-plan.md). Phases 2–4 done (Phase 4 on branch). Phase 1 remeasure done (~57% / ≤60%). **Next = Phase 5 (Safety matrix)**. TabFM = **required Phase 7 (not coded yet)**.
+**Authoritative phase bundles:** [`21-next-phases-plan.md`](21-next-phases-plan.md) + run order in [`24-ship-week-plan.md`](24-ship-week-plan.md). Phases 2–6 done; P6-C explicit DEFER; P7-A spike done. **Next = P7-B (TabFM ship) + quota-gated live reruns + Track H capture.**
 
-Order: **fix → test → measure → then new features**. Wave C items stay backlog until measurement exits move. Overall stays **~57% / ≤60%** — Phase 2–4 do not unlock 70%+.
+Order: **fix → test → measure → then new features**. Overall stays **~62% / ≤65%** until live reruns + P7-B exits.
 
 ### Top 5 concrete hardening items
 
@@ -143,15 +163,15 @@ Order: **fix → test → measure → then new features**. Wave C items stay bac
 
 ### Explicit backlog (not % fuel)
 
-- ~~**Phase 4 live ops loop**~~ — **done on branch** (dry-run + pagination labels + probe)
-- Wave C feature expansion (corpus scorecard, HITL pause UI polish)
-- **TabFM integration (required Phase 7)** — HF `google/tabfm-1.0.0-pytorch` `regression/`; MAD degrade OK; TabPFN deferred — **NOT implemented**
-- WS11 hackathon capture (screenshots/video) — track only
-- Claiming ≥70% overall before Phase 5+ exits + measured re-score
+- ~~**Phase 4 live ops loop**~~ — **done** (PR #19)
+- ~~**HITL pause UI**~~ — **P6-A done**; corpus scorecard = **P6-C DEFER** (no endpoint)
+- **TabFM integration (required P7-B)** — spike measured (P7-A: N=1 @ 360s cadence, async worker, MAD degrade); **runtime ship NOT started**
+- WS11 hackathon capture (screenshots/video) — track only; capture checklist ready
+- Claiming ≥70% overall before live reruns + P7-B exits + measured re-score
 - Further SigNoz/seed/fixture polish — **stopped per user**
 
 ---
 
 ## 6. Scoreboard correction note
 
-`docs/19` §5.2 previously listed After B **~74–80 est.** That estimate is **withdrawn**. Measured baseline was **~55%**; post–Phase-2/3 remeasure is **~57%** (this doc). Future PRs update only by citing exits in §3 above.
+`docs/19` §5.2 previously listed After B **~74–80 est.** That estimate is **withdrawn**. Measured path: ~48 → ~55 → ~57 (post Phases 2–4) → **~62 (post Phases 5–6 + P7-A, this doc, 2026-07-23 PM)**. Every move cites exits in §3 above; cap **≤65** until live reruns + P7-B.
