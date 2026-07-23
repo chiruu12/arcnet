@@ -6,6 +6,7 @@ import type {
   SessionRow,
   SignalRow,
   SourceRow,
+  ThreatRow,
   Verdict,
 } from "./types";
 
@@ -299,6 +300,23 @@ export const api = {
     if (params?.session_id) q.set("session_id", params.session_id);
     const qs = q.toString();
     return getJSON<SourceRow[]>(`/api/sources${qs ? `?${qs}` : ""}`);
+  },
+  threatsPage: async (params?: {
+    agent_id?: string;
+    since?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<Paged<ThreatRow>> => {
+    const q = new URLSearchParams();
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.since != null) q.set("since", String(params.since));
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    const { data, headers } = await getJSONPaged<ThreatRow[]>(
+      `/api/threats${qs ? `?${qs}` : ""}`,
+    );
+    return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
   agentView: (view: string, id: string) =>
     getJSON<AgentEnvelope>(`/api/agent-view/${view}/${encodeURIComponent(id)}`),

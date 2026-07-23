@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type GriffinStatus } from "../api";
 import { AgentJson, Empty, Seam } from "../components";
 import type { FleetRow, Mode } from "../types";
+import { ThreatsPanel } from "./ThreatsPanel";
 
 function MadStrip({
   status,
@@ -124,6 +125,7 @@ export function FleetHealth({
         cascade; hot agents also deep-link to signals.
       </p>
       <MadStrip status={griffin} err={griffinErr} onOpenSignals={onOpenSignals} />
+      <ThreatsPanel />
       {err && <Seam error={err} />}
       {!err && !fleet && <p className="lede">loading…</p>}
       {fleet && fleet.length === 0 && (

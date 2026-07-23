@@ -92,6 +92,19 @@ export type SourceRow = {
   created_at: number | null;
 };
 
+export type ThreatRow = {
+  threat_id: string;
+  session_id: string | null;
+  agent_id: string | null;
+  checkpoint: string | null;
+  action: string | null;
+  category: string | null;
+  subcategory: string | null;
+  risk_score: number | null;
+  trust_level: string | null;
+  created_at: number | null;
+};
+
 export type Verdict = {
   replay_id: string;
   session_id: string;
