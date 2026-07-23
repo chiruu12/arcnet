@@ -1,0 +1,57 @@
+{
+  "status": "OK",
+  "model": "tabfm",
+  "checkpoint": "google/tabfm-1.0.0-pytorch",
+  "subfolder": "regression",
+  "backend": "pytorch",
+  "install_ok": true,
+  "weights_cached": true,
+  "hardware": {
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "python": "3.12.11",
+    "cpu_count": 10,
+    "device": "cpu",
+    "torch": "2.13.0",
+    "cuda_available": false
+  },
+  "load_s": 54.439,
+  "fit_predict_s": 174.81,
+  "fit_predict_per_series_s": [
+    124.806,
+    120.36,
+    83.779,
+    79.89,
+    70.819,
+    70.853,
+    75.0
+  ],
+  "projected_cycle_s": {
+    "1": 79.89,
+    "2": 159.781,
+    "3": 239.671,
+    "12": 958.684
+  },
+  "n_train": 40,
+  "n_pred": 1,
+  "decision": {
+    "series_count": 1,
+    "cadence_s": 360,
+    "hardware": "cpu",
+    "verdict": "SINGLE_SERIES_LONG_CADENCE",
+    "median_fit_predict_s": 79.89,
+    "load_s": 54.439,
+    "cycle_budget_s": 15.0,
+    "rationale": "median fit+predict 79.89s/series on cpu (n_measured=7); choose N=1 @ 360s cadence; async worker + MAD degrade required; not wired to runtime in P7-A.",
+    "measured_series_count": 7
+  },
+  "notes": "import ok; weights_cached=True; load 54.44s; single fit+predict 174.810s; measured 7 series median=79.89s; projected={'1': 79.89, '2': 159.781, '3': 239.671, '12': 958.684}; decision=SINGLE_SERIES_LONG_CADENCE N=1",
+  "error": null,
+  "prior_g2": {
+    "load_s": 28.53,
+    "fit_predict_s": 26.017,
+    "approx_per_series_s": 12.0,
+    "gate": "FALLBACK"
+  }
+}

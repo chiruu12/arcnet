@@ -214,7 +214,7 @@ flowchart LR
 | P6-A | **TODO** | blocked on Phase 5 |
 | P6-B | **TODO** | blocked on Phase 5 |
 | P6-C | **TODO** | defer-or-build |
-| P7-A | **TODO** | parallel-ok |
+| P7-A | **DONE** | spike `docs/_phase7_g7.json` — load~54s, fit+predict median~80s/series CPU; decision N=1 @ 360s cadence; `tabfm_worker.py` stub + MAD fallback test; not wired / no HQ `tabfm` label |
 | P7-B | **TODO** | blocked on P7-A |
 | H-1 | **TODO** | Track H |
 
