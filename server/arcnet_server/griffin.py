@@ -360,8 +360,8 @@ def evaluate_series(
         from arcnet_server.bus import BUS
 
         BUS.publish("signal", row)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("griffin signal bus publish failed: %s", exc)
 
     # Best-effort OTel metric if SDK runtime is live in-process (usually not on server)
     try:

@@ -14,7 +14,7 @@ import httpx
 from unplug import Action, Source, TaintedText, TrustLevel
 
 from arcnet.context import try_get_runtime
-from arcnet.guard_factory import action_name, guard_verdict_from_result
+from arcnet.guard_factory import guard_verdict_from_result
 from arcnet.pricing import cost_usd
 from arcnet.telemetry import LatencyTimer, emit_guard_telemetry
 
@@ -52,10 +52,6 @@ def load_session(
         r = client.get(f"{base}/api/sessions/{session_id}", params=params)
         r.raise_for_status()
         return r.json()
-
-
-def _action_name(action: Any) -> str:
-    return action_name(action)
 
 
 _BLOCK_STEER_GUIDANCE = (
@@ -235,6 +231,11 @@ class ReplayCursor:
             return "tool unavailable in replay"
 
         guard = step.get("guard") or {}
+        # P8-D: when live guard did not run (no runtime), still surface recorded verdict.
+        if guard and "guard_verdict" not in call:
+            call["guard_verdict"] = guard
+            if guard.get("action"):
+                call["guard_action"] = guard.get("action")
         if guard.get("action") == "kill":
             if agent is not None:
                 _session_state(agent)["arcnet_kill"] = True
