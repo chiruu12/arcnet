@@ -1,7 +1,7 @@
 # ArcNet — Next agent work packets (Phases 5–7 + TabFM)
 
 **Date:** 2026-07-23  
-**Branch base:** `phase-4-live-ops` (PR #19 open — not merged to `main` yet)  
+**Branch base:** `main` (Phase 4 merged via PR #19)  
 **Readiness pin:** overall **~57% / ≤60%** ([`20-honest-progress.md`](20-honest-progress.md)). Do not inflate.  
 **Companion plan:** [`21-next-phases-plan.md`](21-next-phases-plan.md) (phase bundles). This doc turns Phases **5 / 6 / 7** into **concrete agent packets** with goals, files, exits, deps.
 
