@@ -551,7 +551,7 @@ def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
         try:
             findings = json.loads(findings)
         except json.JSONDecodeError:
-            findings = findings
+            pass  # keep raw string; excerpt path below handles non-list values
     finding_excerpts: list[Any] = []
     if isinstance(findings, list):
         for item in findings[:5]:

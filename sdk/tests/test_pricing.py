@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from arcnet.pricing import PRICES, cost_usd
+from arcnet.pricing import CATALOG_ID_ALIASES, PRICES, cost_usd, resolve_price_key
 
 
 class PricingAlignmentTests(unittest.TestCase):
@@ -46,6 +46,31 @@ class PricingAlignmentTests(unittest.TestCase):
             )
             self.assertIsNotNone(catalog)
             self.assertAlmostEqual(sdk, catalog or 0.0, places=10)
+
+    def test_anthropic_catalog_ids_resolve_through_pricing(self) -> None:
+        model_catalog = self._catalog()
+        absent_from_prices = {"claude-opus-4-8"}
+        anthropic_ids = [
+            m["id"] for m in model_catalog.MODELS if m.get("provider") == "anthropic"
+        ]
+        self.assertIn("claude-haiku-4-5", anthropic_ids)
+        self.assertIn("claude-sonnet-5", anthropic_ids)
+        for model_id in anthropic_ids:
+            if model_id in absent_from_prices:
+                continue
+            price_key = resolve_price_key(model_id)
+            self.assertIn(price_key, PRICES, msg=f"{model_id} -> {price_key}")
+            self.assertGreater(cost_usd(model_id, 1000, 1000), 0.0)
+            row = model_catalog.get_model(model_id)
+            assert row is not None
+            inp_per_1k, out_per_1k = PRICES[price_key]
+            self.assertAlmostEqual(float(row["input_usd_per_mtok"]), inp_per_1k * 1000.0, places=8)
+            self.assertAlmostEqual(float(row["output_usd_per_mtok"]), out_per_1k * 1000.0, places=8)
+        self.assertEqual(absent_from_prices, {"claude-opus-4-8"})
+        self.assertEqual(
+            CATALOG_ID_ALIASES["claude-haiku-4-5"],
+            "claude-haiku-4-5-20251001",
+        )
 
 
 if __name__ == "__main__":
