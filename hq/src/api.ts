@@ -16,6 +16,25 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type PageMeta = {
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type Paged<T> = { rows: T[] } & PageMeta;
+
+function pageMetaFromHeaders(headers: Headers, rowCount: number): PageMeta {
+  const headerTotal = headers.get("X-Total-Count");
+  const headerLimit = headers.get("X-Limit");
+  const headerOffset = headers.get("X-Offset");
+  return {
+    total: headerTotal != null ? Number(headerTotal) : rowCount,
+    limit: headerLimit != null ? Number(headerLimit) : rowCount,
+    offset: headerOffset != null ? Number(headerOffset) : 0,
+  };
+}
+
 /** Fetch JSON and expose response headers (for X-Total-Count pagination). */
 async function getJSONPaged<T>(path: string): Promise<{ data: T; headers: Headers }> {
   const res = await fetch(`${BASE}${path}`);
@@ -169,17 +188,73 @@ export const api = {
     session_id?: string;
     source?: string;
     limit?: number;
+    offset?: number;
   }) => {
     const q = new URLSearchParams();
     if (params?.agent_id) q.set("agent_id", params.agent_id);
     if (params?.session_id) q.set("session_id", params.session_id);
     if (params?.source) q.set("source", params.source);
     if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
     return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);
   },
+  /** Signals page with X-Total-Count for HQ “showing N of Total”. */
+  signalsPage: async (params?: {
+    agent_id?: string;
+    session_id?: string;
+    source?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Paged<SignalRow>> => {
+    const q = new URLSearchParams();
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.session_id) q.set("session_id", params.session_id);
+    if (params?.source) q.set("source", params.source);
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    const { data, headers } = await getJSONPaged<SignalRow[]>(
+      `/api/signals${qs ? `?${qs}` : ""}`,
+    );
+    return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
+  },
+  /** Sessions first page + total (does not walk all pages). */
+  sessionsPage: async (params?: {
+    scenario?: string;
+    agent_id?: string;
+    model?: string;
+    agent_version?: string;
+    version_id?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Paged<SessionRow>> => {
+    const q = new URLSearchParams();
+    if (params?.scenario) q.set("scenario", params.scenario);
+    if (params?.agent_id) q.set("agent_id", params.agent_id);
+    if (params?.model) q.set("model", params.model);
+    if (params?.agent_version) q.set("agent_version", params.agent_version);
+    if (params?.version_id) q.set("version_id", params.version_id);
+    q.set("limit", String(params?.limit ?? 100));
+    q.set("offset", String(params?.offset ?? 0));
+    const { data, headers } = await getJSONPaged<SessionRow[]>(`/api/sessions?${q}`);
+    return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
+  },
   agentVersions: (agentId: string) =>
     getJSON<AgentVersionRow[]>(`/api/agents/${encodeURIComponent(agentId)}/versions`),
+  agentVersionsPage: async (
+    agentId: string,
+    params?: { limit?: number; offset?: number },
+  ): Promise<Paged<AgentVersionRow>> => {
+    const q = new URLSearchParams();
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    const { data, headers } = await getJSONPaged<AgentVersionRow[]>(
+      `/api/agents/${encodeURIComponent(agentId)}/versions${qs ? `?${qs}` : ""}`,
+    );
+    return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
+  },
   agentVersionTimeline: (agentId: string) =>
     getJSON<{ agent_id: string; current_model: string | null; versions: AgentVersionRow[] }>(
       `/api/agents/${encodeURIComponent(agentId)}/versions/timeline`,
@@ -205,6 +280,14 @@ export const api = {
       applied: boolean;
       agentos_reload_required?: boolean;
       agentos_reload_instructions?: string;
+      agentos_probe?: {
+        probed?: boolean;
+        reachable?: boolean;
+        sqlite_model?: string;
+        live_model?: string | null;
+        models_match?: boolean | null;
+        note?: string;
+      };
     }>(`/api/agents/${encodeURIComponent(agentId)}/apply-model`, body),
   sources: (params?: { agent_id?: string; session_id?: string }) => {
     const q = new URLSearchParams();

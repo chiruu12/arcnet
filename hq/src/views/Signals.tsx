@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, subscribeBus } from "../api";
 import { AgentJson, Empty, Seam, ts } from "../components";
+import { showingOfTotal } from "../pageLabel";
 import type { FleetRow, Mode, SignalRow } from "../types";
 
 const KIND_CLASS: Record<string, string> = {
@@ -8,6 +9,8 @@ const KIND_CLASS: Record<string, string> = {
   pause: "warn",
   steer: "ok",
 };
+
+const SIGNALS_PAGE = 40;
 
 export function Signals({
   mode,
@@ -19,6 +22,7 @@ export function Signals({
   onAgentChange?: (agentId: string) => void;
 }) {
   const [signals, setSignals] = useState<SignalRow[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [liveCount, setLiveCount] = useState(0);
   const [fleet, setFleet] = useState<FleetRow[]>([]);
@@ -53,11 +57,18 @@ export function Signals({
 
   useEffect(() => {
     let cancelled = false;
-    const params = agentRef ? { agent_id: agentRef } : undefined;
+    const params = {
+      ...(agentRef ? { agent_id: agentRef } : {}),
+      limit: SIGNALS_PAGE,
+      offset: 0,
+    };
     api
-      .signals(params)
-      .then((s) => {
-        if (!cancelled) setSignals(s);
+      .signalsPage(params)
+      .then((page) => {
+        if (!cancelled) {
+          setSignals(page.rows);
+          setTotal(page.total);
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) setErr(String(e));
@@ -69,8 +80,9 @@ export function Signals({
       if (agentRef && row.agent_id !== agentRef) return;
       setSignals((prev) => {
         const rest = (prev ?? []).filter((s) => s.signal_id !== row.signal_id);
-        return [row, ...rest];
+        return [row, ...rest].slice(0, SIGNALS_PAGE);
       });
+      setTotal((n) => n + 1);
       setLiveCount((n) => n + 1);
     });
     return () => {
@@ -139,40 +151,46 @@ export function Signals({
         <Empty hint="no signals yet — run a guarded agent session, or: PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1" />
       )}
       {signals && signals.length > 0 && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>time</th>
-              <th>kind</th>
-              <th>severity</th>
-              <th>agent</th>
-              <th>session</th>
-              <th>reason</th>
-              <th>guidance</th>
-              <th>source</th>
-              <th>status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {signals.map((s) => (
-              <tr key={s.signal_id}>
-                <td className="dim">{ts(s.created_at)}</td>
-                <td>
-                  <span className={`badge ${KIND_CLASS[s.kind] ?? "ok"}`}>
-                    [{s.kind.toUpperCase()}]
-                  </span>
-                </td>
-                <td>{s.severity}</td>
-                <td>{s.agent_id}</td>
-                <td className="dim">{s.session_id ?? "—"}</td>
-                <td className="wrap">{s.reason}</td>
-                <td className="wrap dim">{s.guidance ?? "—"}</td>
-                <td className="dim">{s.source}</td>
-                <td>{s.status}</td>
+        <>
+          <p className="dim" role="status">
+            {showingOfTotal(signals.length, total)}
+            {total > signals.length ? ` · page size ${SIGNALS_PAGE}` : ""}
+          </p>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>time</th>
+                <th>kind</th>
+                <th>severity</th>
+                <th>agent</th>
+                <th>session</th>
+                <th>reason</th>
+                <th>guidance</th>
+                <th>source</th>
+                <th>status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {signals.map((s) => (
+                <tr key={s.signal_id}>
+                  <td className="dim">{ts(s.created_at)}</td>
+                  <td>
+                    <span className={`badge ${KIND_CLASS[s.kind] ?? "ok"}`}>
+                      [{s.kind.toUpperCase()}]
+                    </span>
+                  </td>
+                  <td>{s.severity}</td>
+                  <td>{s.agent_id}</td>
+                  <td className="dim">{s.session_id ?? "—"}</td>
+                  <td className="wrap">{s.reason}</td>
+                  <td className="wrap dim">{s.guidance ?? "—"}</td>
+                  <td className="dim">{s.source}</td>
+                  <td>{s.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </>
   );
