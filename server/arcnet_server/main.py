@@ -72,6 +72,64 @@ def _log_localhost_trust_once() -> None:
         )
 
 
+async def _probe_agentos_runtime(sqlite_model: str) -> dict[str, Any]:
+    """Best-effort AgentOS probe — never mutates AgentOS; honesty for reload UX."""
+    base = (os.getenv("ARCNET_AGENTOS_URL") or "").strip().rstrip("/")
+    if not base:
+        return {
+            "probed": False,
+            "reachable": False,
+            "sqlite_model": sqlite_model,
+            "live_model": None,
+            "models_match": None,
+            "note": "ARCNET_AGENTOS_URL unset — skip live probe; reload still required",
+        }
+    url = f"{base}/internal/runtime"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            res = await client.get(url)
+        if res.status_code != 200:
+            return {
+                "probed": True,
+                "reachable": False,
+                "sqlite_model": sqlite_model,
+                "live_model": None,
+                "models_match": False,
+                "url": url,
+                "note": f"AgentOS probe HTTP {res.status_code} — restart AgentOS after apply",
+            }
+        body = res.json() if res.content else {}
+        live = body.get("model") if isinstance(body, dict) else None
+        live_s = str(live).strip() if live is not None else None
+        match = live_s == sqlite_model if live_s else False
+        return {
+            "probed": True,
+            "reachable": True,
+            "sqlite_model": sqlite_model,
+            "live_model": live_s,
+            "models_match": match,
+            "url": url,
+            "note": (
+                "SQLite and AgentOS process model match — new sessions should use applied model"
+                if match
+                else (
+                    f"AgentOS still on {live_s or 'unknown'}; SQLite is {sqlite_model}. "
+                    "Restart AgentOS (set ARCNET_MODEL) for new sessions to pick up apply."
+                )
+            ),
+        }
+    except Exception as exc:  # noqa: BLE001 — probe must never fail apply
+        return {
+            "probed": True,
+            "reachable": False,
+            "sqlite_model": sqlite_model,
+            "live_model": None,
+            "models_match": False,
+            "url": url,
+            "note": f"AgentOS unreachable ({type(exc).__name__}) — reload still required",
+        }
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _griffin_task
@@ -350,12 +408,13 @@ async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
         if proposal_signal_id:
             _require_hq_proposal_for_agent(conn, proposal_signal_id, agent_id)
     version_id = body.get("version_id") or _new_id("av_")
+    applied_model = str(model).strip()
     try:
-        return repository.apply_agent_model(
+        out = repository.apply_agent_model(
             conn,
             agent_id,
             version_id,
-            model=str(model).strip(),
+            model=applied_model,
             version=str(version).strip(),
             model_version=body.get("model_version"),
             source_ref=body.get("source_ref"),
@@ -365,6 +424,9 @@ async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
         )
     except repository.ApplyModelError as exc:
         raise HTTPException(400, str(exc)) from exc
+    # Best-effort probe — never blocks apply; informs HQ reload banner.
+    out["agentos_probe"] = await _probe_agentos_runtime(applied_model)
+    return out
 
 
 @app.get("/api/threats")
