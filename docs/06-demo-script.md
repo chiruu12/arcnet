@@ -69,4 +69,4 @@ SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
   evidence (stdio may hang).
 - **HITL / apply confirm** — SQLite bookkeeping today, not live AgentOS pause relay (Phase 6).
 - **Temp-0 replay** — variance reduction, not determinism; narrate numbers the run actually produced.
-- Overall readiness **~57% / ≤60%** — see [`20-honest-progress.md`](20-honest-progress.md).
+- Overall readiness **~64% / ≤65%** — see [`20-honest-progress.md`](20-honest-progress.md).
