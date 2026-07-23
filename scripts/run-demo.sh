@@ -12,6 +12,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Export .env so every service (server included) sees the same keys the
+# agents runtime loads via dotenv. Note: .env values override any shell env.
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
 SERVER_PORT="${ARCNET_SERVER_PORT:-8000}"
 AGENTOS_PORT="${ARCNET_AGENTOS_PORT:-7777}"
 HQ_PORT="${HQ_PORT:-5173}"
