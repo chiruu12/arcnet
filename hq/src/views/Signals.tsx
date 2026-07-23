@@ -162,6 +162,7 @@ export function Signals({
           </label>
         </div>
       )}
+      {!err && !signals && <p className="lede">loading…</p>}
       {signals && signals.length === 0 && (
         <Empty hint="no signals yet — run a guarded agent session, or: PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1" />
       )}
@@ -195,8 +196,12 @@ export function Signals({
                     </span>
                   </td>
                   <td>{s.severity}</td>
-                  <td>{s.agent_id}</td>
-                  <td className="dim">{s.session_id ?? "—"}</td>
+                  <td>
+                    <code>{s.agent_id}</code>
+                  </td>
+                  <td className="dim">
+                    <code>{s.session_id ?? "—"}</code>
+                  </td>
                   <td className="wrap">{s.reason}</td>
                   <td className="wrap dim">{s.guidance ?? "—"}</td>
                   <td className="dim">{s.source}</td>

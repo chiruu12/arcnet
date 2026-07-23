@@ -42,6 +42,7 @@ export function ThreatsPanel() {
       <h2>recent guard findings</h2>
       <p className="lede dim">unplug telemetry · GET /api/threats</p>
       {err && <Seam error={err} />}
+      {!err && !threats && <p className="lede">loading…</p>}
       {threats && threats.length === 0 && (
         <Empty hint="no threats recorded — run a guarded session (e.g. scenario S1) with the server up" />
       )}
@@ -67,7 +68,9 @@ export function ThreatsPanel() {
               {threats.map((t) => (
                 <tr key={t.threat_id}>
                   <td className="dim">{ts(t.created_at)}</td>
-                  <td>{t.agent_id ?? "—"}</td>
+                  <td>
+                    <code>{t.agent_id ?? "—"}</code>
+                  </td>
                   <td>{t.checkpoint ?? "—"}</td>
                   <td>
                     <span className={`badge ${ACTION_CLASS[t.action ?? ""] ?? "ok"}`}>
@@ -76,7 +79,9 @@ export function ThreatsPanel() {
                   </td>
                   <td>{t.category ?? "—"}</td>
                   <td>{t.risk_score ?? "—"}</td>
-                  <td className="dim">{t.session_id ?? "—"}</td>
+                  <td className="dim">
+                    <code>{t.session_id ?? "—"}</code>
+                  </td>
                 </tr>
               ))}
             </tbody>

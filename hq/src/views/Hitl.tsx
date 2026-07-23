@@ -101,6 +101,7 @@ export function Hitl({ mode }: { mode: Mode }) {
       </p>
       <p className="dim honesty">{HITL_RELAY_HONESTY}</p>
       {err && <Seam error={err} />}
+      {!err && !rows && <p className="lede">loading…</p>}
       {rows && rows.length === 0 && (
         <Empty hint="no HITL requests yet — pause signals from a guarded agent create rows via POST /api/hitl" />
       )}
@@ -127,9 +128,15 @@ export function Hitl({ mode }: { mode: Mode }) {
               {rows.map((r) => (
                 <tr key={r.hitl_id}>
                   <td className="dim">{ts(r.created_at)}</td>
-                  <td className="dim">{r.hitl_id}</td>
-                  <td className="dim">{r.run_id}</td>
-                  <td className="dim">{r.session_id ?? "—"}</td>
+                  <td className="dim">
+                    <code>{r.hitl_id}</code>
+                  </td>
+                  <td className="dim">
+                    <code>{r.run_id}</code>
+                  </td>
+                  <td className="dim">
+                    <code>{r.session_id ?? "—"}</code>
+                  </td>
                   <td className="wrap">{hitlPayloadSummary(r.payload)}</td>
                   <td>
                     <span className={`badge ${STATUS_CLASS[r.status] ?? "ok"}`}>

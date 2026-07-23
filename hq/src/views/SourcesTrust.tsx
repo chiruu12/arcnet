@@ -52,6 +52,8 @@ export function SourcesTrust({
 
   useEffect(() => {
     let cancelled = false;
+    setSources(null);
+    setErr(null);
     api
       .sources(agentRef ? { agent_id: agentRef } : undefined)
       .then((s) => {
@@ -118,6 +120,7 @@ export function SourcesTrust({
           </label>
         </div>
       )}
+      {!err && !sources && <p className="lede">loading…</p>}
       {sources && sources.length === 0 && (
         <Empty hint="no ingested sources — run a guarded session that retrieves content (e.g. scenario S1 with server up)" />
       )}
@@ -138,8 +141,12 @@ export function SourcesTrust({
             {sources.map((s) => (
               <tr key={s.source_id}>
                 <td className="dim">{ts(s.created_at)}</td>
-                <td>{s.agent_id ?? "—"}</td>
-                <td className="dim">{s.session_id ?? "—"}</td>
+                <td>
+                  <code>{s.agent_id ?? "—"}</code>
+                </td>
+                <td className="dim">
+                  <code>{s.session_id ?? "—"}</code>
+                </td>
                 <td className="wrap">{s.origin ?? "—"}</td>
                 <td>{s.trust_level ?? "—"}</td>
                 <td>

@@ -485,6 +485,8 @@ export function CaseFiles({
         </>
       )}
 
+      {sessionId && !envelope && !err && <p className="lede">loading incident…</p>}
+
       {data && (
         <div className="casefile">
           <div className="col">
@@ -496,7 +498,7 @@ export function CaseFiles({
             <div className="stat-row">
               <span>agent</span>
               <span>
-                {data.agent?.agent_id ?? "—"} ({data.agent?.role ?? "—"})
+                <code>{data.agent?.agent_id ?? "—"}</code> ({data.agent?.role ?? "—"})
               </span>
             </div>
             <div className="stat-row">

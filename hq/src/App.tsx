@@ -120,7 +120,7 @@ export function App() {
               }
             >
               <span className={`dot ${a.hot ? "danger" : "ok"}`} />
-              {a.id}
+              <code>{a.id}</code>
             </button>
           ))}
         </div>

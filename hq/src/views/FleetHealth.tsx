@@ -157,7 +157,7 @@ export function FleetHealth({
                   )}
                 </h3>
                 <div className="meta">
-                  {a.agent_id} · {a.role || "—"} · {a.model || "—"}
+                  <code>{a.agent_id}</code> · {a.role || "—"} · {a.model || "—"}
                 </div>
                 {(
                   [
