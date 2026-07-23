@@ -212,7 +212,7 @@ flowchart LR
 | P5-A | **DONE** | [`docs/plans/unplug-coverage-matrix.md`](plans/unplug-coverage-matrix.md) — 128 rows (99 COVERED / 29 N/A); S1/S2/S5 CI stubs in `agents/tests/`; live runner DEFER driver session |
 | P5-B | **DONE** | honesty greps clean; excerpt bounds + A15 hatch tested |
 | P6-A | **DONE** | HQ `hitl` view + GET /api/hitl + SSE decide; honesty in UI + docs/14 |
-| P6-B | **TODO** | blocked on Phase 5 |
+| P6-B | **DONE** | shell api_down recovers on focus + 20s interval (`apiRecover.ts`); threats table on fleet_health; sources agent-view already shipped — dashboards twin wired via `AgentJson` + `/api/agent-view/dashboards/all` |
 | P6-C | **TODO** | defer-or-build |
 | P7-A | **TODO** | parallel-ok |
 | P7-B | **TODO** | blocked on P7-A |
