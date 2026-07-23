@@ -213,7 +213,7 @@ flowchart LR
 | P5-B | **DONE** | honesty greps clean; excerpt bounds + A15 hatch tested |
 | P6-A | **DONE** | HQ `hitl` view + GET /api/hitl + SSE decide; honesty in UI + docs/14 |
 | P6-B | **TODO** | blocked on Phase 5 |
-| P6-C | **TODO** | defer-or-build |
+| P6-C | **DEFER** | no corpus endpoint on server; docs/12 P1 row is contract-only |
 | P7-A | **TODO** | parallel-ok |
 | P7-B | **TODO** | blocked on P7-A |
 | H-1 | **TODO** | Track H |
