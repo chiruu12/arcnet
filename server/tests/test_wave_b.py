@@ -56,6 +56,8 @@ class WaveBGriffinStatusTests(unittest.TestCase):
         import arcnet_server.griffin as g
 
         m._conn = None
+        g.reset_tabfm_state_for_tests()
+        os.environ.pop("ARCNET_TABFM", None)
         g._CACHE.update(
             {
                 "model": "mad",

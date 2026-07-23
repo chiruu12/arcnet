@@ -12,6 +12,7 @@ import logging
 import math
 import os
 import secrets
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -46,6 +47,18 @@ NOISE_FLOOR = {
 
 COOLDOWN_MS = 5 * 60 * 1000
 _last_fire: dict[str, int] = {}
+
+# TabFM async worker state (P7-B) — opt-in via ARCNET_TABFM=1
+_TABFM_STATE: dict[str, Any] = {
+    "enabled": False,
+    "loaded": False,
+    "last_forecast_ms": None,
+    "degrade_reason": None,
+    "degraded": False,
+    "forecast_succeeded": False,
+}
+_TABFM_THREAD: threading.Thread | None = None
+_TABFM_START_LOCK = threading.Lock()
 
 
 def _series_path() -> Path:
@@ -125,11 +138,176 @@ def _median(xs: list[float]) -> float:
     return 0.5 * (s[mid - 1] + s[mid])
 
 
+def tabfm_enabled() -> bool:
+    return os.getenv("ARCNET_TABFM", "").strip().lower() in ("1", "true", "yes")
+
+
+def tabfm_cadence_s() -> float:
+    return float(os.getenv("ARCNET_TABFM_CADENCE_S", "360"))
+
+
+def tabfm_status_snapshot() -> dict[str, Any]:
+    return {
+        "enabled": tabfm_enabled(),
+        "loaded": bool(_TABFM_STATE["loaded"]),
+        "last_forecast_ms": _TABFM_STATE["last_forecast_ms"],
+        "degrade_reason": _TABFM_STATE["degrade_reason"],
+    }
+
+
+def tabfm_forecast_live() -> bool:
+    return bool(_TABFM_STATE["forecast_succeeded"]) and not bool(_TABFM_STATE["degraded"])
+
+
+def _degrade_tabfm(reason: str) -> None:
+    if _TABFM_STATE["degraded"]:
+        return
+    _TABFM_STATE["degraded"] = True
+    _TABFM_STATE["degrade_reason"] = reason
+    logger.warning("TabFM worker degrading to MAD permanently: %s", reason)
+
+
+def judge_with_point_forecast(
+    values: list[float],
+    *,
+    point_forecast: float,
+    observed: float | None = None,
+    noise_floor: float = 1.0,
+    z_thresh: float = 3.5,
+    min_points: int = 30,
+) -> dict[str, Any]:
+    """MAD sigma/bands with an external point forecast (TabFM path)."""
+    result = mad_judge(
+        values,
+        observed=observed,
+        noise_floor=noise_floor,
+        z_thresh=z_thresh,
+        min_points=min_points,
+    )
+    if result["status"] != "ready":
+        return result
+    obs = float(result["observed"])
+    sigma = float(result.get("sigma") or 1e-9)
+    fc = float(point_forecast)
+    z = abs(obs - fc) / sigma if sigma > 0 else 0.0
+    band = 3.0 * sigma
+    outlier = z >= z_thresh and abs(obs - fc) > noise_floor
+    return {
+        **result,
+        "forecast": fc,
+        "band_lo": fc - band,
+        "band_hi": fc + band,
+        "z": round(z, 3),
+        "outlier": outlier,
+    }
+
+
+def _pick_highest_priority_series(series: dict[str, list[dict[str, float]]]) -> str | None:
+    """ALLOWLIST order — N=1 series per TabFM cycle (docs/_phase7_g7.json)."""
+    for sid in ALLOWLIST:
+        pts = series.get(sid) or []
+        if len(pts) >= 30:
+            return sid
+    return None
+
+
+def run_tabfm_cycle_once(get_conn: Callable) -> None:
+    """Single TabFM forecast cycle (tests + worker thread)."""
+    if not tabfm_enabled() or _TABFM_STATE["degraded"]:
+        return
+
+    from arcnet_server.tabfm_worker import forecast as tabfm_forecast
+
+    try:
+        ensure_series_warm(get_conn)
+        series = active_series()
+        series_id = _pick_highest_priority_series(series)
+        if not series_id:
+            return
+
+        points = series.get(series_id) or []
+        values = [float(p["v"]) for p in points]
+        out = tabfm_forecast(values, features=None, backend="tabfm")
+
+        if out.get("status") == "error" or not out.get("predictions"):
+            detail = out.get("detail") if isinstance(out.get("detail"), dict) else {}
+            reason = (
+                detail.get("error")
+                or detail.get("message")
+                or out.get("status")
+                or "tabfm_forecast_failed"
+            )
+            _degrade_tabfm(str(reason))
+            return
+
+        pred = float(out["predictions"][0])
+        _TABFM_STATE["loaded"] = True
+        _TABFM_STATE["last_forecast_ms"] = int(time.time() * 1000)
+        _TABFM_STATE["forecast_succeeded"] = True
+
+        evaluate_series(
+            get_conn,
+            series_id=series_id,
+            observed=None,
+            point_forecast=pred,
+            estimator_label="tabfm",
+        )
+    except Exception as exc:  # noqa: BLE001
+        _degrade_tabfm(f"{type(exc).__name__}: {exc}")
+
+
+def _tabfm_worker_loop(get_conn: Callable) -> None:
+    cadence = tabfm_cadence_s()
+    logger.info("tabfm worker start cadence=%.1fs N=1", cadence)
+    while not _TABFM_STATE["degraded"]:
+        run_tabfm_cycle_once(get_conn)
+        time.sleep(cadence)
+
+
+def start_tabfm_worker(get_conn: Callable) -> None:
+    """Daemon thread — never blocks request handlers."""
+    global _TABFM_THREAD
+    if not tabfm_enabled():
+        return
+    with _TABFM_START_LOCK:
+        if _TABFM_THREAD is not None and _TABFM_THREAD.is_alive():
+            return
+        _TABFM_STATE["enabled"] = True
+        _TABFM_THREAD = threading.Thread(
+            target=_tabfm_worker_loop,
+            args=(get_conn,),
+            name="arcnet-tabfm",
+            daemon=True,
+        )
+        _TABFM_THREAD.start()
+
+
+def reset_tabfm_state_for_tests() -> None:
+    """Isolate TabFM worker globals between tests."""
+    global _TABFM_THREAD
+    _TABFM_STATE.update(
+        {
+            "enabled": False,
+            "loaded": False,
+            "last_forecast_ms": None,
+            "degrade_reason": None,
+            "degraded": False,
+            "forecast_succeeded": False,
+        }
+    )
+    _TABFM_THREAD = None
+
+
 def cache_snapshot() -> dict[str, Any]:
     """Enriched Griffin status for HQ MAD strip (Wave B)."""
     snap = dict(_CACHE)
-    snap["estimator"] = "mad"
-    snap["model"] = "mad"
+    snap["tabfm"] = tabfm_status_snapshot()
+    if tabfm_forecast_live():
+        snap["estimator"] = "tabfm"
+        snap["model"] = "tabfm"
+    else:
+        snap["estimator"] = "mad"
+        snap["model"] = "mad"
     series = snap.get("series") if isinstance(snap.get("series"), dict) else {}
     warmth: dict[str, Any] = {}
     ready_n = 0
@@ -168,10 +346,21 @@ def cache_snapshot() -> dict[str, Any]:
     snap["ready_count"] = ready_n
     snap["warming_count"] = warming_n
     snap["last_anomaly"] = last
-    snap["honesty"] = (
-        "Griffin estimator = MAD (median/MAD robust z-score). "
-        "TabFM not live; TabPFN optional behind TABPFN_TOKEN."
-    )
+    if tabfm_forecast_live():
+        snap["honesty"] = (
+            "Griffin estimator = TabFM (google/tabfm-1.0.0-pytorch regression) "
+            "with MAD z-score bands; N=1 series per 360s async cycle."
+        )
+    elif tabfm_enabled() and _TABFM_STATE["degraded"]:
+        snap["honesty"] = (
+            f"Griffin estimator = MAD (TabFM enabled but degraded: "
+            f"{_TABFM_STATE['degrade_reason']}). TabPFN optional behind TABPFN_TOKEN."
+        )
+    else:
+        snap["honesty"] = (
+            "Griffin estimator = MAD (median/MAD robust z-score). "
+            "TabFM = Phase 7, live only when worker active (ARCNET_TABFM=1)."
+        )
     return snap
 
 
@@ -255,6 +444,8 @@ def evaluate_series(
     *,
     series_id: str,
     observed: float | None = None,
+    point_forecast: float | None = None,
+    estimator_label: str = "mad",
 ) -> dict[str, Any]:
     """Judge one series; on outlier emit signal source=griffin + update cache."""
     if not active_series().get(series_id):
@@ -279,28 +470,36 @@ def evaluate_series(
     metric = series_id.split("|", 1)[0]
     agent_id = series_id.split("|", 1)[1] if "|" in series_id else "agent_j"
     floor = NOISE_FLOOR.get(metric, 1.0)
-    result = mad_judge(values, observed=observed, noise_floor=floor)
+    if point_forecast is not None:
+        result = judge_with_point_forecast(
+            values,
+            point_forecast=point_forecast,
+            observed=observed,
+            noise_floor=floor,
+        )
+    else:
+        result = mad_judge(values, observed=observed, noise_floor=floor)
 
     now_ms = int(time.time() * 1000)
     _CACHE["series"][series_id] = {
         **result,
         "sparkline": values[-60:],
         "updated_ms": now_ms,
+        "estimator": estimator_label,
     }
     _CACHE["last_cycle_ms"] = now_ms
     _CACHE["last_evaluate_ms"] = now_ms
     _CACHE["status"] = result["status"]
-    _CACHE["estimator"] = "mad"
-    _CACHE["model"] = "mad"
     if not _CACHE.get("series_source"):
         _CACHE["series_source"] = source if source != "none" else None
 
+    est = estimator_label
     if not result.get("outlier"):
         return {
             "series_id": series_id,
             **result,
             "fired": False,
-            "estimator": "mad",
+            "estimator": est,
             "series_source": _CACHE.get("series_source"),
         }
 
@@ -311,7 +510,7 @@ def evaluate_series(
             **result,
             "fired": False,
             "cooldown": True,
-            "estimator": "mad",
+            "estimator": est,
             "series_source": _CACHE.get("series_source"),
         }
 
@@ -335,6 +534,7 @@ def evaluate_series(
     kind = "note"
     severity = "critical" if metric in ("arcnet.tokens.total", "arcnet.cost.usd", "arcnet.tool.calls") else "warn"
     signal_id = f"sig_{secrets.token_hex(4)}"
+    judge_tag = "TabFM" if estimator_label == "tabfm" else "MAD"
     conn = get_conn()
     conn.execute(
         """INSERT INTO signals
@@ -346,7 +546,7 @@ def evaluate_series(
             agent_id,
             kind,
             severity,
-            f"griffin MAD outlier on {series_id} z={result.get('z')}",
+            f"griffin {judge_tag} outlier on {series_id} z={result.get('z')}",
             None,
             f"observed={result['observed']} forecast={result['forecast']} band=[{result['band_lo']},{result['band_hi']}]",
             "griffin",
@@ -387,12 +587,13 @@ def evaluate_series(
         "fired": True,
         "signal_id": signal_id,
         "signal": row,
-        "estimator": "mad",
+        "estimator": est,
         "series_source": _CACHE.get("series_source"),
     }
 
 
 async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
+    start_tabfm_worker(get_conn)
     logger.info("griffin loop start cadence=%.1fs model=mad", cadence_s)
     while True:
         try:
@@ -403,8 +604,6 @@ async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
             for sid in ALLOWLIST:
                 if sid in series:
                     evaluate_series(get_conn, series_id=sid, observed=None)
-            _CACHE["model"] = "mad"
-            _CACHE["estimator"] = "mad"
         except Exception:  # noqa: BLE001
             logger.exception("griffin cycle failed")
         await asyncio.sleep(cadence_s)
