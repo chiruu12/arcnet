@@ -37,9 +37,9 @@ def init(
     exposure: str = "internal",
     model: str | None = None,
 ) -> ArcnetRuntime:
-    """Wire OTel (traces+metrics), AgnoInstrumentor, Guard, stub signal client.
+    """Wire OTel (traces+metrics), AgnoInstrumentor, Guard, and live SignalClient.
 
-    Logs correlation lands in Phase 2 (OTLP logs exporter optional here).
+    OTLP log export is best-effort; traces+metrics always wire when init succeeds.
     """
     global _INSTRUMENTED
 

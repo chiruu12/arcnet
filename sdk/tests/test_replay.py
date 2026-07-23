@@ -158,6 +158,35 @@ class ReplayCursorTests(unittest.TestCase):
         self.assertTrue(agent.session_state.get("arcnet_kill"))
         self.assertEqual(cursor.calls[-1]["result"], "killed")
 
+    def test_recorded_guard_verdict_propagates_without_runtime(self) -> None:
+        recorded_guard = {
+            "checkpoint": "retrieved",
+            "action": "allow",
+            "top_category": "injection",
+            "rule": "carrier_protocol",
+            "risk_score": 0.2,
+        }
+        cursor = ReplayCursor(
+            {
+                "steps": [
+                    {
+                        "i": 0,
+                        "type": "tool_call",
+                        "tool": "fetch_url",
+                        "recorded_output": "page body",
+                        "trust_level": "retrieved",
+                        "guard": recorded_guard,
+                    }
+                ]
+            }
+        )
+
+        result = cursor(function_name="fetch_url", args={"url": "https://example.com"})
+
+        self.assertEqual(result, "page body")
+        self.assertEqual(cursor.calls[-1]["guard_verdict"], recorded_guard)
+        self.assertEqual(cursor.calls[-1]["guard_action"], "allow")
+
 
 if __name__ == "__main__":
     unittest.main()
