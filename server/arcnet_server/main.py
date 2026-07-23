@@ -640,6 +640,9 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
         data = read_models.agent_sources_data(conn, ref_id=id)
         return read_models.envelope("sources", id, data, trace_id=None, human_view=f"/sources/{id}")
     if view == "dashboards":
+        # id is a scope token (all/status) — payload is fleet-wide SigNoz launcher state.
+        if id not in ("all", "status"):
+            raise HTTPException(404, f"unknown dashboards scope '{id}' (use all or status)")
         # Thin status twin — not embedded charts. Prefer SigNoz UI / MCP for depth.
         status = _signoz_status_payload()
         data = {

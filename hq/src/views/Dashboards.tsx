@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type SignozStatus } from "../api";
+import { AgentJson } from "../components";
 import type { Mode } from "../types";
 
 /** Fallback only before /api/signoz/status returns (or if the probe fails). */
@@ -165,21 +166,7 @@ export function Dashboards({ mode }: { mode: Mode }) {
       <>
         <p className="eyebrow">{"// agent_view"}</p>
         <h1>dashboards</h1>
-        <pre className="agent-json">
-          {JSON.stringify(
-            {
-              signoz_status: status,
-              links: resolvedLinks.map((l) => ({
-                name: l.name,
-                url: l.href,
-                dashboard_id: l.uuid ?? null,
-                desc: l.desc,
-              })),
-            },
-            null,
-            2,
-          )}
-        </pre>
+        <AgentJson view="dashboards" id="all" />
       </>
     );
   }

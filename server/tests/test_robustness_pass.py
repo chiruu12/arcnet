@@ -107,10 +107,14 @@ class RobustnessPassTests(unittest.TestCase):
         self.assertLess(len(blob), 2000)
 
     def test_dashboards_agent_view_exists(self) -> None:
-        env = self.client.get("/api/agent-view/dashboards/status").json()
-        self.assertEqual(env["view"], "dashboards")
-        self.assertIn("signoz", env["data"])
-        self.assertIn("note", env["data"])
+        for scope in ("status", "all"):
+            env = self.client.get(f"/api/agent-view/dashboards/{scope}").json()
+            self.assertEqual(env["view"], "dashboards")
+            self.assertEqual(env["id"], scope)
+            self.assertIn("signoz", env["data"])
+            self.assertIn("note", env["data"])
+            self.assertIn("generated_at", env)
+            self.assertIn("links", env)
 
     def test_sessions_list_includes_agent_version(self) -> None:
         rows = self.client.get("/api/sessions?agent_id=agent_j").json()
