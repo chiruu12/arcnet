@@ -98,18 +98,18 @@ curl -sD- 'http://127.0.0.1:8000/api/sessions?agent_id=agent_j&limit=2&offset=0'
 
 ## Area 8 / WS6 — Griffin
 
-- [ ] Status labels estimator `MAD` (or `tabpfn` only if token path active)
-- [ ] Without seed: no crash; warming/empty honest
+- [x] Status labels estimator `MAD` (or `tabpfn` only if token path active)
+- [x] Without seed: no crash; warming/empty honest (Phase 3 cold soak)
 - [ ] Evaluate → signal `source=griffin`
 - [ ] HQ MAD strip visible on fleet_health
 
 ## Area 9 / WS7 — SigNoz
 
-- [ ] Status `dashboards` map has distinct UUIDs when provisioned
+- [x] Status `dashboards` map has distinct UUIDs when provisioned
 - [ ] HQ three cards → three URLs
 - [ ] Without key: honest false flags
-- [ ] Evidence helper bounded (post-WS7)
-- [ ] MCP hang documented; fallback path named in Case File hints
+- [x] Evidence helper bounded (post-WS7)
+- [x] MCP hang documented; fallback path named in Case File hints
 
 ## Area 10 / WS8 — Unplug matrix
 

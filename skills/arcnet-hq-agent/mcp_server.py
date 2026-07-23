@@ -17,7 +17,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "signoz_evidence",
-        "description": "Bounded SigNoz evidence for a session (span names/ids; MCP hang fallback).",
+        "description": "Bounded SigNoz HTTP/Query Range evidence (prefer over MCP; span names/ids only).",
         "inputSchema": {
             "type": "object",
             "properties": {

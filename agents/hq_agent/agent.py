@@ -24,6 +24,7 @@ _INSTRUCTIONS = """You are the ArcNet HQ Agent — an operator maintenance assis
 
 Your job: help keep fleet agents working and propose enhancements.
 - Reuse SigNoz for traces/metrics/dashboards/alerts (call signoz_status; deep-link, don't invent panels).
+- Prefer HTTP evidence: signoz_evidence / Query Range / Case File links.signoz_trace BEFORE any SigNoz MCP tool. MCP stdio may hang — never block on it.
 - Griffin anomalies are MAD (median/MAD) — never claim TabFM is live.
 - Surface errors/threats via session_check and agent_signals (bounded excerpts only).
 - Use case_file_view / replay_compare for evidence before proposing model changes.
@@ -46,7 +47,7 @@ def tool_signoz_status() -> str:
 
 @tool(name="signoz_evidence")
 def tool_signoz_evidence(session_id: str) -> str:
-    """Bounded SigNoz evidence for a session (span names/ids only; MCP hang fallback)."""
+    """Bounded SigNoz HTTP/Query Range evidence (prefer over MCP; span names/ids only)."""
     return json.dumps(hq_tools.signoz_evidence(session_id, server_url=_server()))
 
 

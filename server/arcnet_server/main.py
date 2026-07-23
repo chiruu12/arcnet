@@ -915,8 +915,8 @@ def _signoz_evidence_payload(session_id: str) -> dict[str, Any]:
         "truncated": False,
         "note": None,
         "mcp_fallback": (
-            "If SigNoz MCP stdio hangs, use this endpoint + Case File links.signoz_trace "
-            "and Query Range curl — do not block on MCP."
+            "Prefer this HTTP evidence endpoint + Case File links.signoz_trace + "
+            "Query Range curl before SigNoz MCP. MCP stdio may hang — do not block on it."
         ),
     }
     if not key:
@@ -1135,7 +1135,7 @@ def _signoz_status_payload() -> dict[str, Any]:
         "query_note": query_note,
         "dashboards": dashboards,
         "mcp_note": (
-            "SigNoz MCP stdio may hang (G5 PARTIAL). Prefer /api/signoz/evidence "
-            "+ Case File links.signoz_trace / Query Range when MCP is unhealthy."
+            "Prefer HTTP: /api/signoz/evidence + Case File links.signoz_trace + "
+            "Query Range curl. SigNoz MCP stdio may hang (G5 PARTIAL) — optional only."
         ),
     }

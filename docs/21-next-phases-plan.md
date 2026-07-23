@@ -1,8 +1,8 @@
 # ArcNet next phases plan
 
-**Status:** Phase 2 (Test & CI gates) **implemented** on `phase-2-test-ci-gates`. Phase 1 plan accepted; readiness still **~55%** (≤60% cap).  
+**Status:** Phase 3 (Evidence & Griffin) **implemented** on `phase-3-evidence-griffin`. Phase 2 on `main` (PR #17). Phase 1 remeasure: readiness **~57%** (≤60% cap).  
 **Date:** 2026-07-23  
-**Baseline:** PR #16 merged on `main`; honest readiness **~55%** (≤60% cap).  
+**Baseline:** PR #17 merged on `main`; post–Phase-2 remeasure **~57%** (≤60% cap).  
 **Companions:** [`20-honest-progress.md`](20-honest-progress.md) (measured scorecard), [`19-path-to-95.md`](19-path-to-95.md) (workstream catalog), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (exit scripts).
 
 ---
@@ -11,17 +11,18 @@
 
 | Fact | Value |
 |---|---|
-| Overall (areas 1–11) | **~55%** — do not inflate; no 74/80/95 theater |
+| Overall (areas 1–11) | **~57%** — do not inflate; no 74/80/95 theater |
 | Cap until exits pass | **≤60%** |
 | Wave A / Wave B surfaces | Landed (cascade, MAD strip, evidence helpers, HQ tools, P1 fixes) |
-| Phase 2 gates | e2e script + CI, HQ FE cascade/hash tests + CI, HQ tool error matrix |
-| What did **not** land | Griffin cold soak proof, SigNoz fixtures, live propose→apply→pin loop, Wave C product, TabFM path |
+| Phase 2 gates | e2e script + CI, HQ FE cascade/hash tests + CI, HQ tool error matrix — **on main** |
+| Phase 3 gates | Query Range golden fixtures; Griffin cold soak (no seed); HTTP preferred before MCP; ≥3 distinct dashboard UUIDs |
+| What did **not** land | Live propose→apply→pin operator loop, Wave C product, TabFM path |
 | Griffin estimator | **MAD locked** until TabFM phase exits; TabPFN deferred |
 | Hackathon assets (WS11) | Parallel track — **excluded from %** |
 
-**Phase 1:** inventoring leftovers, bundling by dependency, writing measurable exits.  
-**Phase 2:** test/CI gates (this implementation).  
-**Post–Phase-2 plan revisit:** before deep Phase 3 work, briefly re-measure / refine Phase 1 scorecard notes (user: “phase 1 after phase 2”), then continue **Phase 3 (Evidence & Griffin)**.
+**Phase 1:** inventoring leftovers, bundling by dependency, writing measurable exits; **remeasured after Phase 2** (~55→~57).  
+**Phase 2:** test/CI gates — **done** (PR #17).  
+**Phase 3:** Evidence & Griffin trust — this implementation.
 
 ---
 
@@ -111,9 +112,9 @@ Leftover sources folded below: `20` §5 top-5 harden list, `19` WS3/WS6/WS7/WS8/
 | **Exit** | This doc landed; readiness documented as **~55% / ≤60%** |
 | **Depends on** | PR #16 on main |
 | **Effort** | **S** |
-| **Status** | **Done** (plan accepted; code started at Phase 2) |
+| **Status** | **Done** (plan + post–Phase-2 remeasure ~57% / ≤60%) |
 
-**Revisit after Phase 2:** re-check scorecard measurement notes / Phase 1 track (user asked to do “phase 1” after Phase 2), then proceed to Phase 3. Do not inflate % without citing exits.
+**Revisit after Phase 2:** scorecard updated in [`20`](20-honest-progress.md) (~55→~57 citing Phase 2 CI exits). Do not inflate further without Phase 3–4 exits.
 
 ---
 
@@ -127,7 +128,7 @@ Leftover sources folded below: `20` §5 top-5 harden list, `19` WS3/WS6/WS7/WS8/
 | **Depends on** | Phase 1 (plan accepted); Wave A/B APIs already on main |
 | **Effort** | **L** |
 | **Maps to** | Areas 5, 11 (primary); unblocks honest re-score later |
-| **Status** | **Done** (exits met on this branch; overall % still ≤60 / ~55 until measured re-score) |
+| **Status** | **Done** (exits met on `main` via PR #17; overall % ~57 / ≤60 after remeasure) |
 
 ### Phase 2 checklist
 
@@ -149,7 +150,14 @@ Leftover sources folded below: `20` §5 top-5 harden list, `19` WS3/WS6/WS7/WS8/
 | **Exit** | Fixture tests green without live cloud; soak script/log: ≥N cycles no seed write; HQ Agent instructions name HTTP fallback before MCP; provisioned status → ≥3 distinct UUIDs |
 | **Depends on** | Phase 2 preferred (soak/e2e can share harness); fixtures can start in parallel with late Phase 2 |
 | **Effort** | **M** |
-| **Status** | **Next** (after brief Phase 1 measurement revisit) |
+| **Status** | **Done** (exits met on this branch; overall still ≤60 / ~57 — no theater) |
+
+### Phase 3 checklist
+
+- [x] Query Range golden fixtures (`server/tests/fixtures/query_range_*.json`) + extractor/evidence tests
+- [x] Griffin cold-path soak (`scripts/griffin_cold_soak.py`) — N cycles, no seed write, `sqlite_proxy`, status not stuck cold
+- [x] HQ Agent skills / prompt / Case File hints prefer HTTP/Query Range before MCP
+- [x] Provisioned dashboard map → ≥3 distinct UUIDs (env + list-API unit tests)
 
 ---
 
@@ -260,21 +268,22 @@ flowchart TB
 
 ## Suggested execution sequence (current)
 
-1. ~~Phase 2 (Test & CI gates)~~ — **done** on this branch.
-2. **Brief Phase 1 revisit** — re-measure / refine scorecard notes (still ≤60%; no theater).
-3. **Phase 3 (Evidence & Griffin)** — next implementation track.
-4. Phase 4 → 5 → 6 as exits unlock.
-5. **Phase 7 TabFM integration (required)** — after Griffin soak; MAD degrade OK at runtime.
+1. ~~Phase 2 (Test & CI gates)~~ — **done** (PR #17).
+2. ~~Brief Phase 1 revisit~~ — **done** (~57% / ≤60%).
+3. ~~Phase 3 (Evidence & Griffin)~~ — **done** on this branch.
+4. **Phase 4 (Live ops loop)** — next implementation track.
+5. Phase 5 → 6 as exits unlock.
+6. **Phase 7 TabFM integration (required)** — after Griffin soak; MAD degrade OK at runtime.
 
 ---
 
 ## Anti-inflation reminders
 
 - Updating [`20`](20-honest-progress.md) / [`19` §5.2](19-path-to-95.md) requires citing Phase exits, not “landed UI.”
-- Overall stays **≤60%** / honest **~55%** until a measured re-score cites Phase 2 (+ preferably 3–4) exits — Phase 2 does **not** unlock 70%+.
+- Overall stays **≤60%** / honest **~57%** after Phases 2–3 — does **not** unlock 70%+.
 - TabFM research ≠ TabFM shipped; Phase 7 required before any TabFM-live claim.
 - Track H/D excluded from overall.
 
 ---
 
-*Phase 2 implementation + plan updates. TabFM reclassified as required Phase 7.*
+*Phase 3 implementation + Phase 1 remeasure. TabFM remains required Phase 7.*
