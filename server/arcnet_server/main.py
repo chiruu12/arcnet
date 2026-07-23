@@ -425,7 +425,15 @@ async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
     except repository.ApplyModelError as exc:
         raise HTTPException(400, str(exc)) from exc
     # Best-effort probe — never blocks apply; informs HQ reload banner.
-    out["agentos_probe"] = await _probe_agentos_runtime(applied_model)
+    probe = await _probe_agentos_runtime(applied_model)
+    out["agentos_probe"] = probe
+    # Clear contradictory reload flag when live AgentOS already matches SQLite.
+    if probe.get("models_match") is True:
+        out["agentos_reload_required"] = False
+        out["agentos_reload_instructions"] = (
+            "SQLite and live AgentOS process model already match — "
+            "no AgentOS restart needed for new sessions."
+        )
     return out
 
 

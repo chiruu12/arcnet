@@ -252,12 +252,18 @@ export function HqAgent({
       });
       const pinNote = sessionId.trim() ? ` · pinned ${sessionId.trim()}` : "";
       setFlash(`applied ${out.model} as ${out.version.version}${pinNote}`);
-      if (out.agentos_reload_required !== false) {
+      if (out.agentos_reload_required) {
         const probeNote = out.agentos_probe?.note ? ` — ${out.agentos_probe.note}` : "";
         setReloadBanner(
           (out.agentos_reload_instructions ||
             "AgentOS still on old model until restart — SQLite updated; do not auto-restart from server.") +
             probeNote,
+        );
+      } else {
+        setReloadBanner(
+          out.agentos_reload_instructions ||
+            out.agentos_probe?.note ||
+            "SQLite and AgentOS model already match — no restart needed.",
         );
       }
       setApplyConfirm(false);

@@ -139,11 +139,15 @@ def _run(client, *, agentos_url: str) -> int:
     applied = apply.json()
     if not applied.get("applied"):
         return _fail(f"apply not applied: {applied}")
-    if not applied.get("agentos_reload_required"):
+    if "agentos_reload_required" not in applied:
         return _fail(f"missing agentos_reload_required: {applied}")
     probe = applied.get("agentos_probe") or {}
     if not isinstance(probe, dict) or "note" not in probe:
         return _fail(f"missing agentos_probe: {applied}")
+    if probe.get("models_match") is True and applied.get("agentos_reload_required") is not False:
+        return _fail(f"models_match but reload_required still true: {applied}")
+    if probe.get("models_match") is not True and not applied.get("agentos_reload_required"):
+        return _fail(f"expected agentos_reload_required when models differ: {applied}")
     version_row = applied.get("version") or {}
     version_id = version_row.get("version_id")
     if not version_id:

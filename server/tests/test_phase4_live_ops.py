@@ -97,6 +97,7 @@ class Phase4LiveOpsTests(unittest.TestCase):
         self.assertEqual(probe["sqlite_model"], "gpt-4o")
         self.assertFalse(probe["models_match"])
         self.assertIn("Restart", probe["note"])
+        self.assertTrue(ok.json()["agentos_reload_required"])
 
     def test_apply_probe_match_after_reload(self) -> None:
         mock_resp = MagicMock()
@@ -119,9 +120,12 @@ class Phase4LiveOpsTests(unittest.TestCase):
                         "version": f"p4-match-{time.time_ns()}",
                     },
                 )
-        probe = ok.json()["agentos_probe"]
+        body = ok.json()
+        probe = body["agentos_probe"]
         self.assertTrue(probe["models_match"])
         self.assertIn("match", probe["note"].lower())
+        self.assertFalse(body["agentos_reload_required"])
+        self.assertIn("no AgentOS restart", body["agentos_reload_instructions"])
 
     def test_session_filters_agent_version_and_version_id(self) -> None:
         apply = self.client.post(
