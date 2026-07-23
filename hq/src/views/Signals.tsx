@@ -63,6 +63,7 @@ export function Signals({
     // Clear immediately on agentRef change so the label never flashes a prior filter's total.
     setSignals(null);
     setTotal(0);
+    setLiveCount(0);
     setErr(null);
     const params = {
       ...(agentRef ? { agent_id: agentRef } : {}),
