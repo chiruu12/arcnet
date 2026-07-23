@@ -6,12 +6,13 @@ import { CaseFiles } from "./views/CaseFiles";
 import { Dashboards } from "./views/Dashboards";
 import { FleetHealth } from "./views/FleetHealth";
 import { HqAgent } from "./views/HqAgent";
+import { Hitl } from "./views/Hitl";
 import { Signals } from "./views/Signals";
 import { SourcesTrust } from "./views/SourcesTrust";
 import { TimeMachine } from "./views/TimeMachine";
 
 const NAV: { group: string; items: View[] }[] = [
-  { group: "// observe", items: ["fleet_health", "signals", "sources_trust"] },
+  { group: "// observe", items: ["fleet_health", "signals", "hitl", "sources_trust"] },
   { group: "// improve", items: ["time_machine", "case_files", "dashboards", "hq_agent"] },
 ];
 
@@ -163,6 +164,7 @@ export function App() {
               onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
             />
           )}
+          {view === "hitl" && <Hitl mode={mode} />}
           {view === "sources_trust" && (
             <SourcesTrust
               mode={mode}

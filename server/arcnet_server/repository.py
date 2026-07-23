@@ -667,6 +667,46 @@ def get_hitl(conn: sqlite3.Connection, hitl_id: str) -> dict[str, Any] | None:
     return row_to_dict(row, json_fields=["payload"])
 
 
+def count_hitl(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str | None = None,
+    status: str | None = None,
+) -> int:
+    q = "SELECT COUNT(*) FROM hitl_requests WHERE 1=1"
+    params: list[Any] = []
+    if session_id:
+        q += " AND session_id = ?"
+        params.append(session_id)
+    if status:
+        q += " AND status = ?"
+        params.append(status)
+    row = conn.execute(q, params).fetchone()
+    return int(row[0]) if row else 0
+
+
+def list_hitl(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str | None = None,
+    status: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    q = "SELECT * FROM hitl_requests WHERE 1=1"
+    params: list[Any] = []
+    if session_id:
+        q += " AND session_id = ?"
+        params.append(session_id)
+    if status:
+        q += " AND status = ?"
+        params.append(status)
+    q += " ORDER BY created_at DESC, hitl_id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    rows = conn.execute(q, params).fetchall()
+    return [row_to_dict(r, json_fields=["payload"]) for r in rows]  # type: ignore[misc]
+
+
 def decide_hitl(conn: sqlite3.Connection, hitl_id: str, decision: str) -> dict[str, Any]:
     conn.execute(
         "UPDATE hitl_requests SET status=?, decided_at=? WHERE hitl_id=?",

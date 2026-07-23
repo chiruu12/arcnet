@@ -3,6 +3,7 @@ import type { View } from "./types";
 const VIEWS = new Set<View>([
   "fleet_health",
   "signals",
+  "hitl",
   "sources_trust",
   "time_machine",
   "case_files",

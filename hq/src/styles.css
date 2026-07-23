@@ -656,3 +656,21 @@ a.btn {
   color: var(--text);
   border-color: var(--accent-border);
 }
+
+.inline-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.inline-actions .btn {
+  margin-top: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+p.honesty {
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+  max-width: 52rem;
+}

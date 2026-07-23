@@ -3,6 +3,7 @@ export type Mode = "human" | "agent";
 export type View =
   | "fleet_health"
   | "signals"
+  | "hitl"
   | "sources_trust"
   | "time_machine"
   | "case_files"
@@ -68,6 +69,16 @@ export type SignalRow = {
   source: string;
   status: string;
   created_at: number | null;
+};
+
+export type HitlRow = {
+  hitl_id: string;
+  run_id: string;
+  session_id: string | null;
+  payload: Record<string, unknown> | string | null;
+  status: string;
+  created_at: number | null;
+  decided_at: number | null;
 };
 
 export type SourceRow = {

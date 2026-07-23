@@ -734,6 +734,23 @@ async def signals_stream(
 # ---------------------------------------------------------------- hitl
 
 
+@app.get("/api/hitl")
+def list_hitl(
+    response: Response,
+    session_id: str | None = None,
+    status: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict[str, Any]]:
+    """List HITL approval rows (newest first)."""
+    conn = get_conn()
+    total = repository.count_hitl(conn, session_id=session_id, status=status)
+    _page_headers(response, total=total, limit=limit, offset=offset)
+    return repository.list_hitl(
+        conn, session_id=session_id, status=status, limit=limit, offset=offset
+    )
+
+
 @app.post("/api/hitl")
 async def create_hitl(request: Request) -> dict[str, Any]:
     """Create a HITL approval row (pause scaffold)."""
@@ -753,7 +770,9 @@ async def decide_hitl(hitl_id: str, request: Request) -> dict[str, Any]:
     conn = get_conn()
     if repository.get_hitl(conn, hitl_id) is None:
         raise HTTPException(404, f"hitl {hitl_id} not found")
-    return repository.decide_hitl(conn, hitl_id, decision)
+    row = repository.decide_hitl(conn, hitl_id, decision)
+    BUS.publish("hitl_request", row)
+    return row
 
 
 # ---------------------------------------------------------------- webhook

@@ -154,9 +154,11 @@ CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, 
 | `POST /api/replay/corpus` (P1) | `{candidate_model}` | scorecard aggregate |
 | `GET /api/agent-view/{view}/{id}` | `view ∈ incident, fleet, session, replay, sources, signals, check, dashboards` | agent-view envelope (below). **`signals` + `check` + bounded `sources` + `dashboards` additive** |
 | `POST /api/signal` | Signal fields minus id/status (used by the SDK inline fast-path AND the UI's manual pause/kill buttons). Optional `ARCNET_WRITE_SECRET` (**additive** Wave A) | created signal row (401 if write secret set and wrong/missing) |
+| `GET /api/hitl?session_id=&status=&limit=&offset=` | query | `[hitl row]` + pagination headers (**additive** P6-A) |
+| `POST /api/hitl` | `{run_id, session_id?, payload?}` | created `hitl_requests` row (`pending`); publishes SSE `hitl_request` |
 | `GET /signals/stream?session_id=` | query (omit = firehose) | SSE (events below) |
 | `POST /webhooks/signoz` | SigNoz alert payload; optional `ARCNET_WEBHOOK_SECRET` (`X-ArcNet-Webhook-Secret` / Bearer) | 204 (401 if secret set and wrong) |
-| `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated `hitl_requests` row in **SQLite**. **Honesty:** decide is persisted today; it does **not** yet relay/pause a live AgentOS run. Live AgentOS HITL relay = Phase 6 ([`22`](22-next-agent-packets.md) P6-A). Until then, treat HITL as operator audit + SQLite status, not AgentOS control. |
+| `POST /api/hitl/{hitl_id}` | `{decision: "approved"\|"rejected"}` | updated `hitl_requests` row in **SQLite**; publishes SSE `hitl_request`. **Honesty:** decide is persisted today; it does **not** relay/pause a live AgentOS run (relay = future work). Until then, treat HITL as operator audit + SQLite status, not AgentOS control. |
 | `GET /export/case-file/{session_id}` | path | zip: `case-file.md` + `case-file.json` |
 | `GET /api/signoz/status` | — | `{signoz_url, ui_reachable, api_key_present, query_range_ok, query_note, dashboards: {fleet_ops, threats_trust, cost_tokens, agno}, mcp_note?}` — dashboard ids from `SIGNOZ_DASHBOARD_*` env or title resolve (**additive** `dashboards`; Wave B **additive** `mcp_note`) |
 | `GET /api/signoz/evidence?session_id=` | query | Bounded Query Range / trace summary: `{session_id, trace_id, links.signoz_trace, spans[{name,duration_ns}], truncated, note, mcp_fallback}` — **no full payloads** (**additive** Wave B) |

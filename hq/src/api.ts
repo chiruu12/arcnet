@@ -2,13 +2,14 @@ import type {
   AgentEnvelope,
   AgentModelRow,
   FleetRow,
+  HitlRow,
   SessionRow,
   SignalRow,
   SourceRow,
   Verdict,
 } from "./types";
 
-const BASE: string = import.meta.env.VITE_ARCNET_API ?? "";
+const BASE: string = import.meta.env?.VITE_ARCNET_API ?? "";
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
@@ -315,6 +316,23 @@ export const api = {
       note: string | null;
       mcp_fallback?: string;
     }>(`/api/signoz/evidence?session_id=${encodeURIComponent(sessionId)}`),
+  hitlPage: async (params?: {
+    session_id?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Paged<HitlRow>> => {
+    const q = new URLSearchParams();
+    if (params?.session_id) q.set("session_id", params.session_id);
+    if (params?.status) q.set("status", params.status);
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    const { data, headers } = await getJSONPaged<HitlRow[]>(`/api/hitl${qs ? `?${qs}` : ""}`);
+    return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
+  },
+  decideHitl: (hitlId: string, decision: "approved" | "rejected") =>
+    postJSON<HitlRow>(`/api/hitl/${encodeURIComponent(hitlId)}`, { decision }),
 };
 
 export type BusEvent = {
@@ -334,5 +352,6 @@ export function subscribeBus(onEvent: (ev: BusEvent) => void): () => void {
   };
   es.addEventListener("signal", forward("signal"));
   es.addEventListener("replay_progress", forward("replay_progress"));
+  es.addEventListener("hitl_request", forward("hitl_request"));
   return () => es.close();
 }

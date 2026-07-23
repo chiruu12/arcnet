@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/cascade.test.ts src/hash.test.ts src/pageLabel.test.ts"
+    "test": "node --experimental-strip-types --test src/cascade.test.ts src/hash.test.ts src/pageLabel.test.ts src/hitl.test.ts"
   },
   "dependencies": {
     "react": "^19.0.0",

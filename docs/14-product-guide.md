@@ -127,12 +127,13 @@ Env defaults: `VITE_ARCNET_API` empty (same-origin via Vite proxy). Override onl
 
 Global chrome: sidebar (`// observe` · `// improve`), mini fleet dots, breadcrumb `· live` / `· api_down`, **`human_view | agent_view`** toggle.
 
-**How views evolved:** early HQ was a flat six-panel demo HUD. Product rework added **Agent → version → model → session cascade** on Case Files and Time Machine; HQ Agent uses a diagnose strip (**agent → version → session**) with **model typed in the apply form** (not a fourth cascade selector), Fleet **MAD** strip, pagination **“showing N of Total”**, apply **reload honesty** (`agentos_reload_required` + probe — restart is operator step), and hash deep-links. HITL approve UI and `api_down` auto-recover are still deferred (Phase 6). Full story: [`23`](23-product-overview.md).
+**How views evolved:** early HQ was a flat six-panel demo HUD. Product rework added **Agent → version → model → session cascade** on Case Files and Time Machine; HQ Agent uses a diagnose strip (**agent → version → session**) with **model typed in the apply form** (not a fourth cascade selector), Fleet **MAD** strip, pagination **“showing N of Total”**, apply **reload honesty** (`agentos_reload_required` + probe — restart is operator step), hash deep-links, and **HITL approve/reject** on the `hitl` view. `api_down` auto-recover is still deferred (P6-B). Full story: [`23`](23-product-overview.md).
 
 | View | Human mode | Agent mode | Buttons / actions |
 |---|---|---|---|
 | **fleet_health** | Agent cards: exposure, sessions/threats/blocked/cost/anomalies/signals. `[FORWARD]` = higher injection risk. **MAD** Griffin strip | `GET /api/agent-view/fleet/all` JSON | — |
-| **signals** | Table of steer/pause/kill/note; live SSE updates; pagination totals | Agent-view signals envelope when wired | Watch feed; HITL approve/reject UI = Phase 6 (API decide = SQLite only today) |
+| **signals** | Table of steer/pause/kill/note; live SSE updates; pagination totals | Agent-view signals envelope when wired | Watch feed |
+| **hitl** | Pending HITL requests with payload summary; approve/reject; live SSE `hitl_request` | Raw `GET /api/hitl` JSON | **approve** / **reject** (SQLite only — see Limitations) |
 | **sources_trust** | Ingested-source ledger: origin, trust_level, scan_action | Bounded sources agent-view when available | — |
 | **time_machine** | **Cascade** agent→version→model→session · candidate · baseline vs candidate · verdict · history | `GET /api/agent-view/replay/{id}` after a verdict exists | **`replay.run()`** (needs key + AgentOS); **`hand_to(claude_code)`** downloads Case File |
 | **case_files** | Same **cascade** · incident preview (root cause, actions, HTTP-prefer MCP hint) | Incident agent-view envelope | **`export_case_file()`** → zip (`case-file.md` + `.json`) |
@@ -204,7 +205,7 @@ See [§ Frontend audit](#11-frontend-audit-done-vs-left) below for per-view APIs
 ## 9. Known limitations
 
 - **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live. TabFM required on roadmap (`21`/`22`); TabPFN deferred.
-- **HITL** — `POST /api/hitl/{id}` updates SQLite; does **not** yet relay/pause live AgentOS (Phase 6). Apply `confirm` ≠ auth.
+- **HITL** — HQ `hitl` view approve/reject calls `POST /api/hitl/{id}`; decide updates SQLite only and does **not** pause a live AgentOS run (relay = future work). Apply `confirm` ≠ auth.
 - **MCP PARTIAL** — SigNoz MCP binary installable; live stdio handoff may hang (Case File + Query Range HTTP preferred).
 - **Live AgentOS restart** after apply — operator step; probe/banner honesty only (auto-restart unproven).
 - **Overall readiness ~57% / ≤60%** — [`20`](20-honest-progress.md). No 74/80/95 theater.
@@ -212,7 +213,7 @@ See [§ Frontend audit](#11-frontend-audit-done-vs-left) below for per-view APIs
 - **Timestamps** — APIs return epoch-ms (docs/12 said ISO; documented drift).
 - **Temp-0 replay** ≠ determinism — 3-run majority; honest `inconclusive` / `mixed` verdicts.
 - **Dashboards deep-links** open SigNoz shells; pick provisioned dashboards after `setup.py`.
-- **Dedicated threats feed / corpus scorecard / HITL UI** — Phase 6 or deferred (see [`22`](22-next-agent-packets.md)).
+- **Dedicated threats feed / corpus scorecard** — Phase 6 or deferred (see [`22`](22-next-agent-packets.md)).
 - **No auth** — localhost demo surface.
 
 ---
