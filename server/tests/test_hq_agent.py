@@ -211,7 +211,10 @@ class AgentVersionRegistryTests(unittest.TestCase):
                 "version_id": vid,
             },
         )
-        self.assertEqual(dup.status_code, 400)
+        self.assertEqual(dup.status_code, 409)
+        body = dup.json()
+        self.assertIn("detail", body)
+        self.assertIn("hint", body)
         after = self.client.get("/api/agents/agent_j/versions/timeline").json()
         self.assertEqual(after["current_model"], before)
         self.assertEqual(sum(1 for v in after["versions"] if v["version_id"] == vid), 1)
