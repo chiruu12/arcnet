@@ -14,9 +14,10 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from unplug import Guard, GuardConfig
+from unplug import GuardConfig
 
 from arcnet.context import ArcnetRuntime, set_runtime
+from arcnet.guard_factory import build_guard
 from arcnet.ids import new_id
 from arcnet.signals import SignalClient
 
@@ -93,7 +94,7 @@ def init(
         AgnoInstrumentor().instrument()
         _INSTRUMENTED = True
 
-    guard = Guard(config=guard_config) if guard_config is not None else Guard()
+    guard = build_guard(guard_config)
     signals = SignalClient(server_url=server, session_id=sid, agent_id=agent_id)
     signals.start()
     tracer = trace.get_tracer("arcnet")

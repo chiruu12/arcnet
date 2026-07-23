@@ -10,6 +10,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from arcnet.context import ArcnetRuntime, try_get_runtime
+from arcnet.guard_factory import serialize_findings, top_finding
 
 logger = logging.getLogger("arcnet.guard")
 
@@ -30,16 +31,17 @@ def emit_guard_telemetry(
     findings: list[Any],
     latency_ms: float,
     trust_level: str | None = None,
+    guard_verdict: dict[str, Any] | None = None,
 ) -> None:
     """Emit arcnet.guard span + metrics + structured log for one checkpoint result."""
     rt = try_get_runtime()
     if rt is None:
         return
 
-    top_category = ""
-    if findings:
-        top = max(findings, key=lambda f: getattr(f, "score", 0.0) or 0.0)
-        top_category = getattr(top, "category", "") or ""
+    top = top_finding(findings)
+    top_category = getattr(top, "category", "") or "" if top else ""
+    rule = getattr(top, "subcategory", "") or "" if top else ""
+    pattern_class = getattr(top, "stage", "") or "" if top else ""
 
     attrs = {
         **_common_attrs(rt),
@@ -49,6 +51,10 @@ def emit_guard_telemetry(
         "arcnet.guard.findings_count": len(findings),
         "arcnet.guard.top_category": top_category,
     }
+    if rule:
+        attrs["arcnet.guard.rule"] = rule
+    if pattern_class:
+        attrs["arcnet.guard.pattern_class"] = pattern_class
     if trust_level:
         attrs["arcnet.guard.trust_level"] = trust_level
 
@@ -61,6 +67,7 @@ def emit_guard_telemetry(
                 attributes={
                     "category": getattr(f, "category", "") or "",
                     "subcategory": getattr(f, "subcategory", "") or "",
+                    "stage": getattr(f, "stage", "") or "",
                     "score": float(getattr(f, "score", 0.0) or 0.0),
                     "evidence": str(getattr(f, "evidence", "") or "")[:200],
                 },
@@ -83,14 +90,24 @@ def emit_guard_telemetry(
                 "agent_id": rt.agent_id,
             },
         )
-        _post_threat(rt, checkpoint, action, top_category, risk_score, findings, trust_level)
+        _post_threat(
+            rt,
+            checkpoint,
+            action,
+            top_category,
+            risk_score,
+            findings,
+            trust_level,
+            guard_verdict=guard_verdict,
+        )
 
     logger.info(
-        "guard checkpoint=%s action=%s risk=%.2f findings=%d",
+        "guard checkpoint=%s action=%s risk=%.2f findings=%d rule=%s",
         checkpoint,
         action,
         risk_score,
         len(findings),
+        rule or "-",
         extra={"trace_id": format(trace.get_current_span().get_span_context().trace_id, "032x")},
     )
 
@@ -103,6 +120,8 @@ def _post_threat(
     risk_score: float,
     findings: list[Any],
     trust_level: str | None,
+    *,
+    guard_verdict: dict[str, Any] | None = None,
 ) -> None:
     import httpx
 
@@ -110,14 +129,17 @@ def _post_threat(
 
     evidence = ""
     subcategory = ""
+    pattern_class = ""
     if findings:
-        top = max(findings, key=lambda f: getattr(f, "score", 0.0) or 0.0)
-        evidence = str(getattr(top, "evidence", "") or "")[:200]
-        subcategory = getattr(top, "subcategory", "") or ""
+        top = top_finding(findings)
+        if top is not None:
+            evidence = str(getattr(top, "evidence", "") or "")[:200]
+            subcategory = getattr(top, "subcategory", "") or ""
+            pattern_class = getattr(top, "stage", "") or ""
 
     span = trace.get_current_span()
     ctx = span.get_span_context()
-    payload = {
+    payload: dict[str, Any] = {
         "threat_id": new_id("thr_"),
         "session_id": rt.session_id,
         "agent_id": rt.agent_id,
@@ -130,7 +152,12 @@ def _post_threat(
         "evidence": evidence,
         "trace_id": format(ctx.trace_id, "032x") if ctx.is_valid else None,
         "span_id": format(ctx.span_id, "016x") if ctx.is_valid else None,
+        "findings_detail": serialize_findings(findings),
     }
+    if pattern_class:
+        payload["pattern_class"] = pattern_class
+    if guard_verdict:
+        payload["guard_verdict"] = guard_verdict
     try:
         with httpx.Client(timeout=5.0) as client:
             client.post(f"{rt.server_url}/api/threats", json=payload).raise_for_status()
@@ -143,7 +170,8 @@ def post_source(
     origin: str,
     trust_level: str,
     scan_action: str,
-    findings_count: int,
+    findings: list[Any] | int | None = None,
+    guard_verdict: dict[str, Any] | None = None,
 ) -> None:
     import httpx
 
@@ -152,7 +180,13 @@ def post_source(
     rt = try_get_runtime()
     if rt is None:
         return
-    payload = {
+    if isinstance(findings, int):
+        findings_list: list[Any] = []
+        findings_count = findings
+    else:
+        findings_list = list(findings or [])
+        findings_count = len(findings_list)
+    payload: dict[str, Any] = {
         "source_id": new_id("src_"),
         "session_id": rt.session_id,
         "agent_id": rt.agent_id,
@@ -160,7 +194,10 @@ def post_source(
         "trust_level": trust_level,
         "scan_action": scan_action,
         "findings": findings_count,
+        "findings_detail": serialize_findings(findings_list) if findings_list else None,
     }
+    if guard_verdict:
+        payload["guard_verdict"] = guard_verdict
     try:
         with httpx.Client(timeout=5.0) as client:
             client.post(f"{rt.server_url}/api/sources", json=payload).raise_for_status()
