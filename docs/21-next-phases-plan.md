@@ -4,7 +4,7 @@
 **Date:** 2026-07-23  
 **Baseline:** PR #18 merged on `main`; post–Phase-2/3 remeasure **~57%** (≤60% cap).  
 **User pin:** no further SigNoz/seed/fixture/data polish beyond what already landed in Phase 3.  
-**Companions:** [`20-honest-progress.md`](20-honest-progress.md) (measured scorecard), [`19-path-to-95.md`](19-path-to-95.md) (workstream catalog), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (exit scripts).
+**Companions:** [`20-honest-progress.md`](20-honest-progress.md) (measured scorecard), [`19-path-to-95.md`](19-path-to-95.md) (workstream catalog), [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md) (exit scripts), [`23-product-overview.md`](23-product-overview.md) (product overview), [`22-next-agent-packets.md`](22-next-agent-packets.md) (packets).
 
 ---
 

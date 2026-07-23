@@ -3,7 +3,7 @@
 **Date:** 2026-07-23  
 **Branch base:** `main` (Phase 4 merged via PR #19)  
 **Readiness pin:** overall **~57% / ≤60%** ([`20-honest-progress.md`](20-honest-progress.md)). Do not inflate.  
-**Companion plan:** [`21-next-phases-plan.md`](21-next-phases-plan.md) (phase bundles). This doc turns Phases **5 / 6 / 7** into **concrete agent packets** with goals, files, exits, deps.
+**Companion plan:** [`21-next-phases-plan.md`](21-next-phases-plan.md) (phase bundles). Product overview: [`23-product-overview.md`](23-product-overview.md). This doc turns Phases **5 / 6 / 7** into **concrete agent packets** with goals, files, exits, deps.
 
 **Audit context (same day):** quality gates green on Phase 4 tip; product loop partially E2E (API/CI) vs demo theater (live AgentOS restart, SigNoz depth, TabFM missing). Hackathon readiness ≠ product readiness.
 

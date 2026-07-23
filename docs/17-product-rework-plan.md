@@ -4,11 +4,14 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 
 | Related | Role |
 |---|---|
+| [`23-product-overview.md`](23-product-overview.md) | **Product overview** — enhancement-layer vision, HQ evolution, ~57% |
+| [`20-honest-progress.md`](20-honest-progress.md) | **Measured scorecard** (authoritative readiness) |
+| [`21-next-phases-plan.md`](21-next-phases-plan.md) · [`22-next-agent-packets.md`](22-next-agent-packets.md) | Next phases + packets (incl. **required TabFM**) |
 | [`16-product-review-brief.md`](16-product-review-brief.md) §11 | Founder decisions (authoritative) |
 | [`15-product-map.md`](15-product-map.md) | Built inventory + gaps |
 | [`12-data-api.md`](12-data-api.md) | Frozen wire contract — **additive only** |
 | [`18-hq-agent.md`](18-hq-agent.md) | HQ Agent maintenance layer (SigNoz reuse, MAD Griffin, versions, proposals) |
-| [`19-path-to-95.md`](19-path-to-95.md) | **Execution plan** — ~48% → ~95% robustness (waves + workstreams); approve before implement |
+| [`19-path-to-95.md`](19-path-to-95.md) | Workstream catalog toward robustness (est. withdrawn; measure via `20`) |
 
 **Standing constraints:** product-core never imports `agents/`/`scripts/`; Unplug in-process; no full tool outputs in agent contexts; local SigNoz path only; YAGNI on model-explorer fleet / auto-remediation.
 
@@ -16,7 +19,9 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 
 ## Positioning (one line)
 
-**ArcNet helps you make your agent work properly and enhance it** — observe → defend → replay → case file → improve (model/prompt evidence).
+**ArcNet is an agent enhancement layer** — observe → defend → replay → case file → improve (model/prompt evidence). Not a SigNoz clone; not demo theater. HQ = operator control plane (cascade, Fleet Health, Time Machine, Case File, HQ Agent).
+
+**Honesty:** measured overall **~57% / ≤60%** ([`20`](20-honest-progress.md)). Prefer fix/test/measure over feature theater. Griffin = **MAD** now; **TabFM required Phase 7**; TabPFN deferred. HITL decide = SQLite today (AgentOS relay Phase 6). Apply confirm ≠ auth. MCP PARTIAL.
 
 ---
 
@@ -169,52 +174,47 @@ Full design: [`18-hq-agent.md`](18-hq-agent.md).
 
 ## Honesty: checklist ≠ product-ready
 
-Acceptance criteria above measure **surface existence**, not production-usable robustness. A founder-critical re-score (2026-07-22) put overall readiness near **~48%**, not the ~90% vibe that “all boxes checked” implies.
+Acceptance criteria above measure **surface existence**, not production-usable robustness. Founder-critical re-score started near **~48%**; after Phases 2–4 the **authoritative measured overall is ~57% / ≤60%** ([`20-honest-progress.md`](20-honest-progress.md)). Do not cite 74/80/95 theater.
 
 | Area | Robustness (0–100) | Note |
 |---|---:|---|
-| Positioning / framing | 58 | Product tone better; hackathon/demo script still oversells |
-| HQ frontend | 55 | Cascade + hash + better apply errors; version-in-cascade still thin |
-| Human APIs | 58 | Pagination mostly; open write surface; optional webhook secret |
-| Agent APIs / tools | 64 | check/signals/incident/sources bounded; dashboards = status twin |
-| HQ Agent | 56 | Tools + Unplug + apply loop; still not a reliable ops agent |
-| Version timeline / pinpoint | 52 | Pin + check narrative landed; cascade still model-not-version first |
-| Model explore / sims | 50 | Live catalog when `OPENAI_API_KEY`; still exploration scaffold |
-| Griffin (MAD) | 46 | Honest MAD on seeded series — not production detection |
-| SigNoz | 54 | Provision + probe + links; HQ remains a launcher |
-| Unplug coverage | 68 | Fleet + HQ Agent wired |
-| Tests / CI | 48 | Unit tests + new CI workflow; no e2e |
-| Hackathon ship assets | 35 | Screenshots/video/checklist still open |
+| Positioning / framing | 58 | Enhancement-layer docs aligned; demo script still mixed |
+| HQ frontend | 64 | Cascade + hash + pagination labels; polish open |
+| Human APIs | 66 | Pagination + write secret; HITL ≠ AgentOS relay |
+| Agent APIs / tools | 66 | Envelopes + timeouts; twins incomplete |
+| HQ Agent | 62 | Propose→apply→pin CI + dry-run; live restart operator |
+| Version timeline / pinpoint | 68 | Pin + check narrative; cascade polish open |
+| Model explore / sims | 56 | TM session-scoped; explore scaffold |
+| Griffin (MAD) | 54 | MAD cold soak; **TabFM required Phase 7 — not coded** |
+| SigNoz | 58 | Provision + probe; MCP PARTIAL |
+| Unplug coverage | 70 | Fleet + HQ Agent; matrix → Phase 5 |
+| Tests / CI | 58 | Phase 2 exits met |
+| Hackathon ship assets | 35 | Screenshots/video open — **excluded from overall** |
 
-**Overall ~48%** for production-usable robustness. Checklist completion for R1–R3/HQ slices ≠ “done product.”
+**Overall ~57%** (cap ≤60%). Checklist completion ≠ “done product.” See [`20`](20-honest-progress.md) for measured cells and exits.
 
 ### Robustness backlog (impact order)
 
-1. Agent → **version** → session cascade (founder §11.8) — not just model from session history
-2. Auth / abuse surface for writes (`/api/signal`, sessions) beyond optional webhook secret
-3. Griffin useful without hand-seeded JSON; MAD strip in HQ
-4. SigNoz MCP reliability + judge-usable deep evidence (not link farm)
-5. Model explore tied to Time Machine verdicts (empirical, not prefer-list)
-6. HQ empty/error UX consistency across all views; FE tests
-7. E2E path: seed → cascade → case file → propose → apply → pin → check narrative
-8. Hackathon capture assets if still submitting
+1. Phase 5 safety matrix + honesty chrome ([`22`](22-next-agent-packets.md))
+2. Phase 6 HITL UI + api_down recover (after Phase 5)
+3. **TabFM Phase 7 required** (`google/tabfm-1.0.0-pytorch` `regression/`; MAD degrade)
+4. Auth / abuse surface beyond optional secrets (still localhost trust)
+5. Model explore tied to TM verdicts (empirical)
+6. Hackathon capture assets if still submitting
 
-### Robustness pass 1 (this branch)
-
-Shipped: atomic apply-model + ownership checks; check `version_pinpoint`; bounded sources + dashboards agent-view; HQ session pin on apply; live model catalog when key present; webhook secret; CI; tests for the above.
-
-**Next:** [`19-path-to-95.md`](19-path-to-95.md) — ordered waves WS1–WS12 to reach ~95% with measurable exit criteria (not checklist inflation). Acceptance appendix: [`plans/path-to-95-acceptance.md`](plans/path-to-95-acceptance.md).
+**Next:** [`21-next-phases-plan.md`](21-next-phases-plan.md) · [`22-next-agent-packets.md`](22-next-agent-packets.md). Overview: [`23`](23-product-overview.md).
 
 ### Wave tracking (honest)
 
 | Wave | Status | Measured overall |
 |---|---|---|
 | Baseline | founder re-score | **~48%** |
-| A — Foundations | merged PR #15 | **~62–68 est.** (cascade/API/P0 catalog; not claimed 95%) |
-| B — Enhancement loop | in progress | partial WS3/5/6/7 — **do not claim 95%** |
-| C — Prove it | not started | e2e/CI gates 95% |
+| A — Foundations | merged | surfaces landed; do not claim 95% |
+| B — Enhancement loop | landed | partial — **do not claim 95%** |
+| Phases 2–4 | exits met | **~57% / ≤60%** ([`20`](20-honest-progress.md)) |
+| C / Phase 5+ | next | packets in [`22`](22-next-agent-packets.md) |
 
-Griffin = **MAD** only. No TabFM claims. Catalog fallback on main.
+Griffin = **MAD** only until Phase 7. No TabFM-live claims. TabPFN deferred.
 ---
 
 ## Priority vs old map §6
