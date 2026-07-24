@@ -122,7 +122,11 @@ class ModelExploreTests(unittest.TestCase):
         rec = recommend_models("injection_resist")
         self.assertTrue(rec["exploration_only"])
         self.assertGreaterEqual(len(rec["recommendations"]), 1)
-        self.assertEqual(rec["recommendations"][0]["model"], "gpt-4o")
+        # Newest flagship leads the prefer list for forward-facing traffic;
+        # gpt-4o remains a recommended fallback.
+        models = [r["model"] for r in rec["recommendations"]]
+        self.assertEqual(models[0], "gpt-5.6-luna")
+        self.assertIn("gpt-4o", models)
         with tempfile.TemporaryDirectory() as td:
             note = record_recommendation_note(
                 task_type="injection_resist",
