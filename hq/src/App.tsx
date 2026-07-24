@@ -3,6 +3,7 @@ import { api } from "./api";
 import { API_RECOVER_INTERVAL_MS, apiBreadcrumbStatus, shouldRecoverProbe } from "./apiRecover";
 import { formatHash, navigate, parseHash, type HashState, writeHash } from "./hash";
 import type { Mode, View } from "./types";
+import { ViewErrorBoundary } from "./ViewErrorBoundary";
 import { CaseFiles } from "./views/CaseFiles";
 import { Dashboards } from "./views/Dashboards";
 import { FleetHealth } from "./views/FleetHealth";
@@ -153,96 +154,98 @@ export function App() {
               API is back.
             </p>
           )}
-          {view === "home" && <Home mode={mode} />}
-          {view === "fleet_health" && (
-            <FleetHealth
-              mode={mode}
-              onOpenAgent={(agentId) =>
-                navigate({
-                  view: "case_files",
-                  agent: agentId,
-                  version: "",
-                  session: "",
-                  model: "",
-                })
-              }
-              onOpenSignals={(agentId) =>
-                navigate({ view: "signals", agent: agentId, session: "", model: "" })
-              }
-            />
-          )}
-          {view === "signals" && (
-            <Signals
-              mode={mode}
-              agentId={hash.agent}
-              onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
-            />
-          )}
-          {view === "hitl" && <Hitl mode={mode} />}
-          {view === "sources_trust" && (
-            <SourcesTrust
-              mode={mode}
-              agentId={hash.agent}
-              onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
-            />
-          )}
-          {view === "time_machine" && (
-            <TimeMachine
-              mode={mode}
-              deepLink={{
-                agent: hash.agent,
-                version: hash.version,
-                session: hash.session,
-                model: hash.model,
-              }}
-              onDeepLinkChange={(next) =>
-                patchHash({
-                  agent: next.agent,
-                  version: next.version,
-                  model: next.model,
-                  session: next.session,
-                })
-              }
-            />
-          )}
-          {view === "case_files" && (
-            <CaseFiles
-              mode={mode}
-              deepLink={{
-                agent: hash.agent,
-                version: hash.version,
-                session: hash.session,
-                model: hash.model,
-              }}
-              onDeepLinkChange={(next) =>
-                patchHash({
-                  agent: next.agent,
-                  version: next.version,
-                  model: next.model,
-                  session: next.session,
-                })
-              }
-            />
-          )}
-          {view === "dashboards" && <Dashboards mode={mode} />}
-          {view === "hq_agent" && (
-            <HqAgent
-              deepLink={{
-                agent: hash.agent,
-                version: hash.version,
-                session: hash.session,
-                model: hash.model,
-              }}
-              onDeepLinkChange={(next) =>
-                patchHash({
-                  agent: next.agent,
-                  version: next.version,
-                  model: next.model,
-                  session: next.session,
-                })
-              }
-            />
-          )}
+          <ViewErrorBoundary view={view}>
+            {view === "home" && <Home mode={mode} />}
+            {view === "fleet_health" && (
+              <FleetHealth
+                mode={mode}
+                onOpenAgent={(agentId) =>
+                  navigate({
+                    view: "case_files",
+                    agent: agentId,
+                    version: "",
+                    session: "",
+                    model: "",
+                  })
+                }
+                onOpenSignals={(agentId) =>
+                  navigate({ view: "signals", agent: agentId, session: "", model: "" })
+                }
+              />
+            )}
+            {view === "signals" && (
+              <Signals
+                mode={mode}
+                agentId={hash.agent}
+                onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
+              />
+            )}
+            {view === "hitl" && <Hitl mode={mode} />}
+            {view === "sources_trust" && (
+              <SourcesTrust
+                mode={mode}
+                agentId={hash.agent}
+                onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
+              />
+            )}
+            {view === "time_machine" && (
+              <TimeMachine
+                mode={mode}
+                deepLink={{
+                  agent: hash.agent,
+                  version: hash.version,
+                  session: hash.session,
+                  model: hash.model,
+                }}
+                onDeepLinkChange={(next) =>
+                  patchHash({
+                    agent: next.agent,
+                    version: next.version,
+                    model: next.model,
+                    session: next.session,
+                  })
+                }
+              />
+            )}
+            {view === "case_files" && (
+              <CaseFiles
+                mode={mode}
+                deepLink={{
+                  agent: hash.agent,
+                  version: hash.version,
+                  session: hash.session,
+                  model: hash.model,
+                }}
+                onDeepLinkChange={(next) =>
+                  patchHash({
+                    agent: next.agent,
+                    version: next.version,
+                    model: next.model,
+                    session: next.session,
+                  })
+                }
+              />
+            )}
+            {view === "dashboards" && <Dashboards mode={mode} />}
+            {view === "hq_agent" && (
+              <HqAgent
+                deepLink={{
+                  agent: hash.agent,
+                  version: hash.version,
+                  session: hash.session,
+                  model: hash.model,
+                }}
+                onDeepLinkChange={(next) =>
+                  patchHash({
+                    agent: next.agent,
+                    version: next.version,
+                    model: next.model,
+                    session: next.session,
+                  })
+                }
+              />
+            )}
+          </ViewErrorBoundary>
         </main>
       </div>
     </div>

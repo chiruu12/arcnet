@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, subscribeBus, type AgentVersionRow, type ReplayRow } from "../api";
+import { api, subscribeBus, toUserError, type AgentVersionRow, type ReplayRow } from "../api";
 import {
   cascadeReducer,
   emptyCascade,
@@ -127,7 +127,7 @@ export function TimeMachine({
         });
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     const unsubscribe = subscribeBus((ev) => {
       if (ev.event !== "replay_progress" || cancelled) return;
@@ -182,7 +182,7 @@ export function TimeMachine({
         );
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;
@@ -228,7 +228,7 @@ export function TimeMachine({
         setCascade((cur) => cascadeReducer(cur, { type: "set_session", sessionId: next }));
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;
@@ -302,7 +302,7 @@ export function TimeMachine({
       const r = await api.replays(sessionId);
       setReplays(r);
     } catch (e: unknown) {
-      setErr(String(e));
+      setErr(toUserError(e));
     } finally {
       setRunning(false);
       setProgress(null);

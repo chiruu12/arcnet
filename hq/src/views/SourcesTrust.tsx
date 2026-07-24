@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, toUserError } from "../api";
 import { AgentJson, Empty, Seam, ts } from "../components";
 import type { FleetRow, Mode, SourceRow } from "../types";
 
@@ -60,7 +60,7 @@ export function SourcesTrust({
         if (!cancelled) setSources(s);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;

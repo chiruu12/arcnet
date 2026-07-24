@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "./api";
+import { api, toUserError } from "./api";
 import type { AgentEnvelope } from "./types";
 
 export function Seam({ error }: { error: string }) {
@@ -30,7 +30,7 @@ export function AgentJson({ view, id }: { view: string; id: string }) {
         if (!cancelled) setEnv(e);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;

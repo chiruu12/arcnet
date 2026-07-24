@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api, subscribeBus } from "../api";
+import { api, subscribeBus, toUserError } from "../api";
+import { normalizeHitlRow } from "../apiResilience";
 import { Empty, Seam, ts } from "../components";
 import { HITL_RELAY_HONESTY, hitlPayloadSummary } from "../hitlUtils";
 import { showingOfTotal } from "../pageLabel";
@@ -39,12 +40,12 @@ export function Hitl({ mode }: { mode: Mode }) {
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     const unsubscribe = subscribeBus((ev) => {
       if (cancelled || ev.event !== "hitl_request") return;
-      const row = ev.data as unknown as HitlRow;
-      if (!row.hitl_id) return;
+      const row = normalizeHitlRow(ev.data);
+      if (!row) return;
       const isNew = !seenIdsRef.current.has(row.hitl_id);
       if (isNew) {
         seenIdsRef.current.add(row.hitl_id);
@@ -72,7 +73,7 @@ export function Hitl({ mode }: { mode: Mode }) {
         return [updated, ...rest].slice(0, HITL_PAGE);
       });
     } catch (e: unknown) {
-      setErr(String(e));
+      setErr(toUserError(e));
     } finally {
       setDeciding(null);
     }

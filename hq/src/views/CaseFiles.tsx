@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type AgentVersionRow } from "../api";
+import { api, toUserError, type AgentVersionRow } from "../api";
 import {
   cascadeReducer,
   emptyCascade,
@@ -120,7 +120,7 @@ export function CaseFiles({
         });
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;
@@ -169,7 +169,7 @@ export function CaseFiles({
         );
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;
@@ -218,7 +218,7 @@ export function CaseFiles({
         setCascade((cur) => cascadeReducer(cur, { type: "set_session", sessionId: next }));
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;
@@ -238,7 +238,7 @@ export function CaseFiles({
         if (!cancelled) setEnvelope(e);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;
@@ -563,7 +563,8 @@ export function CaseFiles({
           </div>
           <div className="col resisted">
             <h3>recommended_actions</h3>
-            {(data.recommended_actions ?? []).map((a, i) => (
+            {(Array.isArray(data.recommended_actions) ? data.recommended_actions : []).map(
+              (a, i) => (
               <p className="step" key={i}>
                 {i + 1}. {a}
               </p>

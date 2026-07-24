@@ -160,3 +160,52 @@ live AgentOS).
 - `server/arcnet_server/replay_service.py` — defensive JSON parse, numeric coercion, AgentOS run validation, divergences guard
 - `server/tests/test_replay_hardening.py` — adversarial replay suite (offline)
 - `docs/30-hardening.md` — P12 section (this file)
+
+---
+
+## HQ resilience (P13)
+
+Adversarial packet P13 hardens the HQ React shell (`hq/`) against degraded and
+hostile server responses. Offline suite: `hq/src/apiResilience.test.ts` (mocks
+`fetch`; never hits live uvicorn).
+
+| Hazard | Verdict | Fix |
+|--------|---------|-----|
+| HTTP `{detail, hint}` envelopes on 400/401/404/422/502 shown as raw status text or JSON blob | **fixed** | `apiResilience.parseErrorEnvelope` + `formatApiErrorMessage`; all `api.ts` GET/POST paths throw `ApiError` with `detail — hint`; views use `toUserError()` → `Seam` |
+| `fetch` rejection / connection refused surfaces as opaque `TypeError` | **fixed** | `ApiError` with `offline: true`; shell banner (existing) + `toUserError()` offline copy in views |
+| Non-JSON / HTML error body (`502` gateway page) → `res.json()` throw (white-screen risk in strict paths) | **fixed** | `readJsonBody()` guarded parse; readable `ApiError` instead of uncaught `SyntaxError` |
+| List endpoints returning `null`, `{}`, or scalar instead of array → `.map()` / spread crash (`App.tsx` fleet probe, `fetchAllSessions`, paged views) | **fixed** | `asArray` + per-row normalizers in `apiResilience.ts`; applied in `api.ts` for every list/paged route |
+| Fleet rows with missing `health` → `a.health.sessions_24h` crash (`FleetHealth.tsx:164`, sidebar probe) | **fixed** | `normalizeFleetRow` fills zeroed `health` defaults |
+| Numeric fields as strings (`threats_24h`, `has_transcript`, timestamps) breaking comparisons | **fixed** | `asNum` coercion in normalizers |
+| SSE `/signals/stream` malformed `data` → unguarded cast / `JSON.parse` throw | **fixed** | `parseSsePayload` + `normalizeSignalRow` / `normalizeHitlRow` in bus handler and live views (`Signals`, `Hitl`); `EventSource.onerror` no-op |
+| Replay verdict with non-list `divergences` or missing `verdict` → `.map()` / `.toUpperCase()` crash (`TimeMachine.tsx:498,541`) | **fixed** | `normalizeVerdict` / `normalizeReplayRows` in `api.ts` |
+| Incident `recommended_actions` not an array → `.map()` crash (`CaseFiles.tsx:566`) | **fixed** | `Array.isArray` guard before map |
+| Residual render throw takes down entire HQ | **fixed** | `ViewErrorBoundary` wraps active view in `App.tsx` with reload affordance |
+| Empty collections (zero agents/sessions/signals/replays/HITL) | **safe** | Existing `Empty` components; normalization returns `[]` so empty states render |
+| Valid API inputs / happy-path DOM | **safe** | Normalizers are additive — valid rows pass through unchanged |
+
+### Deferred (not attempted this packet)
+
+- **Per-view explicit retry control** — shell `api_down` re-probe on focus/interval only; individual views show `Seam` but no dedicated retry button.
+- **Full incident envelope schema validation** — `agent-view` `data` guarded at access sites; no dedicated `normalizeIncidentData` beyond `recommended_actions`.
+- **SSE disconnect UX** — malformed frames dropped silently; no “stream offline” badge (EventSource auto-reconnects).
+- **`export/case-file` download failures** — browser navigation; not intercepted by fetch layer.
+- **Browser E2E white-screen regression** — Node unit/mocked-fetch tests only.
+
+### Test suites
+
+```bash
+cd hq && pnpm test    # 60 tests (was 40)
+cd hq && pnpm build   # tsc -b && vite build
+```
+
+## Files changed (P13)
+
+- `hq/src/apiResilience.ts` — error envelopes, payload normalizers, SSE parse guard
+- `hq/src/api.ts` — resilient fetch/post, normalized responses, guarded SSE bus
+- `hq/src/ViewErrorBoundary.tsx` — per-view render error containment
+- `hq/src/App.tsx` — view-level error boundary
+- `hq/src/components.tsx`, `hq/src/views/*` — `toUserError`, SSE row guards, incident guard
+- `hq/src/apiResilience.test.ts` — adversarial HQ suite
+- `hq/package.json` — test script includes new suite
+- `docs/30-hardening.md` — P13 section (this file)

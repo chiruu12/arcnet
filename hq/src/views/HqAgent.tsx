@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type AgentVersionRow } from "../api";
+import { api, toUserError, type AgentVersionRow } from "../api";
 import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
 import { Empty, Seam, ts } from "../components";
 import { formatCostDelta } from "../modelIntel";
@@ -20,14 +20,14 @@ function parseProposedModel(guidance: string | null): string {
 }
 
 function formatApplyError(e: unknown): string {
-  const raw = String(e);
-  if (raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
+  const msg = toUserError(e, "apply failed");
+  if (msg.includes("400") || msg.includes("401") || msg.includes("422")) {
+    return `apply rejected — ${msg.slice(0, 280)}`;
+  }
+  if (msg.includes("unreachable")) {
     return "apply failed — arcnet-server unreachable (is :8000 up?)";
   }
-  if (raw.includes("400")) {
-    return `apply rejected — ${raw.slice(0, 280)}`;
-  }
-  return `apply failed — ${raw.slice(0, 280)}`;
+  return `apply failed — ${msg.slice(0, 280)}`;
 }
 
 export function HqAgent({
@@ -164,12 +164,7 @@ export function HqAgent({
       })
       .catch((e: unknown) => {
         if (!cancelled) {
-          const msg = String(e);
-          setErr(
-            msg.includes("Failed to fetch")
-              ? "arcnet-server unreachable — start uvicorn on :8000 and refresh"
-              : msg,
-          );
+          setErr(toUserError(e));
         }
       });
     return () => {
