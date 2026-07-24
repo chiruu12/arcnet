@@ -21,6 +21,15 @@ from arcnet_server import read_models, repository
 from arcnet_server.bus import BUS
 from arcnet_server.db import connect, init_db, now_ms, row_to_dict
 from arcnet_server.errors import api_error, infer_hint, normalize_error_body
+from arcnet_server.validation import (
+    bound_hitl_body,
+    bound_session_body,
+    bound_signal_body,
+    bound_source_body,
+    bound_threat_body,
+    parse_json_object,
+    require_fields,
+)
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
@@ -208,14 +217,16 @@ def health() -> dict[str, str]:
 @app.post("/api/agents")
 async def upsert_agent(request: Request) -> dict[str, Any]:
     _require_write_secret(request)
-    body = await request.json()
+    body = await parse_json_object(request)
+    require_fields(body, "agent_id")
     return repository.upsert_agent(get_conn(), body)
 
 
 @app.post("/api/sessions")
 async def upsert_session(request: Request) -> dict[str, Any]:
     _require_write_secret(request)
-    body = await request.json()
+    body = bound_session_body(await parse_json_object(request))
+    require_fields(body, "agent_id")
     conn = get_conn()
     repository.ensure_agent(
         conn, body["agent_id"], exposure=body.get("exposure"), model=body.get("model")
@@ -229,7 +240,7 @@ async def upsert_session(request: Request) -> dict[str, Any]:
 @app.post("/api/threats")
 async def post_threat(request: Request) -> dict[str, Any]:
     _require_write_secret(request)
-    body = await request.json()
+    body = bound_threat_body(await parse_json_object(request))
     threat_id = body.get("threat_id") or _new_id("thr_")
     row = repository.insert_threat(get_conn(), threat_id, body)
     BUS.publish("threat", row)
@@ -239,7 +250,7 @@ async def post_threat(request: Request) -> dict[str, Any]:
 @app.post("/api/sources")
 async def post_source(request: Request) -> dict[str, Any]:
     _require_write_secret(request)
-    body = await request.json()
+    body = bound_source_body(await parse_json_object(request))
     source_id = body.get("source_id") or _new_id("src_")
     return repository.insert_source(get_conn(), source_id, body)
 
@@ -247,7 +258,8 @@ async def post_source(request: Request) -> dict[str, Any]:
 @app.post("/api/signal")
 async def post_signal(request: Request) -> dict[str, Any]:
     _require_write_secret(request)
-    body = await request.json()
+    body = bound_signal_body(await parse_json_object(request))
+    require_fields(body, "agent_id", "kind", "severity", "reason")
     return _insert_signal(body)
 
 
@@ -390,9 +402,7 @@ def _require_hq_proposal_for_agent(conn: Any, proposal_signal_id: str, agent_id:
 @app.post("/api/agents/{agent_id}/versions")
 async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any]:
     _require_write_secret(request)
-    body = await request.json()
-    if not isinstance(body, dict):
-        raise HTTPException(400, "body must be a JSON object")
+    body = await parse_json_object(request)
     version = body.get("version")
     if not version or not str(version).strip():
         raise HTTPException(400, "version is required")
@@ -421,9 +431,7 @@ async def create_agent_version(agent_id: str, request: Request) -> dict[str, Any
 @app.post("/api/agents/{agent_id}/apply-model")
 async def apply_agent_model(agent_id: str, request: Request) -> dict[str, Any]:
     """Human-gated model apply — requires confirm:true; records a version bump."""
-    body = await request.json()
-    if not isinstance(body, dict):
-        raise HTTPException(400, "body must be a JSON object")
+    body = await parse_json_object(request)
     if body.get("confirm") is not True:
         raise HTTPException(
             400,
@@ -570,7 +578,7 @@ def list_replays(
 @app.post("/api/replay")
 async def post_replay(request: Request) -> dict[str, Any]:
     """Replay one SQLite-primary recording three times against one candidate."""
-    body = await request.json()
+    body = await parse_json_object(request)
     session_id = body.get("session_id")
     candidate_model = body.get("candidate_model")
     candidate_prompt = body.get("candidate_prompt")
@@ -1012,7 +1020,8 @@ def list_hitl(
 @app.post("/api/hitl")
 async def create_hitl(request: Request) -> dict[str, Any]:
     """Create a HITL approval row (pause scaffold)."""
-    body = await request.json()
+    body = bound_hitl_body(await parse_json_object(request))
+    require_fields(body, "run_id")
     hitl_id = body.get("hitl_id") or _new_id("hitl_")
     row = repository.insert_hitl(get_conn(), hitl_id, body)
     BUS.publish("hitl_request", row)
@@ -1021,7 +1030,7 @@ async def create_hitl(request: Request) -> dict[str, Any]:
 
 @app.post("/api/hitl/{hitl_id}")
 async def decide_hitl(hitl_id: str, request: Request) -> dict[str, Any]:
-    body = await request.json()
+    body = await parse_json_object(request)
     decision = body.get("decision")
     if decision not in ("approved", "rejected"):
         raise HTTPException(400, "decision must be approved|rejected")
@@ -1174,7 +1183,7 @@ async def griffin_evaluate(request: Request) -> dict[str, Any]:
     """On-demand evaluate (S4 choreography) — docs/07."""
     from arcnet_server.griffin import evaluate_series
 
-    body = await request.json()
+    body = await parse_json_object(request)
     series_id = body.get("series_id") or "arcnet.tokens.total|agent_j"
     observed = body.get("observed")
     return evaluate_series(get_conn, series_id=series_id, observed=observed)
