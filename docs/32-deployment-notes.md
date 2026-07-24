@@ -1,0 +1,79 @@
+# Deployment notes (honest)
+
+ArcNet v1 is a **localhost demo** with an optional write secret — not a production-hardened SaaS. This doc maps every `ARCNET_*` env var and names what is **still missing** if you expose the server beyond `127.0.0.1`.
+
+Overall readiness stays **~64% / ≤65%** ([`docs/20-honest-progress.md`](20-honest-progress.md)). Setting secrets does not move that number.
+
+## Environment surface
+
+| Variable | Default / typical | What it does |
+|---|---|---|
+| `ARCNET_DB_PATH` | `data/arcnet.db` | SQLite file path. Single-writer, single-file — no HA, no replication. |
+| `ARCNET_SERVER_URL` | `http://localhost:8000` | Base URL for SDK signal client, HQ, and tooling. |
+| `ARCNET_AGENTOS_URL` | `http://localhost:7777` | AgentOS replay adapter (`/internal/replay`, `/internal/runtime` probe after apply-model). |
+| `ARCNET_MODEL` | `gpt-4o-mini` | Baseline model id for agents and pricing lookups. |
+| `ARCNET_CANDIDATE_MODEL` | `gpt-4o` | Time Machine candidate model id. |
+| `ARCNET_WRITE_SECRET` | *(unset)* | When set: all mutating `POST` routes require `X-Arcnet-Write-Secret` or `Authorization: Bearer …`. When unset: **localhost-trust** — writes open (demo default). |
+| `ARCNET_WEBHOOK_SECRET` | *(unset)* | When set: `POST /webhooks/signoz` requires `X-ArcNet-Webhook-Secret` or Bearer. **Separate from write secret** — configure SigNoz Alertmanager with the matching header. |
+| `ARCNET_GRIFFIN_DEMO` | *(unset)* | `1` / `true` → faster Griffin demo cadence. |
+| `ARCNET_GRIFFIN_CADENCE_S` | `60` | Griffin MAD loop interval (seconds). |
+| `ARCNET_GRIFFIN_DEMO_CADENCE_S` | `10` | Demo cadence when `ARCNET_GRIFFIN_DEMO` is on. |
+| `ARCNET_GRIFFIN_SERIES` | *(unset)* | Path to Griffin series JSON override (tests / cold soak). |
+| `ARCNET_TABFM` | *(unset)* | `1` → opt-in TabFM async worker (Phase 7); default runtime stays MAD. |
+| `ARCNET_TABFM_CADENCE_S` | `360` | TabFM worker interval when enabled. |
+| `ARCNET_MODEL_EXPLORE_LOOP` | *(unset)* | `1` → optional recommend+record note loop (never apply/kill). |
+| `ARCNET_EXPLORE_DIR` | `data/model_explore` | Output dir for model explore artifacts. |
+| `ARCNET_SERVER_PORT` | `8000` | Used by `scripts/run-demo.sh` only. |
+| `ARCNET_AGENTOS_PORT` | `7777` | Used by `scripts/run-demo.sh` only. |
+
+Related non-`ARCNET_*` vars: `OPENAI_API_KEY`, `SIGNOZ_URL`, `SIGNOZ_API_KEY`, `SIGNOZ_DASHBOARD_*`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `HF_TOKEN`, `TABPFN_TOKEN` — see `.env.example`.
+
+## Auth model (v1)
+
+```mermaid
+flowchart LR
+  subgraph reads [Read surface — always open]
+    GET[GET /api/*]
+    SSE[GET /signals/stream]
+    EXPORT[GET /export/case-file/*]
+  end
+  subgraph writes [Write surface — optional secret]
+    POST[POST /api/*]
+    WH[POST /webhooks/signoz]
+  end
+  POST -->|ARCNET_WRITE_SECRET unset| OK1[allow]
+  POST -->|secret set + header| OK2[allow]
+  POST -->|secret set, no header| DENY1[401]
+  WH -->|ARCNET_WEBHOOK_SECRET| WHAUTH[separate webhook secret]
+```
+
+- **Write auth:** `require_write_auth` in `arcnet_server/write_auth.py`. Unset secret = today's behavior exactly.
+- **Webhook auth:** own secret because SigNoz sends alerts with Alertmanager-configured headers, not the SDK write path.
+- **Read auth:** **none**. Fleet, sessions (with transcript), threats, case files, agent-view twins — all readable without credentials. Deliberate for demo + coding-agent consumers on a trusted host; **not** a security boundary.
+
+## What is still missing for “real” production
+
+Do **not** deploy ArcNet thinking these gaps are closed:
+
+| Gap | Status |
+|---|---|
+| TLS / HTTPS termination | **Missing** — run behind your own reverse proxy. |
+| Multi-tenant isolation | **Missing** — single SQLite, single org assumption. |
+| RBAC / user accounts | **Missing** — no roles, no per-agent ACLs. |
+| Read-path authentication | **Missing by design** — see above. |
+| HITL → live AgentOS relay | **Missing** — SQLite status only ([`docs/12`](12-data-api.md)). |
+| Auto AgentOS restart after apply | **Missing** — operator restarts with `ARCNET_MODEL` ([`docs/21`](21-next-phases-plan.md)). |
+| SQLite HA / migrations | **Missing** — WAL + `CREATE IF NOT EXISTS`; schema wipe acceptable in v1. |
+| Rate limiting / WAF | **Missing**. |
+| CORS lockdown | **Permissive** (`allow_origins=["*"]`) — tighten at proxy if exposed. |
+| Audit log / tamper evidence | **Partial** — SQLite rows + webhook_events; no signed audit chain. |
+| Griffin TabFM default | **MAD** until `ARCNET_TABFM=1`; TabFM is opt-in ([`docs/20`](20-honest-progress.md)). |
+
+## Minimal “beyond localhost” checklist
+
+1. Bind API to `127.0.0.1` or private interface; put TLS + auth at the proxy if users need remote access.
+2. Set `ARCNET_WRITE_SECRET` and configure SDK/agents/HQ to send `X-Arcnet-Write-Secret`.
+3. Set `ARCNET_WEBHOOK_SECRET` and match SigNoz Alertmanager webhook headers.
+4. Accept that **reads remain open** to anything that can reach the port — or block reads at the proxy (ArcNet does not support read tokens yet).
+5. Back up `ARCNET_DB_PATH`; treat it as the only source of truth.
+6. Re-read [`docs/20-honest-progress.md`](20-honest-progress.md) before claiming production readiness.
