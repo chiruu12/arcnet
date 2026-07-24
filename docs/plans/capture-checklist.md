@@ -3,7 +3,37 @@
 Everything below was verified live on the cold-laptop path except where marked **BLOCKED**.
 Companion: [`../06-demo-script.md`](../06-demo-script.md) (beats + narration), [`../24-ship-week-plan.md`](../24-ship-week-plan.md) (run plan).
 
-## Rehearsal results
+## Rehearsal 2 — 2026-07-25 (post-hardening, day before submit)
+
+Re-verified the whole recording path live after the P11/P12 hardening waves (which rewrote the
+event bus, every write handler, and the replay path). **All green.**
+
+| Check | Result |
+|---|---|
+| SSE live feed (`/signals/stream`) after the bus rewrite | **PASS** — write → 200, event delivered live, no refresh |
+| Live `POST /api/replay` (Worms `s_2af44726` vs `gpt-4o`) | **PASS** — 30s, `r_40210783`, verdict `mixed`, `3/3 runs` |
+| Live S1 scenario run | **PASS** — `blocked_email: true`, exfil blocked, 4 steps |
+| Live S1 threat rows vs hero recording | **PASS** — reproduces `s_ecfdb55d` exactly: same 10 threats, same scores, incl. `injection / ignore_previous` 0.85 blocked at input |
+| Traces → SigNoz | **PASS** — `Agent_J.run → OpenAIChat.invoke → send_email/lookup_customer/fetch_url` + `arcnet.guard` spans w/ rule + pattern_class attrs |
+| SigNoz UI + dashboards | **PASS** — `ui_reachable`, `query_range_ok`, 4/4 dashboards resolved |
+
+**Two gotchas confirmed the hard way:**
+
+1. The `SIGNOZ_USER_ROOT_PASSWORD` drop below is real and bit again on this bring-up. Fix as documented.
+2. **Spans are silently lost while `signoz-signoz-0` crash-loops**, even though `:4318` still accepts
+   OTLP posts and returns 200. A scenario run done during that window records to SQLite fine but
+   produces **no trace to open on camera**. Bring SigNoz fully healthy (`docker ps` → `(healthy)`,
+   `/api/signoz/status` → `ui_reachable: true`) *before* any run you intend to show.
+
+**Narration honesty check (Shot 5).** The live Worms replay came back `mixed`, not a clean win:
+baseline `killed`/8 steps/$0.00085 vs candidate `partial`/7 steps/**$0.0109** — the candidate is
+~12.8× more expensive and only marginally shorter, and `recommendation` reads
+"review the mixed dimensions before changing routing". Step counts also move run to run (3 on an
+earlier run, 7 on this one). **Use Edgar `s_ecfdb55d` as the Shot 5 hero** — that one is an
+unambiguous win (baseline `failed` → candidate `clean`). If you show Worms, narrate it as
+"mixed — cheaper isn't always better, and ArcNet says so" rather than as an upgrade.
+
+## Rehearsal results (Run 3 — 2026-07-23)
 
 | Check | Result |
 |---|---|
