@@ -153,7 +153,7 @@ uv run python scripts/phase4_g4_check.py --s1 s_ecfdb55d --s4 s_2af44726
 
 ## Limitations (honest)
 
-- **No auth** — localhost surface by design; not auth theater.
+- **Optional write auth only** — `ARCNET_WRITE_SECRET` gates mutating `POST`s when set; demo default (unset) keeps localhost-trust. **Read surface stays open** (all `GET`s, SSE, case-file export) — not multi-tenant, not RBAC. See [`docs/32-deployment-notes.md`](docs/32-deployment-notes.md).
 - **SQLite-primary local path is the default** (`./scripts/run-demo.sh`). SigNoz (Docker) is optional
   depth: dashboards/alerts provision when a service-account key is present; **MCP PARTIAL** (live
   stdio handoff may hang — prefer HTTP Query Range + Case File). README screenshots and the
