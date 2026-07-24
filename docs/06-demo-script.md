@@ -7,7 +7,7 @@
 The v2 thesis: **agents that watch themselves and get better.** Attacks are the visceral instance; the Time Machine is the headline. Two windows: **ArcNet UI** (primary) + **SigNoz** (proof). Terminal only to launch scenarios. Deadpan, technical narration.
 
 ## Cold open (0:00–0:18)
-`fleet_health` view: a fleet of agents, telemetry flowing. One agent tagged **forward_facing** (higher injection-risk), its trust posture shown next to cost and latency.
+`fleet_health` view: a fleet of agents, telemetry flowing. One agent tagged **forward_facing** (higher injection-risk), its trust posture shown next to **cost** (fleet cards show `cost_24h_usd` — **no latency row** on cards yet; see `FleetHealth.tsx`).
 
 > "These are AI agents. They browse, they read tickets, they touch your database. The ones that face the outside world can be turned against you. ArcNet watches all of them — behavior, cost, and the trust of everything they ingest. Built on SigNoz."
 

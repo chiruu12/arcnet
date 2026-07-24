@@ -30,7 +30,7 @@ Inflation ban: move a cell only when that area’s exit in `19` §2 passes. “C
 | # | Area | Start | AM 2026-07-23 | **Measured now (PM)** | Exit status |
 |---|---|---:|---:|---:|---|
 | 1 | Positioning / framing | 58 | 58 | **66** | **P5-B exits met** — honesty greps 0; MAD + MCP PARTIAL in README/`14`/`06`; Beat-3 narration = MAD; `23` overview |
-| 2 | HQ frontend / IA | 55 | 64 | **72** | **P6-A/P6-B exits met** — `hitl` view, threats panel, api_down recover (helper + tests); 26 FE tests in CI |
+| 2 | HQ frontend / IA | 55 | 64 | **72** | **P6-A/P6-B exits met** — `hitl` view, threats panel, api_down recover (helper + tests); 60 FE tests in CI |
 | 3 | Human APIs | 58 | 66 | **70** | Partial — + `GET /api/hitl` w/ pagination headers; threats page consumption |
 | 4 | Agent APIs / tools | 64 | 66 | **72** | **P5-B/P6-B exits met** — excerpt bounds tested; A15 hatch tested; dashboards twin envelope + scope 404 |
 | 5 | HQ Agent | 56 | 62 | **62** | Unchanged — no new exits this pass |
@@ -39,7 +39,7 @@ Inflation ban: move a cell only when that area’s exit in `19` §2 passes. “C
 | 8 | Griffin (MAD) | 46 | 54 | **58** | **P7-A exits met** — spike re-measured (`_phase7_g7.json`), worker contract + MAD-fallback tests; runtime still MAD |
 | 9 | SigNoz | 54 | 58 | **58** | Unchanged (user pin: no further polish); MCP still PARTIAL |
 | 10 | Unplug coverage | 68 | 70 | **76** | **P5-A exits met** — matrix 128 rows / 0 silent gaps; S1/S2/S5 CI stubs; live rerun DEFER (quota) |
-| 11 | Tests / CI / e2e | 48 | 58 | **64** | Suite grew: server 130 / agents 17 / sdk 6 / hq 26, all green in CI |
+| 11 | Tests / CI / e2e | 48 | 58 | **64** | Suite grew: server 219 / agents 18 / sdk 63 / hq 60, all green in CI |
 | **Overall (1–11)** | **~48** | **~57** | **~62** | Cap ≤65; live reruns + P7-B + capture still open |
 | 12 | Hackathon assets | 35 | 35 | **38** | Track only — capture checklist landed; media human |
 
@@ -49,12 +49,12 @@ Equal-weight of areas drifts higher than the honesty pin; **authoritative overal
 
 | # | Area | PM 07-23 | **P8 (07-24)** | Exit evidence |
 |---|---|---:|---:|---|
-| 2 | HQ frontend / IA | 72 | **74** | P8-A: `docs/25` graph + completeness proof (zero unknowns); loading/id fixes across 6 views; FE suite 26 → **40** green |
+| 2 | HQ frontend / IA | 72 | **74** | P8-A: `docs/25` graph + completeness proof (zero unknowns); loading/id fixes across 6 views; FE suite **60** green |
 | 3 | Human APIs | 70 | **72** | P8-B: 404/409 = `{detail, hint}` everywhere (tested); dup version_id → 409 |
 | 4 | Agent APIs / tools | 72 | **78** | P8-B: twin for EVERY HQ view + `graph_links` walkable graph + `docs/26` guide; 12 new twin tests |
 | 7 | Model explore / sims | 56 | **64** | P8-C: `model_catalog` (2026-07, reasoning tiers) + additive `GET /api/agents/{id}/model-intel` — projections from recorded tokens only, rec cites DB evidence; 4 tests + live-verified vs hero DB |
 | 10 | Unplug coverage | 76 | **80** | P8-D: shared `guard_factory` config; verdict metadata persisted on threats/sources/signals + case files; matrix updated; 5 new tests |
-| 11 | Tests / CI / e2e | 64 | **68** | Suite grew: server 130 → **149**, sdk 6 → **8**, hq 26 → **40** (agents 17), boundaries clean |
+| 11 | Tests / CI / e2e | 64 | **68** | Suite grew: server 219 / agents 18 / sdk 63 / hq 60 (P14 guard corpus via pytest), boundaries clean |
 | — | Overall (1–11) | ~62 | **~64** | Cap **≤65** holds — live S1/S2/S5 rerun (quota), P7-B TabFM ship, capture still open |
 
 ---
@@ -187,3 +187,10 @@ Order: **fix → test → measure → then new features**. Overall stays **~62% 
 ## 6. Scoreboard correction note
 
 `docs/19` §5.2 previously listed After B **~74–80 est.** That estimate is **withdrawn**. Measured path: ~48 → ~55 → ~57 (post Phases 2–4) → **~62 (post Phases 5–6 + P7-A, this doc, 2026-07-23 PM)**. Every move cites exits in §3 above; cap **≤65** until live reruns + P7-B.
+
+---
+
+## Related
+
+- Evidence audit (P19): [`34-completeness-audit.md`](34-completeness-audit.md) — shipped vs partial vs defer buckets
+- Guard corpus (P14): [`33-guard-coverage.md`](33-guard-coverage.md) — measured unplug coverage on synthetic payloads
