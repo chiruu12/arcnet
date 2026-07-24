@@ -5,9 +5,13 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
+
+# Serialize use of a shared connection object (sqlite3 connections are not thread-safe).
+_DB_LOCK = threading.RLock()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (
@@ -131,14 +135,93 @@ def default_db_path() -> Path:
     return Path(__file__).resolve().parents[2] / "data" / "arcnet.db"
 
 
+class _LockedResultCursor:
+    """Keeps the DB lock until the SELECT cursor is drained."""
+
+    __slots__ = ("_lock", "_cursor", "_released")
+
+    def __init__(self, lock: threading.RLock, cursor: sqlite3.Cursor) -> None:
+        self._lock = lock
+        self._cursor = cursor
+        self._released = False
+
+    def _release(self) -> None:
+        if not self._released:
+            self._released = True
+            self._lock.release()
+
+    def fetchone(self) -> sqlite3.Row | None:
+        try:
+            return self._cursor.fetchone()
+        finally:
+            self._release()
+
+    def fetchall(self) -> list[sqlite3.Row]:
+        try:
+            return self._cursor.fetchall()
+        finally:
+            self._release()
+
+    def __iter__(self) -> Any:
+        try:
+            return iter(self._cursor.fetchall())
+        finally:
+            self._release()
+
+
+class _ThreadSafeConnection:
+    """Proxy that serializes access to one sqlite3 connection across threads."""
+
+    __slots__ = ("_conn",)
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    def execute(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:
+        _DB_LOCK.acquire()
+        try:
+            cur = self._conn.execute(*args, **kwargs)
+            if cur.description is None:
+                _DB_LOCK.release()
+                return cur
+            return _LockedResultCursor(_DB_LOCK, cur)  # type: ignore[return-value]
+        except Exception:
+            _DB_LOCK.release()
+            raise
+
+    def executemany(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:
+        with _DB_LOCK:
+            return self._conn.executemany(*args, **kwargs)
+
+    def executescript(self, script: str) -> sqlite3.Cursor:
+        with _DB_LOCK:
+            return self._conn.executescript(script)
+
+    def commit(self) -> None:
+        with _DB_LOCK:
+            self._conn.commit()
+
+    def rollback(self) -> None:
+        with _DB_LOCK:
+            self._conn.rollback()
+
+    def close(self) -> None:
+        with _DB_LOCK:
+            self._conn.close()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._conn, name)
+
+
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
     path = db_path or default_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA foreign_keys=ON;")
-    return conn
+    raw = sqlite3.connect(str(path), check_same_thread=False)
+    raw.row_factory = sqlite3.Row
+    raw.execute("PRAGMA journal_mode=WAL;")
+    raw.execute("PRAGMA busy_timeout=5000;")
+    raw.execute("PRAGMA foreign_keys=ON;")
+    return _ThreadSafeConnection(raw)  # type: ignore[return-value]
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:

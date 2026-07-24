@@ -7,6 +7,7 @@ z-score on rolling median/MAD. Narration = statistical baseline.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import math
@@ -32,6 +33,7 @@ _CACHE: dict[str, Any] = {
     "last_anomaly": None,
     "anomalies": [],
 }
+_CACHE_LOCK = threading.RLock()
 
 ALLOWLIST = [
     "arcnet.tokens.total|agent_j",
@@ -298,9 +300,15 @@ def reset_tabfm_state_for_tests() -> None:
     _TABFM_THREAD = None
 
 
+def shutdown_background_workers(*, reason: str = "shutdown") -> None:
+    """Stop TabFM daemon loop cleanly (lifespan teardown)."""
+    _degrade_tabfm(reason)
+
+
 def cache_snapshot() -> dict[str, Any]:
     """Enriched Griffin status for HQ MAD strip (Wave B)."""
-    snap = dict(_CACHE)
+    with _CACHE_LOCK:
+        snap = copy.deepcopy(_CACHE)
     snap["tabfm"] = tabfm_status_snapshot()
     if tabfm_forecast_live():
         snap["estimator"] = "tabfm"
@@ -415,7 +423,8 @@ def active_series() -> dict[str, list[dict[str, float]]]:
     seeded = load_series()
     if seeded:
         return seeded
-    proxy = _CACHE.get("proxy_series")
+    with _CACHE_LOCK:
+        proxy = _CACHE.get("proxy_series")
     return proxy if isinstance(proxy, dict) else {}
 
 
@@ -427,16 +436,18 @@ def ensure_series_warm(get_conn: Callable) -> str:
     """
     seeded = load_series()
     if seeded:
-        _CACHE["series_source"] = "seed"
+        with _CACHE_LOCK:
+            _CACHE["series_source"] = "seed"
         return "seed"
     proxy = derive_sqlite_proxy_series(get_conn)
-    if proxy:
-        _CACHE["proxy_series"] = proxy
-        _CACHE["series_source"] = "sqlite_proxy"
-        return "sqlite_proxy"
-    _CACHE["proxy_series"] = {}
-    _CACHE["series_source"] = None
-    return "none"
+    with _CACHE_LOCK:
+        if proxy:
+            _CACHE["proxy_series"] = proxy
+            _CACHE["series_source"] = "sqlite_proxy"
+            return "sqlite_proxy"
+        _CACHE["proxy_series"] = {}
+        _CACHE["series_source"] = None
+        return "none"
 
 
 def evaluate_series(
@@ -450,7 +461,9 @@ def evaluate_series(
     """Judge one series; on outlier emit signal source=griffin + update cache."""
     if not active_series().get(series_id):
         ensure_series_warm(get_conn)
-    source = _CACHE.get("series_source") or ensure_series_warm(get_conn)
+    with _CACHE_LOCK:
+        cached_source = _CACHE.get("series_source")
+    source = cached_source or ensure_series_warm(get_conn)
     series = active_series()
     points = series.get(series_id) or []
     values = [float(p["v"]) for p in points]
@@ -463,9 +476,10 @@ def evaluate_series(
             seeded[series_id] = points[-500:]
             save_series(seeded)
         else:
-            proxy = dict(_CACHE.get("proxy_series") or {})
-            proxy[series_id] = points[-500:]
-            _CACHE["proxy_series"] = proxy
+            with _CACHE_LOCK:
+                proxy = dict(_CACHE.get("proxy_series") or {})
+                proxy[series_id] = points[-500:]
+                _CACHE["proxy_series"] = proxy
 
     metric = series_id.split("|", 1)[0]
     agent_id = series_id.split("|", 1)[1] if "|" in series_id else "agent_j"
@@ -481,26 +495,28 @@ def evaluate_series(
         result = mad_judge(values, observed=observed, noise_floor=floor)
 
     now_ms = int(time.time() * 1000)
-    _CACHE["series"][series_id] = {
-        **result,
-        "sparkline": values[-60:],
-        "updated_ms": now_ms,
-        "estimator": estimator_label,
-    }
-    _CACHE["last_cycle_ms"] = now_ms
-    _CACHE["last_evaluate_ms"] = now_ms
-    _CACHE["status"] = result["status"]
-    if not _CACHE.get("series_source"):
-        _CACHE["series_source"] = source if source != "none" else None
-
     est = estimator_label
+    with _CACHE_LOCK:
+        _CACHE["series"][series_id] = {
+            **result,
+            "sparkline": values[-60:],
+            "updated_ms": now_ms,
+            "estimator": estimator_label,
+        }
+        _CACHE["last_cycle_ms"] = now_ms
+        _CACHE["last_evaluate_ms"] = now_ms
+        _CACHE["status"] = result["status"]
+        if not _CACHE.get("series_source"):
+            _CACHE["series_source"] = source if source != "none" else None
+        series_source = _CACHE.get("series_source")
+
     if not result.get("outlier"):
         return {
             "series_id": series_id,
             **result,
             "fired": False,
             "estimator": est,
-            "series_source": _CACHE.get("series_source"),
+            "series_source": series_source,
         }
 
     now = now_ms
@@ -511,7 +527,7 @@ def evaluate_series(
             "fired": False,
             "cooldown": True,
             "estimator": est,
-            "series_source": _CACHE.get("series_source"),
+            "series_source": series_source,
         }
 
     _last_fire[series_id] = now
@@ -525,8 +541,10 @@ def evaluate_series(
         "ts_ms": now,
         "fingerprint": f"{series_id}:{result.get('z')}:{now}",
     }
-    _CACHE["anomalies"] = ([anomaly] + list(_CACHE.get("anomalies") or []))[:20]
-    _CACHE["last_anomaly"] = anomaly
+    with _CACHE_LOCK:
+        _CACHE["anomalies"] = ([anomaly] + list(_CACHE.get("anomalies") or []))[:20]
+        _CACHE["last_anomaly"] = anomaly
+        series_source = _CACHE.get("series_source")
 
     # Signal bus (source=griffin) — agent-scoped note (docs/07). Griffin series
     # carry no session attribution; a null-session kill would broadcast to every
@@ -588,7 +606,7 @@ def evaluate_series(
         "signal_id": signal_id,
         "signal": row,
         "estimator": est,
-        "series_source": _CACHE.get("series_source"),
+        "series_source": series_source,
     }
 
 
@@ -600,7 +618,8 @@ async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
             ensure_series_warm(get_conn)
             series = active_series()
             if not series:
-                _CACHE["status"] = "cold"
+                with _CACHE_LOCK:
+                    _CACHE["status"] = "cold"
             for sid in ALLOWLIST:
                 if sid in series:
                     evaluate_series(get_conn, series_id=sid, observed=None)
