@@ -1,4 +1,4 @@
-"""Offline guard corpus regression — unplug-ai==0.5.2 via build_guard (P14)."""
+"""Offline guard corpus regression — unplug-ai==0.6.0 via build_guard (P14)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def corpus_entries():
 def test_corpus_file_present() -> None:
     assert CORPUS_PATH.is_file()
     data = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
-    assert data["guard_package"] == "unplug-ai==0.5.2"
+    assert data["guard_package"] == "unplug-ai==0.6.0"
     assert len(data["entries"]) >= 30
 
 

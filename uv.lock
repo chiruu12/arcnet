@@ -104,7 +104,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.40b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "sseclient-py", specifier = ">=1.8.0" },
-    { name = "unplug-ai", specifier = "==0.5.2" },
+    { name = "unplug-ai", specifier = "==0.6.0" },
 ]
 
 [[package]]
@@ -129,7 +129,7 @@ requires-dist = [
     { name = "openai", specifier = ">=1.40.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.32" },
-    { name = "unplug-ai", specifier = "==0.5.2" },
+    { name = "unplug-ai", specifier = "==0.6.0" },
 ]
 
 [[package]]
@@ -1015,16 +1015,16 @@ wheels = [
 
 [[package]]
 name = "unplug-ai"
-version = "0.5.2"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/2b/54eba21c91dea0cd144eb62ce6c347d221fbb30891cb0316c051a578e1f0/unplug_ai-0.5.2.tar.gz", hash = "sha256:095497be802e089d7b4666454b7ea7b27d0a0d723a29b32bb9e0f4d9f39e9482", size = 731573, upload-time = "2026-07-20T11:51:15.364Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/b3/defefbb9e0ca9c1d6b626191fb0287b4188bf02ceb1d8a8c40b2ebcce925/unplug_ai-0.6.0.tar.gz", hash = "sha256:32e14cf2bbd80fb940dbe0b734a21769b54b951d1a61f4eccbd67fd3fc46f52e", size = 746806, upload-time = "2026-07-20T17:19:25.597Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/15/bf03ae447b6d18d961d6a06c009f65062f704c7acfe110a443682874c053/unplug_ai-0.5.2-py3-none-any.whl", hash = "sha256:623920b59b5c32eee3bcc5141917d2798caa8be731c9946cf435d5f494afae82", size = 219344, upload-time = "2026-07-20T11:51:14.002Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/84/188822fd51e9035326e1d18f8eee1331710b12672f7b120432c23e2eece5/unplug_ai-0.6.0-py3-none-any.whl", hash = "sha256:1c7683936049de740d8330495a8172d95822901d4f40f385de33cfbc99817984", size = 223908, upload-time = "2026-07-20T17:19:23.891Z" },
 ]
 
 [[package]]

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-25  
 **Packet:** P14 — measured prompt-injection guard coverage  
-**Guard:** `unplug-ai==0.5.2` via `sdk/arcnet/guard_factory.py` (`build_guard` / default `GuardConfig`)  
+**Guard:** `unplug-ai==0.6.0` via `sdk/arcnet/guard_factory.py` (`build_guard` / default `GuardConfig`)  
 **Scope:** Offline synthetic corpus only — no network, no live model calls, no threshold changes.
 
 ## Headline

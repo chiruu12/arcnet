@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "guard_package": "unplug-ai==0.5.2",
+  "guard_package": "unplug-ai==0.6.0",
   "factory": "arcnet.guard_factory.build_guard",
   "entries": [
     {
