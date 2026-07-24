@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import io
 import json
 import os
 import secrets
+import threading
 import zipfile
 from contextlib import asynccontextmanager
 from typing import Any
@@ -24,6 +26,7 @@ from arcnet_server.errors import api_error, infer_hint, normalize_error_body
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
+_conn_init_lock = threading.Lock()
 _griffin_task: asyncio.Task | None = None
 _write_trust_logged = False
 
@@ -35,9 +38,17 @@ WEBHOOK_ID_MAX = 128
 def get_conn():
     global _conn
     if _conn is None:
-        _conn = connect()
-        init_db(_conn)
+        with _conn_init_lock:
+            if _conn is None:
+                _conn = connect()
+                init_db(_conn)
     return _conn
+
+
+def reset_connections_for_tests() -> None:
+    """Clear cached connection between tests."""
+    global _conn
+    _conn = None
 
 
 def _page_headers(response: Response, *, total: int, limit: int, offset: int) -> None:
@@ -154,6 +165,12 @@ async def lifespan(_app: FastAPI):
             await _griffin_task
         except asyncio.CancelledError:
             pass
+    try:
+        from arcnet_server.griffin import shutdown_background_workers
+
+        shutdown_background_workers(reason="lifespan_shutdown")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 app = FastAPI(title="arcnet-server", version="0.1.0", lifespan=lifespan)
@@ -965,13 +982,16 @@ async def signals_stream(
                 yield {"event": "signal", "id": d["signal_id"], "data": json.dumps(d)}
 
         q = BUS.subscribe()
+        loop = asyncio.get_running_loop()
         try:
             while True:
                 if await request.is_disconnected():
                     break
                 try:
-                    ev = await asyncio.wait_for(q.get(), timeout=15.0)
-                except asyncio.TimeoutError:
+                    ev = await loop.run_in_executor(
+                        None, functools.partial(q.get, timeout=15.0)
+                    )
+                except Exception:
                     yield {"event": "ping", "data": "{}"}
                     continue
                 if ev.event == "signal" and not repository.signal_matches_session(
