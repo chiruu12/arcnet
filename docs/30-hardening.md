@@ -116,11 +116,34 @@ uv sync --all-packages --all-groups && uv pip install pytest
 .venv/bin/python -m pytest server/tests/test_concurrency.py server/tests/test_redteam_api.py server/tests/test_write_auth.py -q
 ```
 
+Replay hardening (P12):
+
+```bash
+.venv/bin/python -m pytest server/tests/test_replay_service.py server/tests/test_replay_hardening.py -q
+```
+
 Full server suite:
 
 ```bash
 .venv/bin/python -m pytest server/tests -q
 ```
+
+## Replay hardening (P12)
+
+Adversarial packet P12 hardens the Time Machine replay path against malformed
+stored session data and malformed AgentOS responses. Offline suite:
+`server/tests/test_replay_hardening.py` (mocks `httpx.AsyncClient`; never hits
+live AgentOS).
+
+| Bug / hazard | Verdict | Fix |
+|--------------|---------|-----|
+| `_json()` calls `json.loads` on stored transcript/outcome/usage strings with no guard — malformed JSON → uncaught `JSONDecodeError` (500) | **fixed** | `try/except json.JSONDecodeError` → `{}`; `execute_replay` still raises `ValueError` when transcript is absent/unusable (`if not transcript`) |
+| `_baseline()` uses bare `int()` / `float()` on stored outcome/usage fields — non-numeric strings (e.g. `"many"`) → uncaught `ValueError`/`TypeError` (500) | **fixed** | `_as_int` / `_as_float` coercion helpers with safe fallbacks; non-list `transcript.steps` treated as `[]` |
+| `execute_replay` appends `response.json()` without validating shape — list/null/non-dict AgentOS body crashes in `build_verdict` (500) | **fixed** | Require each run payload to be a `dict`; else `ValueError` (`candidate runtime returned malformed run N`) → route 422 |
+| AgentOS HTTP failure mid-replay (e.g. 500 on run 2/3) could leave partial state before verdict | **safe** | `raise_for_status()` propagates `httpx.HTTPStatusError` before `build_verdict`; route maps to 502; no partial verdict persisted |
+| `build_verdict` assumes `representative.divergences` is a list | **fixed** | Coerce non-list `divergences` to `[]` |
+| Run dicts missing all optional keys | **safe** | Existing `.get` usage; P12 test asserts valid verdict shape for `{}` × 3 runs |
+| Valid replay inputs (verdict JSON shape, `/api/replay` success path) | **safe** | Additive only — byte-for-byte unchanged for valid inputs |
 
 ## Files changed (P11)
 
@@ -131,3 +154,9 @@ Full server suite:
 - `server/arcnet_server/read_models.py` — goal excerpt in agent session/check views (P11-A)
 - `server/tests/test_redteam_api.py`, `test_concurrency.py`, `test_write_auth.py` — regression suites
 - `docs/32-deployment-notes.md` — write-auth + "how far from production" map (P11-C)
+
+## Files changed (P12)
+
+- `server/arcnet_server/replay_service.py` — defensive JSON parse, numeric coercion, AgentOS run validation, divergences guard
+- `server/tests/test_replay_hardening.py` — adversarial replay suite (offline)
+- `docs/30-hardening.md` — P12 section (this file)
