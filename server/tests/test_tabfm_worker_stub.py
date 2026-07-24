@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
+
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
 
 from arcnet_server.tabfm_worker import (
     ERROR_TABFM_UNAVAILABLE,
@@ -10,7 +16,11 @@ from arcnet_server.tabfm_worker import (
     WORKER_STATUS,
     forecast,
     mad_fallback_forecast,
+    reset_tabfm_model_state_for_tests,
+    set_forecast_override,
 )
+
+from tabfm_test_support import patch_tabfm_unavailable, timeout_seconds
 
 
 def _synthetic_series(n: int = 40, base: float = 100.0) -> list[float]:
@@ -19,6 +29,14 @@ def _synthetic_series(n: int = 40, base: float = 100.0) -> list[float]:
 
 
 class TabfmWorkerStubTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_tabfm_model_state_for_tests()
+        set_forecast_override(None)
+
+    def tearDown(self) -> None:
+        set_forecast_override(None)
+        reset_tabfm_model_state_for_tests()
+
     def test_mad_fallback_ready_on_warm_series(self) -> None:
         hist = _synthetic_series(40)
         out = mad_fallback_forecast(hist)
@@ -53,8 +71,10 @@ class TabfmWorkerStubTests(unittest.TestCase):
         self.assertEqual(out["predictions"], [])
         self.assertEqual(out["estimator"], "mad")
 
+    @timeout_seconds(5.0)
     def test_tabfm_backend_unavailable_without_weights(self) -> None:
-        out = forecast(_synthetic_series(40), backend="tabfm")
+        with patch_tabfm_unavailable():
+            out = forecast(_synthetic_series(40), backend="tabfm")
         self.assertEqual(out["status"], "error")
         self.assertEqual(out["estimator"], "mad")
         self.assertEqual(out["detail"].get("error"), ERROR_TABFM_UNAVAILABLE)
