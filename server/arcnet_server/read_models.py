@@ -200,20 +200,17 @@ def agent_session_context(session: dict[str, Any]) -> dict[str, Any]:
     steps = transcript.get("steps") or []
     return {
         "session": {
-            k: session.get(k)
-            for k in (
-                "session_id",
-                "agent_id",
-                "scenario",
-                "goal",
-                "system_prompt_ref",
-                "model",
-                "temperature",
-                "status",
-                "trace_id",
-                "started_at",
-                "ended_at",
-            )
+            "session_id": session.get("session_id"),
+            "agent_id": session.get("agent_id"),
+            "scenario": session.get("scenario"),
+            "goal": _excerpt(session.get("goal"), EXCERPT_CHARS),
+            "system_prompt_ref": session.get("system_prompt_ref"),
+            "model": session.get("model"),
+            "temperature": session.get("temperature"),
+            "status": session.get("status"),
+            "trace_id": session.get("trace_id"),
+            "started_at": session.get("started_at"),
+            "ended_at": session.get("ended_at"),
         },
         "outcome": session.get("outcome"),
         "usage": session.get("usage"),
@@ -488,19 +485,16 @@ def session_check_data(conn: sqlite3.Connection, session: dict[str, Any]) -> dic
 
     return {
         "session": {
-            k: session.get(k)
-            for k in (
-                "session_id",
-                "agent_id",
-                "scenario",
-                "goal",
-                "model",
-                "status",
-                "trace_id",
-                "started_at",
-                "ended_at",
-                "agent_version",
-            )
+            "session_id": session.get("session_id"),
+            "agent_id": session.get("agent_id"),
+            "scenario": session.get("scenario"),
+            "goal": _excerpt(session.get("goal"), EXCERPT_CHARS),
+            "model": session.get("model"),
+            "status": session.get("status"),
+            "trace_id": session.get("trace_id"),
+            "started_at": session.get("started_at"),
+            "ended_at": session.get("ended_at"),
+            "agent_version": session.get("agent_version"),
         },
         "outcome": session.get("outcome"),
         "usage": session.get("usage"),

@@ -12,7 +12,6 @@ Exit 0 with compact PASS per section; non-zero on any failure.
 
 from __future__ import annotations
 
-import asyncio
 import io
 import json
 import os
@@ -343,10 +342,16 @@ def _section_verdict_roundtrip(client, *, agent_id: str, session_id: str) -> Non
 
 
 def _section_hitl(client) -> None:
+    import queue as _queue
+
     from arcnet_server.bus import BUS
 
-    async def _next_hitl(timeout: float = 2.0) -> Any:
-        return await asyncio.wait_for(q.get(), timeout=timeout)
+    def _next_hitl(timeout: float = 2.0) -> Any:
+        # BUS is a thread-safe queue.Queue (docs/30 P11-B) — blocking get, not async.
+        try:
+            return q.get(timeout=timeout)
+        except _queue.Empty as exc:
+            raise AssertionError("BUS publish timeout: no event within window") from exc
 
     q = BUS.subscribe()
     try:
@@ -365,11 +370,7 @@ def _section_hitl(client) -> None:
         if body.get("status") != "pending":
             raise AssertionError(f"hitl not pending: {body}")
 
-        loop = asyncio.new_event_loop()
-        try:
-            ev = loop.run_until_complete(_next_hitl())
-        finally:
-            loop.close()
+        ev = _next_hitl()
         if ev.event != "hitl_request" or ev.data.get("hitl_id") != hitl_id:
             raise AssertionError(f"BUS publish miss: {ev}")
 
@@ -386,11 +387,7 @@ def _section_hitl(client) -> None:
         if decided.json().get("status") != "approved":
             raise AssertionError("decide status not approved")
 
-        loop = asyncio.new_event_loop()
-        try:
-            ev2 = loop.run_until_complete(_next_hitl())
-        finally:
-            loop.close()
+        ev2 = _next_hitl()
         if ev2.event != "hitl_request" or ev2.data.get("status") != "approved":
             raise AssertionError(f"BUS decide publish miss: {ev2}")
 
