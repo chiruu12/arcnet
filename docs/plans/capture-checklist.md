@@ -13,9 +13,31 @@ event bus, every write handler, and the replay path). **All green.**
 | SSE live feed (`/signals/stream`) after the bus rewrite | **PASS** — write → 200, event delivered live, no refresh |
 | Live `POST /api/replay` (Worms `s_2af44726` vs `gpt-4o`) | **PASS** — 30s, `r_40210783`, verdict `mixed`, `3/3 runs` |
 | Live S1 scenario run | **PASS** — `blocked_email: true`, exfil blocked, 4 steps |
-| Live S1 threat rows vs hero recording | **PASS** — reproduces `s_ecfdb55d` exactly: same 10 threats, same scores, incl. `injection / ignore_previous` 0.85 blocked at input |
+| Live S1 threat rows vs hero recording | **PASS** — reproduces `s_ecfdb55d` exactly: same **3** threats, same rules, same scores (see below) |
 | Traces → SigNoz | **PASS** — `Agent_J.run → OpenAIChat.invoke → send_email/lookup_customer/fetch_url` + `arcnet.guard` spans w/ rule + pattern_class attrs |
 | SigNoz UI + dashboards | **PASS** — `ui_reachable`, `query_range_ok`, 4/4 dashboards resolved |
+
+### What an S1 run actually produces (corrected 2026-07-25)
+
+A live S1 posts **exactly 3 threat rows**, and the hero recording has the same 3:
+
+| Checkpoint | Action | Category / subcategory | Risk |
+|---|---|---|---|
+| `tool_call` | block | `taint` / `retrieved_source_in_side_effect` | 0.85 |
+| `tool_call` | block | `trajectory` / `crescendo_block` | 0.92 |
+| `output` | redact | `trajectory` / `crescendo_block` | 0.92 |
+
+**`injection / ignore_previous` and `leakage / email_address` are NOT in the S1 chain.** The
+poisoned page scans `allow` / risk 0.0 at the `retrieved` checkpoint on both unplug 0.5.2 and
+0.6.0 — the page reaches the model, and the attack is stopped at the *side effect*, not at
+ingest. That is the trust-boundary design working as intended, but it is **not** what
+`video-script.md` Shot 2 originally said to narrate. Corrected there.
+
+**API footgun that caused the bad reading:** `GET /api/threats` takes `since` / `agent_id` /
+`limit` / `offset` — there is **no `session_id` parameter**, and FastAPI silently ignores unknown
+query params. `?session_id=…` therefore returns the fleet-wide list, which trivially looks
+"identical" between any two sessions. For session-scoped threats use
+**`GET /api/agent-view/threats/{session_id}`** (or `repository.threats_for_session`).
 
 **Two gotchas confirmed the hard way:**
 

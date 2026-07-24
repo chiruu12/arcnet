@@ -34,9 +34,16 @@ Hero sessions: Edgar **`s_ecfdb55d`** (S1 injection) · Worms **`s_2af44726`** (
 
 ### Shot 2 — Attack & self-correct (0:35–1:10) · Edgar
 - **Screen:** split terminal + HQ `#signals`. Terminal: `PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1`.
-- **Watch for:** threats row `injection` with the **rule name** (`ignore_previous` class) in the guard columns; `send_email` **[BLOCKED]**; the `steer` signal arriving in the feed within seconds (SSE, no refresh).
+- **Watch for:** threats row `taint` / **`retrieved_source_in_side_effect`** @ 0.85 with `send_email` **[BLOCKED]**; then `trajectory` / **`crescendo_block`** @ 0.92; the `steer` signal arriving in the feed within seconds (SSE, no refresh).
 - **Flip briefly:** SigNoz Threats & Trust dashboard — the red span / threat panel.
-- **Say:** "A scraped page carries a hidden instruction. ArcNet catches it at the trust boundary, blocks the exfiltration, and steers the agent back on course — autonomously, in seconds. The guard verdict — rule, pattern class, score — is recorded on the incident, not just a boolean."
+- **Say:** "A scraped page carries a hidden instruction. The page itself looks clean — so ArcNet lets the agent read it. What it *won't* let through is the consequence: the moment that untrusted content tries to become an action, the exfiltration is blocked at the trust boundary and the agent is steered back on course, autonomously, in seconds. The guard verdict — rule, pattern class, score — is recorded on the incident, not just a boolean."
+
+> **Verified 2026-07-25 — do not narrate `injection` / `ignore_previous` here.** A live S1 posts
+> exactly **3** threats: `retrieved_source_in_side_effect` 0.85, `crescendo_block` 0.92
+> (`tool_call`), `crescendo_block` 0.92 (`output`). The poisoned page scans `allow` / 0.0 at the
+> `retrieved` checkpoint, so no injection rule fires at ingest. Blocking at the *side effect* is
+> the stronger story anyway — taint tracking is the load-bearing defense
+> (measured: [`../33-guard-coverage.md`](../33-guard-coverage.md)).
 
 ### Shot 3 — Griffin (1:10–1:30) · MAD outlier
 - **Screen:** HQ `#fleet_health` MAD card next to SigNoz → Alerts → the seasonal anomaly rule.
