@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type GriffinStatus } from "../api";
+import { api, type GriffinStatus, toUserError } from "../api";
 import { AgentJson, Empty, Seam } from "../components";
 import type { FleetRow, Mode } from "../types";
 import { ThreatsPanel } from "./ThreatsPanel";
@@ -96,7 +96,7 @@ export function FleetHealth({
         if (!cancelled) setFleet(f);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     api
       .griffinStatus()
@@ -107,7 +107,7 @@ export function FleetHealth({
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setGriffinErr(String(e));
+        if (!cancelled) setGriffinErr(toUserError(e));
       });
     return () => {
       cancelled = true;

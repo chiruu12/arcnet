@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type SignozStatus } from "../api";
+import { api, type SignozStatus, toUserError } from "../api";
 import { AgentJson } from "../components";
 import type { Mode } from "../types";
 
@@ -118,7 +118,7 @@ export function Dashboards({ mode }: { mode: Mode }) {
         if (!cancelled) setStatus(s);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setProbeErr(String(e));
+        if (!cancelled) setProbeErr(toUserError(e));
       });
     return () => {
       cancelled = true;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api, subscribeBus } from "../api";
+import { api, subscribeBus, toUserError } from "../api";
+import { normalizeSignalRow } from "../apiResilience";
 import { AgentJson, Empty, Seam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
 import type { FleetRow, Mode, SignalRow } from "../types";
@@ -82,12 +83,12 @@ export function Signals({
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     const unsubscribe = subscribeBus((ev) => {
       if (cancelled || ev.event !== "signal") return;
-      const row = ev.data as unknown as SignalRow;
-      if (!row.signal_id) return;
+      const row = normalizeSignalRow(ev.data);
+      if (!row) return;
       if (agentRef && row.agent_id !== agentRef) return;
       const isNew = !seenIdsRef.current.has(row.signal_id);
       if (isNew) {

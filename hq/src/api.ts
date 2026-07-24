@@ -1,23 +1,73 @@
 import type {
   AgentEnvelope,
-  AgentModelRow,
   AgentModelsResponse,
-  FleetRow,
   HitlRow,
   SessionRow,
   SignalRow,
-  SourceRow,
   ThreatRow,
-  Verdict,
 } from "./types";
 import { normalizeAgentModelsResponse } from "./modelIntel.ts";
+import {
+  ApiError,
+  formatApiErrorMessage,
+  normalizeAgentEnvelope,
+  normalizeAgentModelRows,
+  normalizeAgentVersionRows,
+  normalizeFleetRows,
+  normalizeHitlRows,
+  normalizeReplayRows,
+  normalizeSessionRows,
+  normalizeSignalRows,
+  normalizeSourceRows,
+  normalizeThreatRows,
+  normalizeVerdict,
+  normalizeVersionTimeline,
+  parseSsePayload,
+  readJsonBody,
+  type AgentVersionRow,
+  type ReplayRow,
+} from "./apiResilience.ts";
+
+export type { AgentVersionRow, ReplayRow };
 
 const BASE: string = import.meta.env?.VITE_ARCNET_API ?? "";
 
-async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
-  return res.json() as Promise<T>;
+async function requestJSON(path: string, init?: RequestInit): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, init);
+  } catch {
+    throw new ApiError({
+      message: "arcnet-server unreachable — start uvicorn on :8000 and reload",
+      offline: true,
+      path,
+    });
+  }
+  const body = await readJsonBody(res).catch((e: unknown) => {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError({
+      message: String(e),
+      status: res.status,
+      path,
+    });
+  });
+  if (!res.ok) {
+    const text =
+      body && typeof body === "object"
+        ? JSON.stringify(body)
+        : String(body ?? "");
+    throw new ApiError({
+      message: formatApiErrorMessage(res.status, path, text, res.statusText),
+      status: res.status,
+      path,
+    });
+  }
+  return body;
+}
+
+async function getJSON<T>(path: string, normalize: (raw: unknown) => T): Promise<T> {
+  const body = await requestJSON(path);
+  return normalize(body);
 }
 
 export type PageMeta = {
@@ -43,10 +93,40 @@ function pageMetaFromHeaders(headers: Headers, rowCount: number): PageMeta {
 }
 
 /** Fetch JSON and expose response headers (for X-Total-Count pagination). */
-async function getJSONPaged<T>(path: string): Promise<{ data: T; headers: Headers }> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
-  return { data: (await res.json()) as T, headers: res.headers };
+async function getJSONPaged<T>(
+  path: string,
+  normalizeRows: (raw: unknown) => T[],
+): Promise<{ data: T[]; headers: Headers }> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`);
+  } catch {
+    throw new ApiError({
+      message: "arcnet-server unreachable — start uvicorn on :8000 and reload",
+      offline: true,
+      path,
+    });
+  }
+  const body = await readJsonBody(res).catch((e: unknown) => {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError({
+      message: String(e),
+      status: res.status,
+      path,
+    });
+  });
+  if (!res.ok) {
+    const text =
+      body && typeof body === "object"
+        ? JSON.stringify(body)
+        : String(body ?? "");
+    throw new ApiError({
+      message: formatApiErrorMessage(res.status, path, text, res.statusText),
+      status: res.status,
+      path,
+    });
+  }
+  return { data: normalizeRows(body), headers: res.headers };
 }
 
 const SESSIONS_PAGE = 500; // server max for /api/sessions
@@ -71,38 +151,28 @@ async function fetchAllSessions(params?: {
     if (params?.version_id) q.set("version_id", params.version_id);
     q.set("limit", String(SESSIONS_PAGE));
     q.set("offset", String(offset));
-    const { data, headers } = await getJSONPaged<SessionRow[]>(`/api/sessions?${q}`);
+    const { data, headers } = await getJSONPaged<SessionRow>(
+      `/api/sessions?${q}`,
+      normalizeSessionRows,
+    );
     all.push(...data);
     const headerTotal = headers.get("X-Total-Count");
     total = headerTotal != null ? Number(headerTotal) : all.length;
+    if (!Number.isFinite(total)) total = all.length;
     if (data.length === 0) break;
     offset += data.length;
   }
   return all;
 }
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+async function postJSON<T>(path: string, body: unknown, normalize: (raw: unknown) => T): Promise<T> {
+  const parsed = await requestJSON(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText} — ${path} ${detail.slice(0, 200)}`);
-  }
-  return res.json() as Promise<T>;
+  return normalize(parsed);
 }
-
-export type ReplayRow = {
-  replay_id: string;
-  session_id: string;
-  candidate_model: string | null;
-  candidate_prompt_ref: string | null;
-  verdict: Verdict;
-  created_at: number | null;
-  duration_ms: number | null;
-};
 
 export type SignozStatus = {
   signoz_url: string;
@@ -142,25 +212,64 @@ export type GriffinStatus = {
   anomalies?: unknown[];
 };
 
-export type AgentVersionRow = {
-  version_id: string;
-  agent_id: string;
-  version: string;
-  model: string | null;
-  model_version: string | null;
-  source_ref: string | null;
-  notes: string | null;
-  created_at: number | null;
-};
+function normalizeSignozStatus(raw: unknown): SignozStatus {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const dashboardsRaw =
+    o.dashboards && typeof o.dashboards === "object"
+      ? (o.dashboards as Record<string, unknown>)
+      : {};
+  return {
+    signoz_url: typeof o.signoz_url === "string" ? o.signoz_url : "",
+    ui_reachable: Boolean(o.ui_reachable),
+    ui_status:
+      typeof o.ui_status === "number" || typeof o.ui_status === "string" ? o.ui_status : null,
+    api_key_present: Boolean(o.api_key_present),
+    query_range_ok:
+      typeof o.query_range_ok === "boolean" ? o.query_range_ok : o.query_range_ok == null ? null : false,
+    query_note: typeof o.query_note === "string" ? o.query_note : "",
+    dashboards: {
+      fleet_ops:
+        typeof dashboardsRaw.fleet_ops === "string" ? dashboardsRaw.fleet_ops : null,
+      threats_trust:
+        typeof dashboardsRaw.threats_trust === "string" ? dashboardsRaw.threats_trust : null,
+      cost_tokens:
+        typeof dashboardsRaw.cost_tokens === "string" ? dashboardsRaw.cost_tokens : null,
+      agno: typeof dashboardsRaw.agno === "string" ? dashboardsRaw.agno : null,
+    },
+    mcp_note: typeof o.mcp_note === "string" ? o.mcp_note : undefined,
+  };
+}
+
+function normalizeGriffinStatus(raw: unknown): GriffinStatus {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    estimator: typeof o.estimator === "string" ? o.estimator : "MAD",
+    model: typeof o.model === "string" ? o.model : undefined,
+    status: typeof o.status === "string" ? o.status : "unknown",
+    series_count: typeof o.series_count === "number" ? o.series_count : undefined,
+    ready_count: typeof o.ready_count === "number" ? o.ready_count : undefined,
+    warming_count: typeof o.warming_count === "number" ? o.warming_count : undefined,
+    series_source: typeof o.series_source === "string" ? o.series_source : null,
+    last_anomaly:
+      o.last_anomaly && typeof o.last_anomaly === "object"
+        ? (o.last_anomaly as GriffinStatus["last_anomaly"])
+        : null,
+    last_evaluate_ms: typeof o.last_evaluate_ms === "number" ? o.last_evaluate_ms : null,
+    warmth:
+      o.warmth && typeof o.warmth === "object"
+        ? (o.warmth as GriffinStatus["warmth"])
+        : undefined,
+    honesty: typeof o.honesty === "string" ? o.honesty : undefined,
+    anomalies: Array.isArray(o.anomalies) ? o.anomalies : [],
+  };
+}
 
 export const api = {
-  fleet: () => getJSON<FleetRow[]>("/api/fleet"),
+  fleet: () => getJSON("/api/fleet", normalizeFleetRows),
   agentModels: (agentId: string) =>
-    getJSON<AgentModelRow[]>(`/api/agents/${encodeURIComponent(agentId)}/models`),
+    getJSON(`/api/agents/${encodeURIComponent(agentId)}/models`, normalizeAgentModelRows),
   agentModelsIntel: async (agentId: string): Promise<AgentModelsResponse> => {
-    const raw = await getJSON<unknown>(
-      `/api/agents/${encodeURIComponent(agentId)}/model-intel`,
-    );
+    const raw = await requestJSON(`/api/agents/${encodeURIComponent(agentId)}/model-intel`);
     return normalizeAgentModelsResponse(raw);
   },
   sessions: (params?: {
@@ -192,10 +301,13 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    return getJSON<SessionRow[]>(`/api/sessions${qs ? `?${qs}` : ""}`);
+    return getJSON(`/api/sessions${qs ? `?${qs}` : ""}`, normalizeSessionRows);
   },
   replays: (sessionId?: string) =>
-    getJSON<ReplayRow[]>(`/api/replays${sessionId ? `?session_id=${sessionId}` : ""}`),
+    getJSON(
+      `/api/replays${sessionId ? `?session_id=${sessionId}` : ""}`,
+      normalizeReplayRows,
+    ),
   signals: (params?: {
     agent_id?: string;
     session_id?: string;
@@ -210,7 +322,7 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    return getJSON<SignalRow[]>(`/api/signals${qs ? `?${qs}` : ""}`);
+    return getJSON(`/api/signals${qs ? `?${qs}` : ""}`, normalizeSignalRows);
   },
   /** Signals page with X-Total-Count for HQ “showing N of Total”. */
   signalsPage: async (params?: {
@@ -227,8 +339,9 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    const { data, headers } = await getJSONPaged<SignalRow[]>(
+    const { data, headers } = await getJSONPaged<SignalRow>(
       `/api/signals${qs ? `?${qs}` : ""}`,
+      normalizeSignalRows,
     );
     return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
@@ -250,11 +363,17 @@ export const api = {
     if (params?.version_id) q.set("version_id", params.version_id);
     q.set("limit", String(params?.limit ?? 100));
     q.set("offset", String(params?.offset ?? 0));
-    const { data, headers } = await getJSONPaged<SessionRow[]>(`/api/sessions?${q}`);
+    const { data, headers } = await getJSONPaged<SessionRow>(
+      `/api/sessions?${q}`,
+      normalizeSessionRows,
+    );
     return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
   agentVersions: (agentId: string) =>
-    getJSON<AgentVersionRow[]>(`/api/agents/${encodeURIComponent(agentId)}/versions`),
+    getJSON(
+      `/api/agents/${encodeURIComponent(agentId)}/versions`,
+      normalizeAgentVersionRows,
+    ),
   agentVersionsPage: async (
     agentId: string,
     params?: { limit?: number; offset?: number },
@@ -263,14 +382,16 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    const { data, headers } = await getJSONPaged<AgentVersionRow[]>(
+    const { data, headers } = await getJSONPaged<AgentVersionRow>(
       `/api/agents/${encodeURIComponent(agentId)}/versions${qs ? `?${qs}` : ""}`,
+      normalizeAgentVersionRows,
     );
     return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
   agentVersionTimeline: (agentId: string) =>
-    getJSON<{ agent_id: string; current_model: string | null; versions: AgentVersionRow[] }>(
+    getJSON(
       `/api/agents/${encodeURIComponent(agentId)}/versions/timeline`,
+      normalizeVersionTimeline,
     ),
   applyModel: (
     agentId: string,
@@ -285,29 +406,46 @@ export const api = {
       proposal_signal_id?: string;
     },
   ) =>
-    postJSON<{
-      agent_id: string;
-      model: string;
-      version: AgentVersionRow;
-      proposal: SignalRow | null;
-      applied: boolean;
-      agentos_reload_required?: boolean;
-      agentos_reload_instructions?: string;
-      agentos_probe?: {
-        probed?: boolean;
-        reachable?: boolean;
-        sqlite_model?: string;
-        live_model?: string | null;
-        models_match?: boolean | null;
-        note?: string;
+    postJSON(`/api/agents/${encodeURIComponent(agentId)}/apply-model`, body, (raw) => {
+      const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const version = normalizeAgentVersionRows([o.version])[0];
+      if (!version) {
+        throw new ApiError({
+          message: "apply-model returned malformed version row",
+          path: `/api/agents/${agentId}/apply-model`,
+        });
+      }
+      return {
+        agent_id: typeof o.agent_id === "string" ? o.agent_id : agentId,
+        model: typeof o.model === "string" ? o.model : body.model,
+        version,
+        proposal: normalizeSignalRows([o.proposal])[0] ?? null,
+        applied: Boolean(o.applied),
+        agentos_reload_required:
+          typeof o.agentos_reload_required === "boolean" ? o.agentos_reload_required : undefined,
+        agentos_reload_instructions:
+          typeof o.agentos_reload_instructions === "string"
+            ? o.agentos_reload_instructions
+            : undefined,
+        agentos_probe:
+          o.agentos_probe && typeof o.agentos_probe === "object"
+            ? (o.agentos_probe as {
+                probed?: boolean;
+                reachable?: boolean;
+                sqlite_model?: string;
+                live_model?: string | null;
+                models_match?: boolean | null;
+                note?: string;
+              })
+            : undefined,
       };
-    }>(`/api/agents/${encodeURIComponent(agentId)}/apply-model`, body),
+    }),
   sources: (params?: { agent_id?: string; session_id?: string }) => {
     const q = new URLSearchParams();
     if (params?.agent_id) q.set("agent_id", params.agent_id);
     if (params?.session_id) q.set("session_id", params.session_id);
     const qs = q.toString();
-    return getJSON<SourceRow[]>(`/api/sources${qs ? `?${qs}` : ""}`);
+    return getJSON(`/api/sources${qs ? `?${qs}` : ""}`, normalizeSourceRows);
   },
   threatsPage: async (params?: {
     agent_id?: string;
@@ -321,27 +459,59 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    const { data, headers } = await getJSONPaged<ThreatRow[]>(
+    const { data, headers } = await getJSONPaged<ThreatRow>(
       `/api/threats${qs ? `?${qs}` : ""}`,
+      normalizeThreatRows,
     );
     return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
   agentView: (view: string, id: string) =>
-    getJSON<AgentEnvelope>(`/api/agent-view/${view}/${encodeURIComponent(id)}`),
+    getJSON(
+      `/api/agent-view/${view}/${encodeURIComponent(id)}`,
+      normalizeAgentEnvelope,
+    ) as Promise<AgentEnvelope>,
   runReplay: (session_id: string, candidate_model: string) =>
-    postJSON<Verdict>("/api/replay", { session_id, candidate_model }),
+    postJSON("/api/replay", { session_id, candidate_model }, (raw) => {
+      const verdict = normalizeVerdict(raw);
+      if (!verdict) {
+        throw new ApiError({
+          message: "replay returned malformed verdict",
+          path: "/api/replay",
+        });
+      }
+      return verdict;
+    }),
   caseFileUrl: (sessionId: string) => `${BASE}/export/case-file/${sessionId}`,
-  signozStatus: () => getJSON<SignozStatus>("/api/signoz/status"),
-  griffinStatus: () => getJSON<GriffinStatus>("/api/griffin/status"),
+  signozStatus: () => getJSON("/api/signoz/status", normalizeSignozStatus),
+  griffinStatus: () => getJSON("/api/griffin/status", normalizeGriffinStatus),
   signozEvidence: (sessionId: string) =>
-    getJSON<{
-      session_id: string;
-      trace_id: string | null;
-      links: { signoz_trace: string | null };
-      spans: { name: string; duration_ns?: number }[];
-      note: string | null;
-      mcp_fallback?: string;
-    }>(`/api/signoz/evidence?session_id=${encodeURIComponent(sessionId)}`),
+    getJSON(`/api/signoz/evidence?session_id=${encodeURIComponent(sessionId)}`, (raw) => {
+      const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const spans = Array.isArray(o.spans) ? o.spans : [];
+      return {
+        session_id: typeof o.session_id === "string" ? o.session_id : sessionId,
+        trace_id: typeof o.trace_id === "string" ? o.trace_id : null,
+        links: {
+          signoz_trace:
+            o.links &&
+            typeof o.links === "object" &&
+            typeof (o.links as Record<string, unknown>).signoz_trace === "string"
+              ? ((o.links as Record<string, unknown>).signoz_trace as string)
+              : null,
+        },
+        spans: spans
+          .filter((s) => s && typeof s === "object")
+          .map((s) => {
+            const row = s as Record<string, unknown>;
+            return {
+              name: typeof row.name === "string" ? row.name : "—",
+              duration_ns: typeof row.duration_ns === "number" ? row.duration_ns : undefined,
+            };
+          }),
+        note: typeof o.note === "string" ? o.note : null,
+        mcp_fallback: typeof o.mcp_fallback === "string" ? o.mcp_fallback : undefined,
+      };
+    }),
   hitlPage: async (params?: {
     session_id?: string;
     status?: string;
@@ -354,11 +524,23 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    const { data, headers } = await getJSONPaged<HitlRow[]>(`/api/hitl${qs ? `?${qs}` : ""}`);
+    const { data, headers } = await getJSONPaged<HitlRow>(
+      `/api/hitl${qs ? `?${qs}` : ""}`,
+      normalizeHitlRows,
+    );
     return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
   decideHitl: (hitlId: string, decision: "approved" | "rejected") =>
-    postJSON<HitlRow>(`/api/hitl/${encodeURIComponent(hitlId)}`, { decision }),
+    postJSON(`/api/hitl/${encodeURIComponent(hitlId)}`, { decision }, (raw) => {
+      const row = normalizeHitlRows([raw])[0];
+      if (!row) {
+        throw new ApiError({
+          message: "HITL decide returned malformed row",
+          path: `/api/hitl/${hitlId}`,
+        });
+      }
+      return row;
+    }),
 };
 
 export type BusEvent = {
@@ -368,16 +550,26 @@ export type BusEvent = {
 
 /** Subscribe to the SSE signal bus. Returns an unsubscribe function. */
 export function subscribeBus(onEvent: (ev: BusEvent) => void): () => void {
-  const es = new EventSource(`${BASE}/signals/stream`);
+  let es: EventSource | null = null;
+  try {
+    es = new EventSource(`${BASE}/signals/stream`);
+  } catch {
+    return () => {};
+  }
   const forward = (name: string) => (raw: MessageEvent) => {
-    try {
-      onEvent({ event: name, data: JSON.parse(raw.data as string) });
-    } catch {
-      // ignore malformed frames
-    }
+    const data = parseSsePayload(String(raw.data ?? ""));
+    if (!data) return;
+    onEvent({ event: name, data });
   };
   es.addEventListener("signal", forward("signal"));
   es.addEventListener("replay_progress", forward("replay_progress"));
   es.addEventListener("hitl_request", forward("hitl_request"));
-  return () => es.close();
+  es.onerror = () => {
+    /* EventSource reconnects; must not throw */
+  };
+  return () => {
+    es?.close();
+  };
 }
+
+export { ApiError, isOfflineError, toUserError } from "./apiResilience.ts";

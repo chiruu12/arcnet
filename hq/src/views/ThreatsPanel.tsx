@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, toUserError } from "../api";
 import { Empty, Seam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
 import type { ThreatRow } from "../types";
@@ -29,7 +29,7 @@ export function ThreatsPanel() {
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
     return () => {
       cancelled = true;

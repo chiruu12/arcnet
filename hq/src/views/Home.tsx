@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, toUserError } from "../api";
 import { buildHomeStats, formatStatValue, type HomeStatKey } from "../homeStats";
 import { navigate } from "../hash";
 import type { Mode, View } from "../types";
@@ -96,7 +96,7 @@ export function Home({ mode }: { mode: Mode }) {
         );
       })
       .catch((e: unknown) => {
-        if (!cancelled) setErr(String(e));
+        if (!cancelled) setErr(toUserError(e));
       });
 
     return () => {
