@@ -46,6 +46,14 @@ def set_forecast_override(
     _FORECAST_OVERRIDE = fn
 
 
+def reset_tabfm_model_state_for_tests() -> None:
+    """Clear lazy TabFM model cache between tests (no-op in production)."""
+    global _MODEL, _MODEL_LOADED
+    with _MODEL_LOCK:
+        _MODEL = None
+        _MODEL_LOADED = False
+
+
 def _build_features(history: Sequence[float]) -> list[list[float]]:
     """Feature matrix aligned with history (matches phase7 spike)."""
     n = len(history)

@@ -11,7 +11,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from arcnet_server.tabfm_worker import ERROR_TABFM_UNAVAILABLE, set_forecast_override
+from arcnet_server.tabfm_worker import (
+    ERROR_TABFM_UNAVAILABLE,
+    reset_tabfm_model_state_for_tests,
+    set_forecast_override,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,10 +51,12 @@ def _reset_tabfm_state() -> None:
 class TabfmGriffinTests(unittest.TestCase):
     def setUp(self) -> None:
         _reset_tabfm_state()
+        reset_tabfm_model_state_for_tests()
         set_forecast_override(None)
 
     def tearDown(self) -> None:
         set_forecast_override(None)
+        reset_tabfm_model_state_for_tests()
         os.environ.pop("ARCNET_TABFM", None)
         os.environ.pop("ARCNET_GRIFFIN_SERIES", None)
 
