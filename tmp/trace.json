@@ -1,1 +1,0 @@
-[{"startTimestampMillis":0,"endTimestampMillis":0,"columns":["__time","SpanId","TraceId","ServiceName","Name","Kind","DurationNano","TagsKeys","TagsValues","References","Events","HasError","StatusMessage","StatusCodeString","SpanKind"],"events":[],"isSubTree":false}]

@@ -1,4 +1,0 @@
-id: 1
-event: signal
-data: {"signal_id": "sig_b9f86759", "session_id": null, "agent_id": "agent_j", "kind": "steer", "severity": "high", "reason": "preflight sse check", "evidence_link": null, "guidance": "ignore - rehearsal probe", "source": "inline", "status": "pending", "created_at": 1784918601918, "delivered_at": null, "guard_verdict": null}
-

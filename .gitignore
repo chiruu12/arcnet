@@ -24,3 +24,6 @@ docs/_phase0_*.json
 deploy/mcp/bin/
 hq/tsconfig.tsbuildinfo
 .signoz-local-admin
+
+# local scratch (logs, probes, ad-hoc json)
+tmp/

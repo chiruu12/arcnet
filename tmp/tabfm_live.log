@@ -1,22 +1,0 @@
-Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 4330.72it/s]
-Loading weights from local directory
-{
-  "elapsed_s": 143.6,
-  "status": "ready",
-  "estimator": "tabfm",
-  "n_predictions": 1,
-  "first_preds": [
-    10.937329292297363
-  ],
-  "detail_keys": [
-    "status",
-    "n",
-    "outlier",
-    "forecast",
-    "band_lo",
-    "band_hi",
-    "observed",
-    "z"
-  ],
-  "detail_error": null
-}
