@@ -18,12 +18,12 @@ import httpx
 TASK_TYPES: dict[str, dict[str, Any]] = {
     "tool_heavy": {
         "label": "Tool-heavy / loop-prone agents",
-        "prefer": ["gpt-4o", "gpt-4.1", "o4-mini"],
+        "prefer": ["gpt-5.6-luna", "gpt-4o", "gpt-4.1", "o4-mini"],
         "avoid_hint": "avoid cheapest nano for long tool chains",
     },
     "injection_resist": {
         "label": "Forward-facing retrieval + side effects",
-        "prefer": ["gpt-4o", "gpt-4.1", "o3-mini"],
+        "prefer": ["gpt-5.6-luna", "gpt-4o", "gpt-4.1", "o3-mini"],
         "avoid_hint": "prefer stronger instruction-following over cheapest batch",
     },
     "cheap_batch": {
@@ -40,6 +40,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
 # Curated snapshot — update when provider lineup shifts (document in docs/log).
 _OPENAI_SNAPSHOT: list[dict[str, Any]] = [
+    {"id": "gpt-5.6-luna", "family": "gpt-5", "tier": "flagship", "notes": "newest flagship — frontier reasoning + agentic tool use"},
     {"id": "gpt-4o", "family": "gpt-4o", "tier": "reliable", "notes": "strong default candidate"},
     {"id": "gpt-4o-mini", "family": "gpt-4o", "tier": "cheap", "notes": "baseline / batch"},
     {"id": "gpt-4.1", "family": "gpt-4.1", "tier": "reliable", "notes": "long-context reliable"},

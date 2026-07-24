@@ -17,6 +17,16 @@ Tier = Literal["frontier_reasoning", "reasoning", "standard", "fast"]
 MODELS: list[dict[str, Any]] = [
     # OpenAI — GPT-5 class + o-series
     {
+        "id": "gpt-5.6-luna",
+        "provider": "openai",
+        "tier": "frontier_reasoning",
+        "input_usd_per_mtok": 5.0,
+        "output_usd_per_mtok": 15.0,
+        "context_window": 400_000,
+        "reasoning": True,
+        "strengths": "newest flagship — frontier reasoning + long-horizon agentic tool use",
+    },
+    {
         "id": "gpt-5",
         "provider": "openai",
         "tier": "frontier_reasoning",
