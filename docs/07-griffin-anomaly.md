@@ -26,14 +26,14 @@ SigNoz ships anomaly-based alerts (seasonal baseline + z-score). We **use one na
 
 ```mermaid
 flowchart LR
-    A["1 · Discover<br/>hardcoded arcnet.* allowlist<br/>(auto-enumeration = P1 stretch)"] --> B["2 · Pull<br/>history at 1m resolution<br/>per (metric × agent)"]
+    A["1 · Discover<br/>recorded metric×agent series<br/>(seed / SQLite proxy;<br/>default priorities first)"] --> B["2 · Pull<br/>history at 1m resolution<br/>per (metric × agent)"]
     B --> C["3 · Forecast<br/>estimator slot: MAD now;<br/>TabFM Phase 7 + conformal band"]
     C --> D{"4 · Judge<br/>observed outside band<br/>AND above noise floor?"}
     D -- no --> E["silence<br/>(store forecast for UI sparkline)"]
     D -- yes --> F["5 · Report<br/>arcnet.anomaly metric + log → SigNoz<br/>→ alert rule → webhook → signal bus"]
 ```
 
-1. **Discover** — **default = a hardcoded allowlist of the `arcnet.*` counters we emit ourselves**: `arcnet.threats.detected`, `arcnet.cost.usd`, `arcnet.tool.calls`, `arcnet.guard.latency`, `arcnet.tokens.total`, error rate — expanded per `agent_id` dimension, capped at top-N series (default 12). (No documented metrics-listing endpoint exists, and `gen_ai.*` metrics don't exist in this pipeline — see `04`. Auto-enumeration is the P1 stretch, not the plan.)
+1. **Discover** — enumerate metric×agent series from recorded data (seed file or SQLite usage proxy). **Default priorities** (`arcnet.tokens.total`, `arcnet.cost.usd`, `arcnet.tool.calls` for `agent_j`) order evaluation when present; any newly-emitted series is picked up automatically. Per-cycle scan is **capped** (`ARCNET_GRIFFIN_EVAL_CAP`, default 12); `discovery.dropped_by_cap` in status when series are skipped. Fleet status surfaces **top-N** by |z| (`ARCNET_GRIFFIN_TOP_N`, default 3) via `top_series[]`.
 2. **Pull** — **Today:** seed file (`data/griffin_series.json`) if present, else in-memory SQLite proxy series (`series_source=seed|sqlite_proxy` in `griffin.py`). SigNoz Query Range is **not** Griffin’s evaluate input yet (it powers evidence/status seams elsewhere). Target shape remains last `H` at 1m buckets per (metric × agent).
 3. **Forecast** — features per bucket: running index, minute-of-hour, rolling mean/std (5m, 15m), lag values. **Today:** MAD band. **Phase 7:** TabFM point forecast + conformal band (see Model section).
 4. **Judge** — outlier iff `observed` outside the band **and** `|observed − forecast| > noise_floor(metric)` **and** series is warm (≥ 30 points; else status `warming`). Cooldown: same series can't re-fire within 5m.

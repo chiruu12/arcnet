@@ -32,14 +32,20 @@ _CACHE: dict[str, Any] = {
     "last_evaluate_ms": None,
     "last_anomaly": None,
     "anomalies": [],
+    "discovery": None,
+    "top_series": [],
 }
 _CACHE_LOCK = threading.RLock()
 
-ALLOWLIST = [
+# Default priority order when series exist — discovery uses recorded data first.
+DEFAULT_SERIES_PRIORITIES = [
     "arcnet.tokens.total|agent_j",
     "arcnet.cost.usd|agent_j",
     "arcnet.tool.calls|agent_j",
 ]
+
+# Backward-compatible alias (seed scripts, tests).
+ALLOWLIST = DEFAULT_SERIES_PRIORITIES
 
 NOISE_FLOOR = {
     "arcnet.tokens.total": 50.0,
@@ -140,6 +146,106 @@ def _median(xs: list[float]) -> float:
     return 0.5 * (s[mid - 1] + s[mid])
 
 
+def eval_cap() -> int:
+    """Max series evaluated per Griffin cycle (bounded discovery scan)."""
+    return max(1, int(os.getenv("ARCNET_GRIFFIN_EVAL_CAP", "12")))
+
+
+def top_n() -> int:
+    """How many highest-|z| series to surface in fleet status."""
+    return max(1, int(os.getenv("ARCNET_GRIFFIN_TOP_N", "3")))
+
+
+def discover_series_ids(series: dict[str, list[dict[str, float]]]) -> list[str]:
+    """Metric series present in recorded data; default priorities ordered first."""
+    present = set(series.keys())
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for sid in DEFAULT_SERIES_PRIORITIES:
+        if sid in present:
+            ordered.append(sid)
+            seen.add(sid)
+    ordered.extend(sorted(present - seen))
+    return ordered
+
+
+def select_series_for_evaluation(
+    series: dict[str, list[dict[str, float]]],
+) -> tuple[list[str], dict[str, Any]]:
+    """Discover series, apply eval cap, return metadata for status honesty."""
+    all_ids = discover_series_ids(series)
+    cap = eval_cap()
+    selected = all_ids[:cap]
+    dropped = max(0, len(all_ids) - len(selected))
+    meta = {
+        "discovered_count": len(all_ids),
+        "evaluated_count": len(selected),
+        "dropped_by_cap": dropped,
+        "eval_cap": cap,
+        "top_n": top_n(),
+    }
+    return selected, meta
+
+
+def _compute_top_series() -> list[dict[str, Any]]:
+    """Rank evaluated series by |z| descending; return top N for fleet view."""
+    n = top_n()
+    with _CACHE_LOCK:
+        series_meta = dict(_CACHE.get("series") or {})
+    ranked: list[tuple[float, str, dict[str, Any]]] = []
+    for sid, meta in series_meta.items():
+        if not isinstance(meta, dict):
+            continue
+        z_raw = meta.get("z")
+        try:
+            z_val = abs(float(z_raw)) if z_raw is not None else -1.0
+        except (TypeError, ValueError):
+            z_val = -1.0
+        ranked.append((z_val, sid, meta))
+    ranked.sort(key=lambda t: (-t[0], t[1]))
+    out: list[dict[str, Any]] = []
+    for z_val, sid, meta in ranked[:n]:
+        out.append(
+            {
+                "series_id": sid,
+                "z": meta.get("z"),
+                "status": meta.get("status"),
+                "outlier": bool(meta.get("outlier")),
+                "n": meta.get("n"),
+            }
+        )
+    return out
+
+
+def run_evaluation_cycle(get_conn: Callable) -> dict[str, Any]:
+    """One MAD pass: discover recorded series → cap → evaluate → rank top-N."""
+    ensure_series_warm(get_conn)
+    series = active_series()
+    empty_meta = {
+        "discovered_count": 0,
+        "evaluated_count": 0,
+        "dropped_by_cap": 0,
+        "eval_cap": eval_cap(),
+        "top_n": top_n(),
+    }
+    if not series:
+        with _CACHE_LOCK:
+            _CACHE["status"] = "cold"
+            _CACHE["discovery"] = empty_meta
+            _CACHE["top_series"] = []
+        return empty_meta
+
+    selected, discovery_meta = select_series_for_evaluation(series)
+    with _CACHE_LOCK:
+        _CACHE["discovery"] = discovery_meta
+    for sid in selected:
+        evaluate_series(get_conn, series_id=sid, observed=None)
+    top = _compute_top_series()
+    with _CACHE_LOCK:
+        _CACHE["top_series"] = top
+    return discovery_meta
+
+
 def tabfm_enabled() -> bool:
     return os.getenv("ARCNET_TABFM", "").strip().lower() in ("1", "true", "yes")
 
@@ -205,8 +311,8 @@ def judge_with_point_forecast(
 
 
 def _pick_highest_priority_series(series: dict[str, list[dict[str, float]]]) -> str | None:
-    """ALLOWLIST order — N=1 series per TabFM cycle (docs/_phase7_g7.json)."""
-    for sid in ALLOWLIST:
+    """Discovery order (default priorities first) — N=1 per TabFM cycle."""
+    for sid in discover_series_ids(series):
         pts = series.get(sid) or []
         if len(pts) >= 30:
             return sid
@@ -354,6 +460,19 @@ def cache_snapshot() -> dict[str, Any]:
     snap["ready_count"] = ready_n
     snap["warming_count"] = warming_n
     snap["last_anomaly"] = last
+    discovery = snap.get("discovery")
+    if isinstance(discovery, dict):
+        snap["discovery"] = discovery
+    else:
+        snap["discovery"] = {
+            "discovered_count": len(series),
+            "evaluated_count": len(series),
+            "dropped_by_cap": 0,
+            "eval_cap": eval_cap(),
+            "top_n": top_n(),
+        }
+    top_series = snap.get("top_series")
+    snap["top_series"] = list(top_series) if isinstance(top_series, list) else []
     if tabfm_forecast_live():
         snap["honesty"] = (
             "Griffin estimator = TabFM (google/tabfm-1.0.0-pytorch regression) "
@@ -612,17 +731,15 @@ def evaluate_series(
 
 async def griffin_loop(get_conn: Callable, *, cadence_s: float = 60.0) -> None:
     start_tabfm_worker(get_conn)
-    logger.info("griffin loop start cadence=%.1fs model=mad", cadence_s)
+    logger.info(
+        "griffin loop start cadence=%.1fs model=mad eval_cap=%d top_n=%d",
+        cadence_s,
+        eval_cap(),
+        top_n(),
+    )
     while True:
         try:
-            ensure_series_warm(get_conn)
-            series = active_series()
-            if not series:
-                with _CACHE_LOCK:
-                    _CACHE["status"] = "cold"
-            for sid in ALLOWLIST:
-                if sid in series:
-                    evaluate_series(get_conn, series_id=sid, observed=None)
+            run_evaluation_cycle(get_conn)
         except Exception:  # noqa: BLE001
             logger.exception("griffin cycle failed")
         await asyncio.sleep(cadence_s)

@@ -65,6 +65,8 @@ class GriffinColdSoakTests(unittest.TestCase):
                         "last_evaluate_ms": None,
                         "last_anomaly": None,
                         "anomalies": [],
+                        "discovery": None,
+                        "top_series": [],
                     }
                 )
                 t = 1_700_000_000_000
@@ -103,9 +105,7 @@ class GriffinColdSoakTests(unittest.TestCase):
                 for _ in range(5):
                     src = g.ensure_series_warm(m.get_conn)
                     self.assertEqual(src, "sqlite_proxy")
-                    for sid in g.ALLOWLIST:
-                        if sid in g.active_series():
-                            g.evaluate_series(m.get_conn, series_id=sid, observed=None)
+                    g.run_evaluation_cycle(m.get_conn)
                     statuses.append(g.cache_snapshot()["status"])
 
                 self.assertFalse(series_path.exists())
