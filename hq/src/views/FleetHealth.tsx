@@ -121,8 +121,8 @@ export function FleetHealth({
       <p className="eyebrow">{"// observe"}</p>
       <h1>fleet_health</h1>
       <p className="lede">
-        agents · trust posture · threats · cost · griffin MAD. click an agent to open its case_files
-        cascade; hot agents also deep-link to signals.
+        agents · trust posture · threats · cost · latency · griffin MAD. click an agent to open its
+        case_files cascade; hot agents also deep-link to signals.
       </p>
       <MadStrip status={griffin} err={griffinErr} onOpenSignals={onOpenSignals} />
       <ThreatsPanel />
@@ -165,6 +165,14 @@ export function FleetHealth({
                     ["threats_24h", a.health.threats_24h],
                     ["blocked_24h", a.health.blocked_24h],
                     ["cost_24h_usd", a.health.cost_24h_usd],
+                    [
+                      "p50_wall_clock_ms_24h",
+                      a.health.p50_wall_clock_ms_24h ?? "—",
+                    ],
+                    [
+                      "p95_wall_clock_ms_24h",
+                      a.health.p95_wall_clock_ms_24h ?? "—",
+                    ],
                     ["anomalies_24h", a.health.anomalies_24h],
                     ["active_signals", a.health.active_signals],
                   ] as const
@@ -176,6 +184,12 @@ export function FleetHealth({
                     </span>
                   </div>
                 ))}
+                {a.health.latency_source_24h && (
+                  <div className="stat-row dim">
+                    <span>latency_source_24h</span>
+                    <span>{a.health.latency_source_24h}</span>
+                  </div>
+                )}
                 {hot && onOpenSignals && (
                   <button
                     type="button"

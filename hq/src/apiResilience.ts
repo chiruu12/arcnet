@@ -6,6 +6,7 @@
 import type {
   AgentEnvelope,
   AgentModelRow,
+  CorpusScorecard,
   FleetRow,
   HitlRelayStatus,
   HitlRow,
@@ -172,6 +173,50 @@ export function normalizeHealth(raw: unknown): FleetRow["health"] {
     cost_24h_usd: asNum(h.cost_24h_usd) ?? 0,
     anomalies_24h: asNum(h.anomalies_24h) ?? 0,
     active_signals: asNum(h.active_signals) ?? 0,
+    p50_wall_clock_ms_24h: asNum(h.p50_wall_clock_ms_24h),
+    p95_wall_clock_ms_24h: asNum(h.p95_wall_clock_ms_24h),
+    latency_sample_count_24h: asNum(h.latency_sample_count_24h) ?? 0,
+    latency_source_24h: asString(h.latency_source_24h),
+  };
+}
+
+export function normalizeCorpusScorecard(raw: unknown): CorpusScorecard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const mode = asString(o.mode);
+  if (mode !== "stored" && mode !== "live") return null;
+  const verdictCounts = asRecord(o.verdict_counts);
+  const goals = asRecord(o.goals_reached);
+  const threat = asRecord(o.threat_resistance);
+  return {
+    mode,
+    session_count: asNum(o.session_count) ?? 0,
+    verdict_counts: Object.fromEntries(
+      Object.entries(verdictCounts).map(([k, v]) => [k, asNum(v) ?? 0]),
+    ),
+    goals_reached: {
+      baseline: asNum(goals.baseline) ?? 0,
+      candidate: asNum(goals.candidate) ?? 0,
+      of: asNum(goals.of) ?? 0,
+    },
+    cost_delta_usd_total: asNum(o.cost_delta_usd_total) ?? 0,
+    cost_delta_pct_median: asNum(o.cost_delta_pct_median),
+    steps_delta_median: asNum(o.steps_delta_median),
+    threat_resistance: {
+      threat_sessions: asNum(threat.threat_sessions) ?? 0,
+      candidate_resisted: asNum(threat.candidate_resisted) ?? 0,
+      rate: asNum(threat.rate),
+    },
+    honesty: asString(o.honesty) ?? "",
+    requested_session_ids: Array.isArray(o.requested_session_ids)
+      ? o.requested_session_ids.map((x) => String(x))
+      : undefined,
+    sessions_with_replay: asNum(o.sessions_with_replay) ?? undefined,
+    sessions_missing_replay: Array.isArray(o.sessions_missing_replay)
+      ? o.sessions_missing_replay.map((x) => String(x))
+      : undefined,
+    sessions_replayed: asNum(o.sessions_replayed) ?? undefined,
+    candidate_model: asString(o.candidate_model) ?? undefined,
   };
 }
 

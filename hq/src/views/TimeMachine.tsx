@@ -18,7 +18,7 @@ import {
 } from "../replaySwap";
 import { AgentJson, Empty, Seam, money, ts } from "../components";
 
-import type { AgentModelRow, CascadeLink, FleetRow, Mode, SessionRow, Verdict } from "../types";
+import type { AgentModelRow, CascadeLink, CorpusScorecard, FleetRow, Mode, SessionRow, Verdict } from "../types";
 
 type Progress = { step: number; total_steps: number; phase: string } | null;
 
@@ -77,6 +77,8 @@ export function TimeMachine({
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Progress>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [scorecard, setScorecard] = useState<CorpusScorecard | null>(null);
+  const [scorecardLoading, setScorecardLoading] = useState(false);
   const prefer = useRef({
     version: deepLink?.version,
     model: deepLink?.model,
@@ -326,6 +328,19 @@ export function TimeMachine({
     }
   }
 
+  async function loadScorecard() {
+    setScorecardLoading(true);
+    setErr(null);
+    try {
+      const card = await api.replayCorpus({ mode: "stored" });
+      setScorecard(card);
+    } catch (e: unknown) {
+      setErr(toUserError(e));
+    } finally {
+      setScorecardLoading(false);
+    }
+  }
+
   if (mode === "agent") {
     if (verdict?.replay_id) return <AgentJson view="replay" id={verdict.replay_id} />;
     return (
@@ -358,6 +373,65 @@ export function TimeMachine({
         3 runs, majority verdict. pick agent → version → model → session.
       </p>
       {err && <Seam error={err} />}
+
+      <div className="mad-strip">
+        <p className="eyebrow">{"// corpus_scorecard"}</p>
+        <div className="control-bar">
+          <button
+            className="btn"
+            type="button"
+            disabled={scorecardLoading}
+            onClick={() => void loadScorecard()}
+          >
+            {scorecardLoading ? "corpus.scorecard() …" : "corpus.scorecard(stored)"}
+          </button>
+          <span className="dim">
+            aggregates stored replay verdicts · offline · cap {10} sessions/request
+          </span>
+        </div>
+        {scorecard && (
+          <div className="diff">
+            <div className="col">
+              <h3>stored aggregate</h3>
+              {(
+                [
+                  ["mode", scorecard.mode],
+                  ["session_count", scorecard.session_count],
+                  ["sessions_with_replay", scorecard.sessions_with_replay ?? "—"],
+                  [
+                    "goals_reached",
+                    `${scorecard.goals_reached.candidate}/${scorecard.goals_reached.of} vs baseline ${scorecard.goals_reached.baseline}/${scorecard.goals_reached.of}`,
+                  ],
+                  ["cost_delta_usd_total", scorecard.cost_delta_usd_total],
+                  ["cost_delta_pct_median", scorecard.cost_delta_pct_median ?? "—"],
+                  ["steps_delta_median", scorecard.steps_delta_median ?? "—"],
+                  [
+                    "threat_resistance",
+                    scorecard.threat_resistance.threat_sessions > 0
+                      ? `${scorecard.threat_resistance.candidate_resisted}/${scorecard.threat_resistance.threat_sessions}`
+                      : "—",
+                  ],
+                ] as const
+              ).map(([k, v]) => (
+                <div className="stat-row" key={k}>
+                  <span>{k}</span>
+                  <span>{String(v)}</span>
+                </div>
+              ))}
+              <p className="dim">{scorecard.honesty}</p>
+            </div>
+            <div className="col">
+              <h3>verdict_counts</h3>
+              {Object.entries(scorecard.verdict_counts).map(([k, v]) => (
+                <div className="stat-row" key={k}>
+                  <span>{k}</span>
+                  <span>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="control-bar">
         <label>

@@ -11,6 +11,7 @@ import {
   isOfflineError,
   normalizeFleetRow,
   normalizeFleetRows,
+  normalizeCorpusScorecard,
   normalizeHitlRows,
   normalizeReplayRows,
   normalizeSessionRows,
@@ -76,6 +77,40 @@ describe("normalizeFleetRows", () => {
   it("returns empty array when payload is not a list", () => {
     assert.deepEqual(normalizeFleetRows(null), []);
     assert.deepEqual(normalizeFleetRows({ agent_id: "solo" }), []);
+  });
+
+  it("normalizes latency fields on health", () => {
+    const row = normalizeFleetRow({
+      agent_id: "a1",
+      health: {
+        p50_wall_clock_ms_24h: "1200",
+        p95_wall_clock_ms_24h: 3400,
+        latency_sample_count_24h: "3",
+        latency_source_24h: "ended_at-started_at",
+      },
+    });
+    assert.equal(row!.health.p50_wall_clock_ms_24h, 1200);
+    assert.equal(row!.health.p95_wall_clock_ms_24h, 3400);
+    assert.equal(row!.health.latency_sample_count_24h, 3);
+  });
+});
+
+describe("normalizeCorpusScorecard", () => {
+  it("parses stored scorecard payload", () => {
+    const card = normalizeCorpusScorecard({
+      mode: "stored",
+      session_count: 2,
+      verdict_counts: { improved: "1", regressed: 1 },
+      goals_reached: { baseline: 0, candidate: 2, of: 2 },
+      cost_delta_usd_total: -0.01,
+      cost_delta_pct_median: -25,
+      steps_delta_median: -1,
+      threat_resistance: { threat_sessions: 1, candidate_resisted: 1, rate: 1 },
+      honesty: "offline",
+    });
+    assert.equal(card!.mode, "stored");
+    assert.equal(card!.verdict_counts.improved, 1);
+    assert.equal(card!.threat_resistance.rate, 1);
   });
 });
 

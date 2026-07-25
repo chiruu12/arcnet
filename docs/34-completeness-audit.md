@@ -57,7 +57,7 @@ with a named, non-blocking gap.
 | **F3** | Bug Suite S0/S1/S2/S4/S5 | **SHIPPED** | `agents/scenarios/runner.py:81-651` all five scenarios + assertions; `agents/tests/test_s1_fixture.py:30-63`; CI stubs when no live key (`agents/tests/test_guard_scenarios.py:1-3` header) | Live `runner.py --scenario all` needs `OPENAI_API_KEY` (quota-gated per `docs/20`) |
 | **F4** | SigNoz depth (dashboards, alerts, webhook) | **PARTIAL** | Provision: `deploy/provision/dashboard-*.json`, `alerts.json`, `setup.py:101-283`; webhook `server/arcnet_server/main.py:1089-1123`; tests `server/tests/test_webhook_harden.py:28-108`; status `main.py:1253-1259` | **MCP live** = PARTIAL (`deploy/mcp/README.md:12` key-less fail; G5 deferred). **Service-account key** = manual UI step. HQ dashboard links often generic `/dashboard` (`hq/src/views/Dashboards.tsx:29-68`) |
 | **F5** | Signals self-correct (`steer`/`kill`) | **SHIPPED** | `sdk/arcnet/signals.py:98-163` apply_steer/kill; inline `main.py:262-272`; SSE `main.py:964-979`; HQ `hq/src/views/Signals.tsx` + SSE bus | `pause` scaffold only (see P1 HITL) |
-| **F6** | Fleet Health view | **SHIPPED** | `hq/src/views/FleetHealth.tsx:124-168`; API `main.py:273-277`; `[FORWARD]` badge `FleetHealth.tsx:155-156`; tests via FE + `server/tests/test_read_models.py` fleet envelope | **No latency** on cards (`docs/15` §4.1) vs demo script "cost and latency" — thin vs narration |
+| **F6** | Fleet Health view | **SHIPPED** | `hq/src/views/FleetHealth.tsx:124-168`; API `main.py:273-277`; `[FORWARD]` badge `FleetHealth.tsx:155-156`; tests via FE + `server/tests/test_read_models.py` fleet envelope | **Latency** on cards: p50/p95 wall-clock ms from recorded session timestamps (`ended_at-started_at`, fallback `usage.latency_ms`) — **SHIPPED** P26 |
 | **F7** | Agent-view + Case File + MCP handoff | **PARTIAL** | Agent-view `main.py:673-933`; Case File `main.py:953-958`; tests `server/tests/test_case_file.py:67-88`; twins `server/tests/test_agent_twins_p8b.py:97-168`; MCP hints `read_models.py:123-129` | **G5 live MCP handoff** = **EXPLICIT DEFER** (`docs/03-plan.md:91`, `docs/log.md:62`). HTTP/Query Range fallback shipped; stdio may hang |
 | **F13** | Griffin core (MAD) | **SHIPPED** | Worker `server/arcnet_server/griffin.py:613-628`; evaluate `main.py:1192+`; MAD tests `server/tests/test_griffin_cold_soak.py`; HQ strip `FleetHealth.tsx:34-72` | Default runtime = **MAD**; TabFM opt-in `ARCNET_TABFM=1` (`griffin.py:143-144`) — narrate honestly |
 | **F14** | Time Machine (counterfactual replay + verdict) | **SHIPPED** | Harness `sdk/arcnet/replay.py:1-30`; API `main.py:583-619`; UI `hq/src/views/TimeMachine.tsx`; verdict tests `server/tests/test_replay_service.py:42-103`; hardening `server/tests/test_replay_hardening.py`; G4 `docs/_phase4_g4.json` | Live `replay.run()` needs AgentOS `:7777` + OpenAI key |
@@ -77,7 +77,7 @@ with a named, non-blocking gap.
 | HITL `pause` beat | **PARTIAL** | UI `hq/src/views/Hitl.tsx:18-50`; API `main.py:1012-1057`; honesty `hq/src/hitlUtils.ts:24-25`; tests `server/tests/test_hitl_api.py:22-62` | **HITL live relay** to AgentOS = **MISSING** — SQLite-only (`repository.py:734`, `decide_hitl` no HTTP to AgentOS) |
 | Prompt-swap replay | **PARTIAL** | API accepts `candidate_prompt` `main.py:590-594` | HQ Time Machine UI is **model-only** (`TimeMachine.tsx:438` — no prompt picker) |
 | Live-work agent (dogfood fleet) | **PARTIAL** | Agent J + L/O `agents/arcnet_agents/app.py:30-36`; seed background sessions `scripts/seed_demo.py:27-131` | Agents run **scenario choreography** + seeded background rows — not continuous genuine production tasks |
-| Time Machine corpus scorecard | **EXPLICIT DEFER** | P6-C tracking `docs/22-next-agent-packets.md:216`; no route in `main.py` (grep `replay/corpus` → docs only) | `docs/12-data-api.md:160` contract row only |
+| Time Machine corpus scorecard | **SHIPPED** | `POST /api/replay/corpus` `main.py`; `corpus_service.py` stored+live modes; HQ `TimeMachine.tsx` stored scorecard strip; tests `server/tests/test_corpus_and_latency.py` | Live mode needs AgentOS + model key; stored mode works offline on seeded replays |
 | Context inspector UI | **EXPLICIT DEFER** | Sources ledger captures data `docs/12-data-api.md:91`; no HQ view | Agent-view + sources_trust cover demo |
 | F9 canaries | **MISSING** | unplug exposes `add_canary` (`docs/05-unplug-integration.md:50`) | No call sites in `sdk/` (grep `add_canary` → 0) |
 
@@ -121,7 +121,7 @@ with a named, non-blocking gap.
 
 | Deferral | Still accurate? | Evidence |
 |----------|-----------------|----------|
-| P6-C corpus scorecard | **Yes** | No `POST /api/replay/corpus` in `main.py` |
+| P6-C corpus scorecard | **No** | `POST /api/replay/corpus` shipped P26 — stored (offline) + live (bounded) |
 | G5 live MCP handoff | **Yes** | `deploy/mcp/README.md:12`; hints prefer HTTP `read_models.py:123-129` |
 | README screenshots | **Yes** | `README.md:159` — slots reserved, capture human |
 | Context-inspector UI | **Yes** | No view file; deferred in `docs/03-plan.md:20` |
@@ -153,7 +153,7 @@ with a named, non-blocking gap.
 | `docs/15` "HQ has **no URL router**" | Hash routes with agent/version/session/model params `hash.ts:12-27` | Low — doc stale |
 | `docs/15` signals `guidance` "not rendered" | Rendered `Signals.tsx:207` | Low — doc stale |
 | `docs/02-architecture.md:136` HITL "approve/reject → AgentOS" | SQLite only `main.py:1055-1057` | Medium — operator trust |
-| `docs/01` / `docs/06` cold open "cost **and latency**" on Fleet Health | Cards show cost, anomalies — **no latency** `FleetHealth.tsx:168` | Low — narration |
+| `docs/01` / `docs/06` cold open "cost **and latency**" on Fleet Health | Cards show cost + p50/p95 wall-clock ms from recorded session timestamps (`FleetHealth.tsx`) | Low — resolved P26 |
 | `docs/20` test counts (server 149, sdk 8, hq 40) | **219 / 63 / 60** measured above | Low — tracking drift |
 | `docs/22` P7-B "**DONE**" TabFM | Shipped **opt-in**; default MAD `griffin.py:143-144`; HQ honesty string `FleetHealth.tsx:72` | Medium — risk if demo claims TabFM without `ARCNET_TABFM=1` |
 | `docs/15` signals/sources agent twin "PARTIAL / raw JSON" | P8-B envelopes `test_agent_twins_p8b.py:156-168` | Low — map stale |
@@ -187,9 +187,9 @@ Ordered by **user-visible impact × effort to close** (highest first).
 | 3 | **G5 / SigNoz MCP live handoff** — Case File beat relies on HTTP fallback | Provision `SIGNOZ_API_KEY`; debug stdio hang or document HTTP-only path in demo script |
 | 4 | **HITL pause does not stop AgentOS** — UI implies productized pause | Wire `decide_hitl` → AgentOS cancel/pause endpoint or demote pause in demo |
 | 5 | **Dashboard UUID deep-links** — three named boards open same shell | Re-provision; set `SIGNOZ_DASHBOARD_*` env; verify `Dashboards.tsx:59-68` |
-| 6 | **Time Machine corpus scorecard** (P1 pre-cut) | Implement `POST /api/replay/corpus` + minimal HQ aggregate **or** keep DEFER and scrub `docs/10` corpus narration |
+| 6 | ~~**Time Machine corpus scorecard** (P1 pre-cut)~~ | **SHIPPED** P26 — `POST /api/replay/corpus` + HQ stored scorecard |
 | 7 | **Prompt-swap replay UI** — API supports `candidate_prompt`, HQ does not | Add prompt picker to `TimeMachine.tsx` wired to `POST /api/replay` |
-| 8 | **Fleet Health latency dimension** — demo script promises it | Add `p99_latency` to fleet health aggregate + card row |
+| 8 | ~~**Fleet Health latency dimension** — demo script promises it~~ | **SHIPPED** P26 — p50/p95 wall-clock ms on fleet cards from recorded session timestamps |
 | 9 | **Griffin auto-discovery / top-N** (P1) | Replace `ALLOWLIST` with metric discovery from SigNoz or session rollups |
 | 10 | **F9 canaries** — unplug API unused | Wire `add_canary` in `build_agent_j` prompt path + telemetry |
 | 11 | **Context inspector** (deferred P1) | Step-by-step ingest view from `sources` ledger — build when bandwidth allows |

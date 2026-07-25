@@ -8,6 +8,7 @@ the human and agent audiences; routes never embed SQL.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 
@@ -95,6 +96,79 @@ def set_session_agent_version(
     return get_session(conn, session_id)
 
 
+def _percentile(values: list[float], p: float) -> float | None:
+    """Linear-interpolation percentile on a non-empty sorted sample."""
+    if not values:
+        return None
+    sorted_vals = sorted(values)
+    if len(sorted_vals) == 1:
+        return round(sorted_vals[0], 1)
+    rank = (len(sorted_vals) - 1) * (p / 100.0)
+    lo = int(rank)
+    hi = min(lo + 1, len(sorted_vals) - 1)
+    weight = rank - lo
+    return round(sorted_vals[lo] * (1.0 - weight) + sorted_vals[hi] * weight, 1)
+
+
+def _session_latency_ms(
+    started_at: Any, ended_at: Any, usage_raw: Any
+) -> tuple[float | None, str | None]:
+    """Derive one session latency from recorded SQLite fields only."""
+    started = int(started_at) if started_at is not None else None
+    ended = int(ended_at) if ended_at is not None else None
+    if started is not None and ended is not None and ended > started:
+        return float(ended - started), "ended_at-started_at"
+    usage = usage_raw
+    if isinstance(usage, str) and usage:
+        try:
+            usage = json.loads(usage)
+        except json.JSONDecodeError:
+            usage = {}
+    if isinstance(usage, dict):
+        raw = usage.get("latency_ms")
+        if raw is not None and raw is not False:
+            try:
+                ms = float(raw)
+            except (TypeError, ValueError):
+                return None, None
+            if ms > 0:
+                return ms, "usage.latency_ms"
+    return None, None
+
+
+def fleet_latency_24h(conn: sqlite3.Connection, *, day_ago: int) -> dict[str, dict[str, Any]]:
+    """Per-agent p50/p95 wall-clock ms from sessions started in the last 24h."""
+    rows = conn.execute(
+        """SELECT agent_id, started_at, ended_at, usage
+           FROM sessions WHERE started_at >= ?""",
+        (day_ago,),
+    ).fetchall()
+    by_agent: dict[str, list[tuple[float, str]]] = {}
+    for agent_id, started_at, ended_at, usage in rows:
+        ms, source = _session_latency_ms(started_at, ended_at, usage)
+        if ms is None or source is None:
+            continue
+        by_agent.setdefault(str(agent_id), []).append((ms, source))
+    out: dict[str, dict[str, Any]] = {}
+    for agent_id, samples in by_agent.items():
+        values = [ms for ms, _ in samples]
+        sources = {src for _, src in samples}
+        source_label = (
+            "ended_at-started_at"
+            if sources == {"ended_at-started_at"}
+            else "usage.latency_ms"
+            if sources == {"usage.latency_ms"}
+            else "mixed(ended_at-started_at,usage.latency_ms)"
+        )
+        out[agent_id] = {
+            "p50_wall_clock_ms_24h": _percentile(values, 50),
+            "p95_wall_clock_ms_24h": _percentile(values, 95),
+            "latency_sample_count_24h": len(values),
+            "latency_source_24h": source_label,
+        }
+    return out
+
+
 def fleet_records(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Agents + 24h health aggregates in one pass (no per-agent query loop)."""
     day_ago = now_ms() - DAY_MS
@@ -138,22 +212,36 @@ def fleet_records(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             (day_ago,),
         ).fetchall()
     }
+    latency_24h = fleet_latency_24h(conn, day_ago=day_ago)
 
     out: list[dict[str, Any]] = []
     for agent in agents:
         assert agent is not None
         aid = agent["agent_id"]
+        health: dict[str, Any] = {
+            "sessions_24h": sessions_24h.get(aid, 0),
+            "threats_24h": threats_24h.get(aid, 0),
+            "blocked_24h": blocked_24h.get(aid, 0),
+            "cost_24h_usd": round(cost_24h.get(aid, 0.0), 6),
+            "anomalies_24h": anomalies_24h.get(aid, 0),
+            "active_signals": active_signals.get(aid, 0),
+        }
+        lat = latency_24h.get(aid)
+        if lat:
+            health.update(lat)
+        else:
+            health.update(
+                {
+                    "p50_wall_clock_ms_24h": None,
+                    "p95_wall_clock_ms_24h": None,
+                    "latency_sample_count_24h": 0,
+                    "latency_source_24h": None,
+                }
+            )
         out.append(
             {
                 **agent,
-                "health": {
-                    "sessions_24h": sessions_24h.get(aid, 0),
-                    "threats_24h": threats_24h.get(aid, 0),
-                    "blocked_24h": blocked_24h.get(aid, 0),
-                    "cost_24h_usd": round(cost_24h.get(aid, 0.0), 6),
-                    "anomalies_24h": anomalies_24h.get(aid, 0),
-                    "active_signals": active_signals.get(aid, 0),
-                },
+                "health": health,
             }
         )
     return out
