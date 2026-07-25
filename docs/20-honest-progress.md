@@ -30,16 +30,16 @@ Inflation ban: move a cell only when that area’s exit in `19` §2 passes. “C
 | # | Area | Start | AM 2026-07-23 | **Measured now (PM)** | Exit status |
 |---|---|---:|---:|---:|---|
 | 1 | Positioning / framing | 58 | 58 | **66** | **P5-B exits met** — honesty greps 0; MAD + MCP PARTIAL in README/`14`/`06`; Beat-3 narration = MAD; `23` overview |
-| 2 | HQ frontend / IA | 55 | 64 | **72** | **P6-A/P6-B exits met** — `hitl` view, threats panel, api_down recover (helper + tests); 60 FE tests in CI |
-| 3 | Human APIs | 58 | 66 | **70** | Partial — + `GET /api/hitl` w/ pagination headers; threats page consumption |
-| 4 | Agent APIs / tools | 64 | 66 | **72** | **P5-B/P6-B exits met** — excerpt bounds tested; A15 hatch tested; dashboards twin envelope + scope 404 |
+| 2 | HQ frontend / IA | 55 | 64 | **72** | **P6-A/P6-B + P27/P30** — `context_inspector`, per-view retry, SSE stream-offline, envelope validation, case-file download errors; **97** FE tests |
+| 3 | Human APIs | 58 | 66 | **70** | Partial — HITL relay (`hitl_relay.py`); `POST /api/replay/corpus` stored+live |
+| 4 | Agent APIs / tools | 64 | 66 | **72** | **P5-B/P6-B/P28** — F9 canaries; excerpt bounds; dashboards twin envelope |
 | 5 | HQ Agent | 56 | 62 | **62** | Unchanged — no new exits this pass |
 | 6 | Version timeline / pinpoint | 52 | 68 | **68** | Unchanged — no new exits this pass |
-| 7 | Model explore / sims | 50 | 56 | **56** | Unchanged; corpus scorecard = explicit DEFER (P6-C, no endpoint) |
-| 8 | Griffin (MAD) | 46 | 54 | **58** | **P7-A exits met** — spike re-measured (`_phase7_g7.json`), worker contract + MAD-fallback tests; runtime still MAD |
-| 9 | SigNoz | 54 | 58 | **58** | Unchanged (user pin: no further polish); MCP still PARTIAL |
-| 10 | Unplug coverage | 68 | 70 | **76** | **P5-A exits met** — matrix 128 rows / 0 silent gaps; S1/S2/S5 CI stubs; live rerun DEFER (quota) |
-| 11 | Tests / CI / e2e | 48 | 58 | **64** | Suite grew: server 219 / agents 18 / sdk 63 / hq 60, all green in CI |
+| 7 | Model explore / sims | 50 | 56 | **56** | P8-C model-intel; P22 prompt-swap UI; P26 corpus scorecard shipped |
+| 8 | Griffin (MAD) | 46 | 54 | **58** | **P7-A + P29** — auto-discovery, eval cap, top-N; runtime MAD default |
+| 9 | SigNoz | 54 | 58 | **58** | P22 dashboard UUID deep-links + unresolved honesty; MCP still PARTIAL |
+| 10 | Unplug coverage | 68 | 70 | **76** | Corpus 28/40 (70.0%); P23 untainted-exfil closed; S1/S2/S5 CI stubs |
+| 11 | Tests / CI / e2e | 48 | 58 | **64** | Suite: server 233 / agents 18 / sdk 81 / hq 97; suite guards prevent `data/arcnet.db` writes |
 | **Overall (1–11)** | **~48** | **~57** | **~62** | Cap ≤65; live reruns + P7-B + capture still open |
 | 12 | Hackathon assets | 35 | 35 | **38** | Track only — capture checklist landed; media human |
 
@@ -54,7 +54,7 @@ Equal-weight of areas drifts higher than the honesty pin; **authoritative overal
 | 4 | Agent APIs / tools | 72 | **78** | P8-B: twin for EVERY HQ view + `graph_links` walkable graph + `docs/26` guide; 12 new twin tests |
 | 7 | Model explore / sims | 56 | **64** | P8-C: `model_catalog` (2026-07, reasoning tiers) + additive `GET /api/agents/{id}/model-intel` — projections from recorded tokens only, rec cites DB evidence; 4 tests + live-verified vs hero DB |
 | 10 | Unplug coverage | 76 | **80** | P8-D: shared `guard_factory` config; verdict metadata persisted on threats/sources/signals + case files; matrix updated; 5 new tests |
-| 11 | Tests / CI / e2e | 64 | **68** | Suite grew: server 219 / agents 18 / sdk 63 / hq 60 (P14 guard corpus via pytest), boundaries clean |
+| 11 | Tests / CI / e2e | 64 | **68** | Suite grew: server 233 / agents 18 / sdk 81 / hq 97 (P14 guard corpus + P28 canary via pytest), boundaries clean |
 | — | Overall (1–11) | ~62 | **~64** | Cap **≤65** holds — live S1/S2/S5 rerun (quota), P7-B TabFM ship, capture still open |
 
 ---
@@ -129,7 +129,7 @@ P1 regression exits (must stay green):
 | P5-B honesty + excerpts | `rg 'TabFM live\|demo badge'` → 0; excerpt-bound tests in `test_read_models.py`; A15 `full_transcript` hatch named + tested |
 | P6-A HITL UI | `hq/src/views/Hitl.tsx` + `GET /api/hitl` + SSE decide; `test_hitl_api.py` + `hitl.test.ts`; honesty string UI + `14` |
 | P6-B recover/threats/twins | `apiRecover.ts` + tests; `ThreatsPanel.tsx` on fleet_health; dashboards agent-view envelope + scope 404 |
-| P6-C corpus | **DEFER** — no server endpoint; docs/12 P1 row contract-only |
+| P6-C corpus | **SHIPPED** | `POST /api/replay/corpus` stored+live modes; HQ Time Machine scorecard strip |
 | P7-A TabFM spike | `docs/_phase7_g7.json` (load ~54s, ~80s/series CPU, N=1 @ 360s); `tabfm_worker.py` contract + `test_tabfm_worker_stub.py` |
 | Run-3 demo rehearsal | cold bring-up README-verbatim PASS; e2e + dry-run PASS; `docs/plans/capture-checklist.md` |
 
@@ -137,9 +137,11 @@ P1 regression exits (must stay green):
 
 | Gap | Why it blocks |
 |---|---|
-| Live S1/S2/S5 rerun + hero re-verify | **OpenAI key over quota** — recorded `_phase4_g4.json` stands; rerun on top-up |
-| P7-B TabFM ship | worker + degrade + honest labels — not started |
+| Live S1/S2/S5 rerun + hero re-verify | **OpenAI key over quota** — recorded `_phase4_g4.json` stands; cold-clone heroes work offline (`fixtures/heroes.json`) |
 | Demo capture (screenshots/video/submission) | Track H, human |
+| G5 live MCP handoff | stdio hang — HTTP fallback ships |
+| Live-work dogfood agent | Scenario + seed choreography only |
+| unplug-ai input-layer gaps (9) | Upstream PyPI package — `docs/33` §Known gaps |
 
 **No further SigNoz/seed/fixture data polish** (user pin after Phase 3).
 
@@ -176,8 +178,9 @@ Order: **fix → test → measure → then new features**. Overall stays **~62% 
 ### Explicit backlog (not % fuel)
 
 - ~~**Phase 4 live ops loop**~~ — **done** (PR #19)
-- ~~**HITL pause UI**~~ — **P6-A done**; corpus scorecard = **P6-C DEFER** (no endpoint)
-- **TabFM integration (required P7-B)** — spike measured (P7-A: N=1 @ 360s cadence, async worker, MAD degrade); **runtime ship NOT started**
+- ~~**HITL pause UI**~~ — **P6-A done**; HITL relay **P21 done** (reject → kill; approve = ack)
+- ~~**Corpus scorecard**~~ — **P26 done** (`POST /api/replay/corpus`)
+- **TabFM integration (required P7-B)** — spike measured (P7-A); runtime ship opt-in behind `ARCNET_TABFM=1`; default MAD
 - WS11 hackathon capture (screenshots/video) — track only; capture checklist ready
 - Claiming ≥70% overall before live reruns + P7-B exits + measured re-score
 - Further SigNoz/seed/fixture polish — **stopped per user**
