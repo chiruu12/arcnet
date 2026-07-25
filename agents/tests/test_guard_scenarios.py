@@ -7,7 +7,14 @@ These tests exercise the same four checkpoint callables in-process.
 
 from __future__ import annotations
 
+import os
 import unittest
+
+# Keep the suite hermetic. init() defaults to http://localhost:8000, so running
+# these tests while the demo server is up posts threats into the demo database.
+# Point telemetry at the discard port so the POSTs fail fast and stay local.
+os.environ["ARCNET_SERVER_URL"] = "http://127.0.0.1:9"
+
 from types import SimpleNamespace
 from agno.exceptions import InputCheckError
 from agno.run.agent import RunInput
