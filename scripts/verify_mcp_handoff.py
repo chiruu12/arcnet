@@ -32,7 +32,9 @@ DEFAULT_SESSION = "s_ecfdb55d"  # Edgar hero — fixtures/heroes.json
 @dataclass
 class StepResult:
     name: str
-    ok: bool
+    #: True = passed, False = failed, None = could not run (reported as ``--``,
+    #: never as ``ok`` — a check that did not run must not read like a success).
+    ok: bool | None
     detail: str
 
 
@@ -46,7 +48,7 @@ class Report:
     verdict: str = "pending"
     exit_code: int = 1
 
-    def add(self, name: str, ok: bool, detail: str) -> None:
+    def add(self, name: str, ok: bool | None, detail: str) -> None:
         self.steps.append(StepResult(name, ok, detail))
 
     def render(self) -> str:
@@ -55,7 +57,7 @@ class Report:
             f"server: {self.server_url}",
         ]
         for s in self.steps:
-            mark = "ok" if s.ok else "!!"
+            mark = "--" if s.ok is None else ("ok" if s.ok else "!!")
             lines.append(f"  [{mark}] {s.name}: {s.detail}")
         if self.trace_id:
             lines.append(f"trace_id: {self.trace_id}")
@@ -349,7 +351,7 @@ def verify(
             report.add("signoz_evidence", False, "non-json response")
             evidence = {}
         elif evidence.get("note") and not evidence.get("spans"):
-            report.add("signoz_evidence", True, evidence.get("note", "metadata only"))
+            report.add("signoz_evidence", None, evidence.get("note", "metadata only"))
         elif evidence.get("spans"):
             report.add(
                 "signoz_evidence",
@@ -357,7 +359,7 @@ def verify(
                 f"{len(evidence['spans'])} bounded span(s) via server endpoint",
             )
         else:
-            report.add("signoz_evidence", True, "empty spans — see note")
+            report.add("signoz_evidence", None, "empty spans — see note")
 
         _, threats = _get_json(
             client, f"{report.server_url}/api/agent-view/threats/{session_id}"

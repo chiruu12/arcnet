@@ -128,6 +128,14 @@ Operator-flow shots (optional, from the dry-run):
 - Don't open HQ via `127.0.0.1` (blank — Vite binds `localhost`).
 - Beat 4: verify HTTP handoff first — `.venv/bin/python scripts/verify_mcp_handoff.py`.
   SigNoz MCP stdio is optional; may block without `.env` key (`deploy/mcp/diag_stdio.sh`).
+- **The hero sessions have no trace left in SigNoz.** Verified 2026-07-25: `s_ecfdb55d`
+  resolves a `trace_id`, but its spans have aged out of ClickHouse retention, so
+  `verify_mcp_handoff.py` falls back to a connectivity probe (`session trace not in
+  retention`). SQLite keeps the incident forever; SigNoz does not. **Any shot that flips to a
+  SigNoz trace waterfall must use a session recorded in the same sitting** — run
+  `runner.py --scenario S1` during pre-flight and use THAT session id for the trace shots
+  (a fresh run returns real spans: `arcnet.guard`, `OpenAIChat.invoke`, `lookup_customer`,
+  `send_email`). Keep the heroes for HQ, Case Files, and Time Machine, which read SQLite.
 - Temp-0 replay is variance reduction, not determinism — narrate only numbers a run actually
   produced.
 - Rehearse the full take the day before; deadline day is ship/submit only.
