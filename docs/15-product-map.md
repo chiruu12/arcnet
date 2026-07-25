@@ -138,7 +138,7 @@ flowchart TB
 
 | View | Purpose | Widgets / fields shown | APIs | Empty / error | Demo beat | Status |
 |---|---|---|---|---|---|---|
-| **Shell** | Nav + mode + reachability | Sidebar IA; mini-fleet dots; `· connecting` / `· live` / `· api_down`; human/agent toggle; hash deep-links | `GET /api/fleet` (probe + focus/interval recover via `apiRecover.ts`) | `api_down` + run-demo hint; `no agents` | Cold open chrome | **DONE** |
+| **Shell** | Nav + mode + reachability | Sidebar IA; mini-fleet dots; `· connecting` / `· live` / `· api_down`; human/agent toggle; **hash deep-links** (`#view?agent=&version=&session=&model=` via `hash.ts`); P13 fetch resilience (`apiResilience.ts` — payload guards + error envelopes, 60 FE tests) | `GET /api/fleet` (probe + focus/interval recover via `apiRecover.ts`) | `api_down` + run-demo hint; `no agents` | Cold open chrome | **DONE** |
 | **home** | Landing + loop stats | Fleet/session/threat counts; quick links into observe/improve views | H: `/api/fleet` + session index · A: `GET /api/agent-view/home/all` | Empty + seam | — | **DONE** |
 | **fleet_health** | Fleet posture | Cards: name, `agent_id`, role, model, hot/ok, `[FORWARD]` if `forward_facing`; `sessions_24h`, `threats_24h`, `blocked_24h`, `cost_24h_usd`, `anomalies_24h`, `active_signals`; Griffin MAD strip (`MadStrip`); embedded threats panel (cost yes; **no latency** on cards) | H: `/api/fleet` · A: `/api/agent-view/fleet/all` | Empty + seam + loading | Beat 0–1 | **DONE** |
 | **signals** | Live defense feed | Table: time, kind (`kill`/`pause`/`steer`/`note`), severity, agent, session, reason, **`guidance`**, source, status; live SSE count (human path) | H: `/api/signals` + SSE · A: `GET /api/agent-view/signals/{id}` envelope | Empty + S1 runner hint; no dedicated loading flash | Beat 2–3 | **DONE** |
@@ -147,7 +147,7 @@ flowchart TB
 | **time_machine** | Counterfactual proof | Session select (`has_transcript`); candidate model; baseline vs candidate cols + badges; dimension rows; divergences; verdict + recommendation; history list if ≥2 replays; SSE progress; `hand_to(claude_code)` | sessions, replays, `POST /api/replay`, SSE `replay_progress`, agent-view replay, export | No transcripts; agent empty until a **verdict exists** (seeded history or `replay.run()`). Default select = latest transcript session — **not** auto-heroes | Beat 5 (headline) | **DONE** |
 | **case_files** | Incident handoff preview | Session select; incident / root_cause / recommended_actions; MCP hint; export zip. **Human mode always loads incident agent-view** | `/api/agent-view/incident/{id}`, `/export/case-file/{id}`, sessions | No sessions; agent needs selection. Default = latest session (often clean `s_demo_*`) — **pick heroes for Beat 4** | Beat 4 | **DONE** |
 | **dashboards** | SigNoz launcher | Status line (`ui_reachable`, `api_key_present`, `query_range_ok`); 5 link cards (3 named dashboards all hit `/dashboard`; traces; alerts) | `/api/signoz/status` · A: `GET /api/agent-view/dashboards/all` via `AgentJson` | Honest warn copy; links still open | Beat 1 / close | **PARTIAL** — deep-links only, no embedded charts; named dashboards share `/dashboard` |
-| **hq_agent** | HQ maintenance strip | Version timeline, propose/apply/pin, model-intel, MAD Griffin tools | H: HQ Agent APIs · A: `GET /api/agent-view/hq_agent/{id}` | Empty until agent selected | — | **DONE** (subset of [`18`](18-hq-agent.md) vision) |
+| **hq_agent** | HQ maintenance strip | Version timeline, propose/apply/pin, **`GET /api/agents/{id}/model-intel`** (catalog + evidence-grounded recommendation), MAD Griffin tools | H: HQ Agent APIs + model-intel · A: `GET /api/agent-view/hq_agent/{id}` | Empty until agent selected | — | **DONE** (subset of [`18`](18-hq-agent.md) vision) |
 
 ### 4.2 Human APIs vs agent-view
 
@@ -164,6 +164,7 @@ Frozen contract: [`12-data-api.md`](12-data-api.md). Serializers: `server/arcnet
 | `POST /api/replay` → verdict | Verdict object sync | `GET /api/agent-view/replay/{id}` | Envelope around stored verdict |
 | `GET /api/replays` | Index without `runs` blob | — | — |
 | Case File UI | Renders incident envelope | `GET /api/agent-view/incident/{id}` + zip | Zip = `case-file.md` + same JSON envelope |
+| Write-auth (mutating POST) | — | `ARCNET_WRITE_SECRET` + `X-Arcnet-Write-Secret` when set; unset = localhost-trust | Demo default open; production sets secret ([`32`](32-deployment-notes.md)) |
 | — | — | Envelope always: `{view, id, generated_at, data, links, hints}` | `generated_at` ISO-Z; row timestamps remain **epoch-ms** (documented drift vs `12`) |
 
 Every agent-view wraps with `{view, id, generated_at, data, links, hints}`. `links.human_view` values (e.g. `/fleet`, `/time-machine/{id}`) are **logical** paths — HQ maps them to hash routes (`#fleet_health`, `#time_machine?session=…`).
@@ -186,6 +187,7 @@ Every agent-view wraps with `{view, id, generated_at, data, links, hints}`. `lin
 | Replay | `replay.py` | Tool stubs from transcript; **live** guard; recorded signals only | **DONE** |
 | Transcript | `transcript.py` | Persist to server SQLite-primary | **DONE** |
 | Telemetry | `telemetry.py` | POST threats/sources to server | **DONE** |
+| Guard corpus P14 | `sdk/tests/test_guard_corpus.py`; `sdk/tests/fixtures/guard_corpus.json` | 42 synthetic attack payloads offline (25/38 caught); taxonomy in [`33-guard-coverage.md`](33-guard-coverage.md) | **DONE** |
 
 **Integration pattern (config, not forks):**
 
@@ -255,6 +257,13 @@ Friction: `PYTHONPATH=sdk:agents`; submodule imports (`arcnet.guardrail`, …); 
 | TabFM foundation model worker | **PARTIAL** — opt-in `ARCNET_TABFM=1` (`griffin.py:143-144`); default runtime = **MAD**; HQ labels `tabfm` only when worker healthy |
 | HQ Griffin MAD strip | **DONE** (`FleetHealth.tsx` `MadStrip` + `/api/griffin/status`); no forecast-band chart |
 
+### 4.8 Write-auth + HQ resilience (P11–P14)
+
+| Surface | Path / env | What it does | Status |
+|---|---|---|---|
+| Write-auth | `ARCNET_WRITE_SECRET` ([`30-hardening.md`](30-hardening.md) P11-C, [`32-deployment-notes.md`](32-deployment-notes.md)) | When set, mutating `POST` routes require `X-Arcnet-Write-Secret` (or Bearer); unset = localhost-trust demo default | **DONE** — `server/tests/test_write_auth.py` |
+| HQ API resilience P13 | `hq/src/apiResilience.ts` | Normalizes API payloads, parses `{detail, hint}` errors, offline detection; wired through `api.ts` into views | **DONE** — 60 FE tests (`apiResilience.test.ts` + view tests) |
+
 ---
 
 ## 5. "What we check" matrix
@@ -266,15 +275,18 @@ Verification points for later adversarial/QA. Sources: `14` §8–11, `log.md` g
 | **Demo bring-up** | 5 | `run-demo.sh` starts; `:8000` health; `:7777` AgentOS; `:5173` HQ; seed fleet non-empty |
 | **HQ shell** | 4 | `· live`; mini-fleet ids; toggle persists across views; `api_down` when server killed |
 | **fleet_health** | 6 | Cards render; `[FORWARD]` on `agent_j`; health numbers; agent envelope shape; empty DB; seam error |
-| **signals** | 6 | Initial rows; SSE merge by `signal_id`; kinds/severity; live counter; empty hint; agent raw JSON |
-| **sources_trust** | 5 | Rows after S1; trust_level; scan_action badges; empty; agent raw JSON |
+| **signals** | 6 | Initial rows; SSE merge by `signal_id`; kinds/severity; **`guidance` column**; live counter; empty hint; agent-view envelope (P8-B) |
+| **sources_trust** | 5 | Rows after S1; trust_level; scan_action badges; empty; agent-view envelope (P8-B) |
 | **time_machine** | 10 | Hero sessions listed; history loads; `replay.run()` progress; verdict dims; badges; agent replay envelope; hand_to download; no-transcript empty; AgentOS-down error; mixed≠fake improved |
 | **case_files** | 7 | Edgar root_cause; actions list; MCP hint text; agent envelope; zip has md+json; clean-run path; empty |
-| **dashboards** | 5 | Status fields honest; links open; no false "provisioned" claim; agent local JSON; SigNoz-down still usable |
+| **dashboards** | 5 | Status fields honest; links open; no false "provisioned" claim; agent-view envelope via `AgentJson`; SigNoz-down still usable |
 | **Human APIs** | 8 | fleet shape; sessions filter/limit; threats/sources caps; signals NULL-session attribution; replays omit `runs`; 404s |
 | **Agent-view** | 7 | Envelope keys; session timeline bounds (no full `recorded_output`); incident root_cause; sources 404; fleet wrap; replay wrap; hints present |
 | **Case File export** | 4 | zip members; md sections; json == incident envelope; no secret/tool dump |
 | **SDK guard** | 8 | init once; 4 checkpoints fire; S1 taint block; S2 redact; S5 input block; threat/source POSTs; steer/kill; Guard reset per session |
+| **Guard corpus P14** | 3 | `test_guard_corpus.py` offline; 42 payloads; misses documented in `33` |
+| **Write-auth** | 3 | unset = open writes; `ARCNET_WRITE_SECRET` gates mutating POST; webhook uses separate secret |
+| **HQ resilience P13** | 4 | `apiResilience.ts` normalizers; error envelope parse; offline detection; 60 FE tests green |
 | **SSE / webhook** | 6 | inline POST; SSE catch-up (best-effort last-N when Last-Event-ID numeric — not true seq); webhook 204; bad payload 400; dedupe; resolved→expired |
 | **Time Machine server** | 5 | 3× AgentOS; majority verdict; persist replays; progress events; heroes match `_phase4_g4` class |
 | **Griffin** | 4 | evaluate fires; signal `source=griffin`; status cache; MAD-only without token |
@@ -358,7 +370,7 @@ Method: map drafted from `hq/`, `server/arcnet_server/`, `sdk/`, `agents/`, `dep
 | V14 | Product guide §11 DONE matrix | Inventory matches `hq/src`; guide vocab omits PARTIAL for dashboards | **WARN** | Map stricter than guide — intentional |
 | V15 | `guidance` on signals | Rendered `Signals.tsx:207` | **PASS** | Map §4.1 updated |
 | V16 | TM agent empty “until human run” (draft) | Seeded heroes already have replays → agent envelope without re-run | **FAIL** → fixed | Empty column now “until verdict exists” |
-| V17 | §9 HQ DONE 5 / PARTIAL 2 vs §4.1 | Shell+5 views DONE; signals/sources twin thin; dashboards PARTIAL | **WARN** → fixed | §9 rollup reconciled |
+| V17 | §9 HQ DONE 5 / PARTIAL 2 vs §4.1 | Shell + 8 views DONE; hitl relay gap; dashboards PARTIAL launcher | **PASS** | §9 rollup reconciled |
 | V18 | “No full tool payloads” absolute | Agent `data` bounded; `full_transcript` URL still open | **WARN** | §4.2 notes escape hatch |
 
 ---
@@ -370,7 +382,7 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 | ID | Risk | Why it confuses | Severity | Result | Map corrected? |
 |---|---|---|---|---|---|
 | A1 | **Fake completeness on Dashboards** | Labels `fleet_overview` / `threat_center` / `reliability` all open the same SigNoz shell | High for "Best Use of SigNoz" UX | **FAIL** | Called out PARTIAL + backlog #1 |
-| A2 | **Agent toggle inconsistency** | Fleet/TM/CF = envelopes; signals/sources/dashboards = ad-hoc JSON | Medium — looks unfinished | **WARN** | Documented |
+| A2 | **Agent toggle inconsistency** | Post-P8-B all views use agent-view envelopes via `AgentJson` | Low | **PASS** | Map §4.1 + §4.2 updated |
 | A3 | **Tool-output in agent contexts** | Timeline body bounded (Phase 6) | Body **PASS**; escape hatch **WARN** (A15) | Softened | |
 | A4 | **Case File implies live MCP** | Hints name MCP tools; stdio may hang | Medium if narration overclaims | **WARN** | PARTIAL + fallback noted |
 | A5 | **S4 "alert killed the agent"** | Runner evaluates Griffin then posts kill — choreography, not pure alert path | Medium if judge digs | **WARN** | Map §4.4 notes |
@@ -379,12 +391,12 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 | A8 | **HITL looks productized in `12`** | Pause kind exists; no HQ UI; no AgentOS relay | Medium | **FAIL** (docs overclaim) | Map GAP |
 | A9 | **No deep links** | Hash routes ship (`#time_machine?session=…`) | Low | **PASS** | Map §3 note |
 | A10 | **Hero IDs in guide** | Stable only while seed DB preserved | Low | **WARN** | Cite `14` heroes; re-seed resets |
-| A11 | **Open write APIs** | No auth POSTs on localhost | Expected for demo; scary if exposed | **PASS** (scoped) | Limitations |
+| A11 | **Open write APIs** | `ARCNET_WRITE_SECRET` unset = localhost-trust writes; set = header-gated mutating POST | Expected for demo; scary if exposed without secret | **PASS** (scoped) | §4.8 write-auth |
 | A12 | **Verdict "improved" temptation** | Heroes are honest `mixed` | High if UI greens washes cost | **PASS** if UI keeps `mixed` | Backlog #2 |
 | A13 | **Default session ≠ heroes** | CF/TM auto-pick latest → often clean demo / non-G4 row; Beat 4–5 fail unless operator selects | High for live demo | **FAIL** | §4.1 + backlog #2–3 |
 | A14 | **`06` Beat 5 vs G4 `mixed`** | Script sells `[OK]`/`[RESISTED]`; shipped heroes stable `mixed` | High if script≠UI | **FAIL** | Backlog #2 acceptance |
 | A15 | **`full_transcript` escape hatch** | Agent envelope points at open human transcript with full tool payloads | Medium for “bounded agent” claim | **WARN** | §4.2 + backlog note |
-| A16 | **“Every panel has a twin”** | Narration absolute; signals/sources/dashboards approximate | Medium | **WARN** | §1 says “or approximates” |
+| A16 | **“Every panel has a twin”** | Post-P8-B all HQ views have `/api/agent-view/*` twins | Low | **PASS** | §4.1 inventory |
 | A17 | **Beat 2 “threat feed” / “finishes safely”** | No threats HQ view; Edgar outcome `goal_reached: failed` with blocked exfil | Medium | **WARN** | Noted for demo ops |
 | A18 | **Griffin TabFM live narration** | `06`/`07` foundation-model language; HQ has no forecast band; signals say MAD | High if overclaimed | **FAIL** if narrated without MAD | Map Griffin = MAD |
 | A19 | **Hero Case File `trace_id=None`** | MCP hint no-op on money-path heroes without OTLP | Medium with A4 | **WARN** | Backlog #3 |
@@ -401,7 +413,8 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 | HQ surfaces (shell + 9 views) | 8 (home + fleet + signals + sources + TM + CF + hq_agent + shell) | 2 hitl (relay gap) + dashboards launcher | 0 views missing |
 | Server human APIs | 12+ routes | HITL decide SQLite-only | corpus replay, AgentOS HITL relay |
 | Agent-view endpoints | 10+ (all HQ views) | session `full_transcript` pointer | `12` view enum may lag shipped twins |
-| SDK checkpoints + init | 5/5 core | pause signal | thin `__all__` |
+| SDK checkpoints + init | 5/5 core + P14 guard corpus | pause signal | thin `__all__` |
+| Server write-auth + HQ resilience | write-auth + apiResilience | — | reads still open (localhost-trust) |
 | Bug Suite scenarios | 5 | — | S3 CUT |
 | SigNoz provision assets | dashboards+alerts+webhook | MCP G5 | seasonal live, HQ UUID links, screenshots |
 | Time Machine / Case File | core path | hero default-select / MCP on heroes | corpus scorecard |
