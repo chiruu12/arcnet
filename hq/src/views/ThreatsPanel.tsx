@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, toUserError } from "../api";
-import { Empty, Seam, ts } from "../components";
+import { Empty, ViewSeam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
+import { useRetryToken } from "../viewRetry";
 import type { ThreatRow } from "../types";
 
 const ACTION_CLASS: Record<string, string> = {
@@ -17,9 +18,12 @@ export function ThreatsPanel() {
   const [threats, setThreats] = useState<ThreatRow[] | null>(null);
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [retryAt, retry] = useRetryToken();
 
   useEffect(() => {
     let cancelled = false;
+    setErr(null);
+    setThreats(null);
     api
       .threatsPage({ limit: THREATS_PAGE, offset: 0 })
       .then((page) => {
@@ -34,14 +38,14 @@ export function ThreatsPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryAt]);
 
   return (
     <section className="threats-panel">
       <p className="eyebrow">{"// threats"}</p>
       <h2>recent guard findings</h2>
       <p className="lede dim">unplug telemetry · GET /api/threats</p>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
       {!err && !threats && <p className="lede">loading…</p>}
       {threats && threats.length === 0 && (
         <Empty hint="no threats recorded — run a guarded session (e.g. scenario S1) with the server up" />

@@ -6,7 +6,8 @@ import {
   type DashboardLinkDef,
   UNRESOLVED_DASHBOARD_NOTE,
 } from "../dashboardLinks";
-import { AgentJson } from "../components";
+import { AgentJson, ViewSeam } from "../components";
+import { useRetryToken } from "../viewRetry";
 import type { Mode } from "../types";
 
 /** Fallback only before /api/signoz/status returns (or if the probe fails). */
@@ -89,9 +90,11 @@ function statusLine(
 export function Dashboards({ mode }: { mode: Mode }) {
   const [status, setStatus] = useState<SignozStatus | null>(null);
   const [probeErr, setProbeErr] = useState<string | null>(null);
+  const [retryAt, retry] = useRetryToken();
 
   useEffect(() => {
     let cancelled = false;
+    setProbeErr(null);
     api
       .signozStatus()
       .then((s) => {
@@ -103,7 +106,7 @@ export function Dashboards({ mode }: { mode: Mode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryAt]);
 
   const signozBase = status?.signoz_url?.replace(/\/$/, "") || SIGNOZ_FALLBACK.replace(/\/$/, "");
   const line = statusLine(status, probeErr, signozBase);
@@ -116,6 +119,7 @@ export function Dashboards({ mode }: { mode: Mode }) {
         in this app works without these.
       </p>
       <p className={`meta ${line.warn ? "warn-text" : ""}`}>{line.text}</p>
+      {probeErr && <ViewSeam error={probeErr} onRetry={retry} />}
       <div className="grid">
         {resolvedLinks.map((l) => {
           if (l.resolved) {

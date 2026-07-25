@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, toUserError } from "../api";
-import { AgentJson, Empty, Seam, ts } from "../components";
+import { AgentJson, Empty, ViewSeam, ts } from "../components";
+import { useRetryToken } from "../viewRetry";
 import type { FleetRow, Mode, SourceRow } from "../types";
 
 const ACTION_CLASS: Record<string, string> = {
@@ -23,6 +24,7 @@ export function SourcesTrust({
   const [err, setErr] = useState<string | null>(null);
   const [fleet, setFleet] = useState<FleetRow[]>([]);
   const [agentRef, setAgentRef] = useState(agentId ?? "");
+  const [retryAt, retry] = useRetryToken();
 
   useEffect(() => {
     if (agentId && agentId !== agentRef) setAgentRef(agentId);
@@ -65,7 +67,7 @@ export function SourcesTrust({
     return () => {
       cancelled = true;
     };
-  }, [agentRef]);
+  }, [agentRef, retryAt]);
 
   function pickAgent(next: string) {
     setAgentRef(next);
@@ -104,7 +106,7 @@ export function SourcesTrust({
       <p className="lede">
         per-agent ingested-source ledger · what unplug scanned, filtered, blocked.
       </p>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
       {fleet.length > 0 && (
         <div className="control-bar">
           <label>

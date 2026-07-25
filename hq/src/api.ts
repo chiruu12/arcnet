@@ -24,6 +24,7 @@ import {
   normalizeVersionTimeline,
   parseSsePayload,
   readJsonBody,
+  validateAgentEnvelopeShape,
   type AgentVersionRow,
   type ReplayRow,
 } from "./apiResilience.ts";
@@ -465,11 +466,18 @@ export const api = {
     );
     return { rows: data, ...pageMetaFromHeaders(headers, data.length) };
   },
-  agentView: (view: string, id: string) =>
-    getJSON(
-      `/api/agent-view/${view}/${encodeURIComponent(id)}`,
-      normalizeAgentEnvelope,
-    ) as Promise<AgentEnvelope>,
+  agentView: async (view: string, id: string): Promise<AgentEnvelope> => {
+    const path = `/api/agent-view/${view}/${encodeURIComponent(id)}`;
+    const body = await requestJSON(path);
+    const validation = validateAgentEnvelopeShape(body);
+    if (!validation.ok) {
+      throw new ApiError({
+        message: `agent-view envelope invalid — ${validation.reason}`,
+        path,
+      });
+    }
+    return normalizeAgentEnvelope(body);
+  },
   runReplay: (
     session_id: string,
     candidate: { candidate_model?: string; candidate_prompt?: string },
@@ -551,14 +559,22 @@ export type BusEvent = {
   data: Record<string, unknown>;
 };
 
+/** SSE connection state — same idiom as shell breadcrumb (connecting / live / api_down). */
+export type StreamStatus = "connecting" | "live" | "api_down";
+
 /** Subscribe to the SSE signal bus. Returns an unsubscribe function. */
-export function subscribeBus(onEvent: (ev: BusEvent) => void): () => void {
+export function subscribeBus(
+  onEvent: (ev: BusEvent) => void,
+  onStatus?: (status: StreamStatus) => void,
+): () => void {
   let es: EventSource | null = null;
   try {
     es = new EventSource(`${BASE}/signals/stream`);
   } catch {
+    onStatus?.("api_down");
     return () => {};
   }
+  onStatus?.("connecting");
   const forward = (name: string) => (raw: MessageEvent) => {
     const data = parseSsePayload(String(raw.data ?? ""));
     if (!data) return;
@@ -567,12 +583,44 @@ export function subscribeBus(onEvent: (ev: BusEvent) => void): () => void {
   es.addEventListener("signal", forward("signal"));
   es.addEventListener("replay_progress", forward("replay_progress"));
   es.addEventListener("hitl_request", forward("hitl_request"));
+  es.onopen = () => onStatus?.("live");
   es.onerror = () => {
+    onStatus?.("api_down");
     /* EventSource reconnects; must not throw */
   };
   return () => {
     es?.close();
   };
+}
+
+/** Download a case-file zip with visible error surfacing (no silent anchor failures). */
+export async function downloadCaseFile(sessionId: string): Promise<void> {
+  const path = `/export/case-file/${encodeURIComponent(sessionId)}`;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`);
+  } catch {
+    throw new ApiError({
+      message: "arcnet-server unreachable — start uvicorn on :8000 and reload",
+      offline: true,
+      path,
+    });
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new ApiError({
+      message: formatApiErrorMessage(res.status, path, text, res.statusText),
+      status: res.status,
+      path,
+    });
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `case-file-${sessionId}.zip`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export { ApiError, isOfflineError, toUserError } from "./apiResilience.ts";

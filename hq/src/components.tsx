@@ -1,9 +1,22 @@
 import { useEffect, useState } from "react";
 import { api, toUserError } from "./api";
 import type { AgentEnvelope } from "./types";
+import { useRetryToken } from "./viewRetry";
 
 export function Seam({ error }: { error: string }) {
   return <p className="err">seam: {error}</p>;
+}
+
+/** Error seam with an explicit retry affordance for failed view fetches. */
+export function ViewSeam({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <div className="view-seam">
+      <Seam error={error} />
+      <button type="button" className="btn ghost" onClick={onRetry}>
+        retry()
+      </button>
+    </div>
+  );
 }
 
 export function Empty({ hint }: { hint: string }) {
@@ -19,6 +32,7 @@ export function Empty({ hint }: { hint: string }) {
 export function AgentJson({ view, id }: { view: string; id: string }) {
   const [env, setEnv] = useState<AgentEnvelope | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [retryAt, retry] = useRetryToken();
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +49,7 @@ export function AgentJson({ view, id }: { view: string; id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [view, id]);
+  }, [view, id, retryAt]);
 
   return (
     <>
@@ -43,7 +57,7 @@ export function AgentJson({ view, id }: { view: string; id: string }) {
       <h1>
         GET /api/agent-view/{view}/{id}
       </h1>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
       {!err && !env && <p className="lede">loading…</p>}
       {env && <pre className="agent-json">{JSON.stringify(env, null, 2)}</pre>}
     </>

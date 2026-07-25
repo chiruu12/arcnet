@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { api, subscribeBus, toUserError } from "../api";
+import { api, subscribeBus, toUserError, type StreamStatus } from "../api";
 import { normalizeSignalRow } from "../apiResilience";
-import { AgentJson, Empty, Seam, ts } from "../components";
+import { AgentJson, Empty, ViewSeam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
+import { useRetryToken } from "../viewRetry";
 import type { FleetRow, Mode, SignalRow } from "../types";
 
 const KIND_CLASS: Record<string, string> = {
@@ -26,8 +27,10 @@ export function Signals({
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [liveCount, setLiveCount] = useState(0);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const [fleet, setFleet] = useState<FleetRow[]>([]);
   const [agentRef, setAgentRef] = useState(agentId ?? "");
+  const [retryAt, retry] = useRetryToken();
   /** Track seen ids outside React updaters — setState inside setSignals is impure under StrictMode. */
   const seenIdsRef = useRef<Set<string>>(new Set());
 
@@ -85,27 +88,32 @@ export function Signals({
       .catch((e: unknown) => {
         if (!cancelled) setErr(toUserError(e));
       });
-    const unsubscribe = subscribeBus((ev) => {
-      if (cancelled || ev.event !== "signal") return;
-      const row = normalizeSignalRow(ev.data);
-      if (!row) return;
-      if (agentRef && row.agent_id !== agentRef) return;
-      const isNew = !seenIdsRef.current.has(row.signal_id);
-      if (isNew) {
-        seenIdsRef.current.add(row.signal_id);
-        setTotal((n) => n + 1);
-        setLiveCount((n) => n + 1);
-      }
-      setSignals((prev) => {
-        const rest = (prev ?? []).filter((s) => s.signal_id !== row.signal_id);
-        return [row, ...rest].slice(0, SIGNALS_PAGE);
-      });
-    });
+    const unsubscribe = subscribeBus(
+      (ev) => {
+        if (cancelled || ev.event !== "signal") return;
+        const row = normalizeSignalRow(ev.data);
+        if (!row) return;
+        if (agentRef && row.agent_id !== agentRef) return;
+        const isNew = !seenIdsRef.current.has(row.signal_id);
+        if (isNew) {
+          seenIdsRef.current.add(row.signal_id);
+          setTotal((n) => n + 1);
+          setLiveCount((n) => n + 1);
+        }
+        setSignals((prev) => {
+          const rest = (prev ?? []).filter((s) => s.signal_id !== row.signal_id);
+          return [row, ...rest].slice(0, SIGNALS_PAGE);
+        });
+      },
+      (status) => {
+        if (!cancelled) setStreamStatus(status);
+      },
+    );
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [agentRef]);
+  }, [agentRef, retryAt]);
 
   function pickAgent(next: string) {
     setAgentRef(next);
@@ -143,10 +151,13 @@ export function Signals({
       <p className="eyebrow">{"// observe"}</p>
       <h1>signals</h1>
       <p className="lede">
-        active-defense feed · steer / pause / kill · sse=/signals/stream
+        active-defense feed · steer / pause / kill · sse=/signals/stream · {streamStatus}
         {liveCount > 0 && ` · ${liveCount} live event${liveCount === 1 ? "" : "s"} this session`}
+        {streamStatus === "api_down" && signals && signals.length > 0
+          ? " · rows below may be stale until stream reconnects"
+          : ""}
       </p>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
       {fleet.length > 0 && (
         <div className="control-bar">
           <label>

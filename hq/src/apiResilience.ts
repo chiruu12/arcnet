@@ -445,6 +445,31 @@ export function normalizeAgentModelRows(raw: unknown): AgentModelRow[] {
     .filter((r): r is AgentModelRow => r != null);
 }
 
+export type AgentEnvelopeValidation =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+/** Strict shape check before rendering agent-view twins. */
+export function validateAgentEnvelopeShape(raw: unknown): AgentEnvelopeValidation {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, reason: "envelope must be a JSON object" };
+  }
+  const o = raw as Record<string, unknown>;
+  const checks: [string, (v: unknown) => boolean][] = [
+    ["view", (v) => typeof v === "string" && v.length > 0],
+    ["id", (v) => typeof v === "string"],
+    ["generated_at", (v) => typeof v === "string" && v.length > 0],
+    ["data", (v) => v !== undefined],
+    ["links", (v) => v !== null && typeof v === "object" && !Array.isArray(v)],
+    ["hints", (v) => v !== null && typeof v === "object" && !Array.isArray(v)],
+  ];
+  for (const [key, check] of checks) {
+    if (!(key in o)) return { ok: false, reason: `missing field: ${key}` };
+    if (!check(o[key])) return { ok: false, reason: `invalid field: ${key}` };
+  }
+  return { ok: true };
+}
+
 export function normalizeAgentEnvelope(raw: unknown): AgentEnvelope {
   const o = asRecord(raw);
   const linksRaw = asRecord(o.links);

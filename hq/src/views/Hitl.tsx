@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api, subscribeBus, toUserError } from "../api";
 import { normalizeHitlRow } from "../apiResilience";
-import { Empty, Seam, ts } from "../components";
+import { Empty, ViewSeam, ts } from "../components";
 import { HITL_RELAY_HONESTY, hitlPayloadSummary, hitlRelaySummary } from "../hitlUtils";
 import { showingOfTotal } from "../pageLabel";
+import { useRetryToken } from "../viewRetry";
 import type { HitlRow, Mode } from "../types";
 
 const HITL_PAGE = 40;
@@ -21,6 +22,7 @@ export function Hitl({ mode }: { mode: Mode }) {
   const [err, setErr] = useState<string | null>(null);
   const [liveCount, setLiveCount] = useState(0);
   const [deciding, setDeciding] = useState<string | null>(null);
+  const [retryAt, retry] = useRetryToken();
   const seenIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function Hitl({ mode }: { mode: Mode }) {
       cancelled = true;
       unsubscribe();
     };
-  }, []);
+  }, [retryAt]);
 
   async function decide(hitlId: string, decision: "approved" | "rejected") {
     setDeciding(hitlId);
@@ -85,7 +87,7 @@ export function Hitl({ mode }: { mode: Mode }) {
         <p className="eyebrow">{"// agent_view"}</p>
         <h1>hitl</h1>
         <p className="lede dim">{HITL_RELAY_HONESTY}</p>
-        {err && <Seam error={err} />}
+        {err && <ViewSeam error={err} onRetry={retry} />}
         {!err && !rows && <p className="lede">loading…</p>}
         {rows && <pre className="agent-json">{JSON.stringify(rows, null, 2)}</pre>}
       </>
@@ -101,7 +103,7 @@ export function Hitl({ mode }: { mode: Mode }) {
         {liveCount > 0 && ` · ${liveCount} live event${liveCount === 1 ? "" : "s"} this session`}
       </p>
       <p className="dim honesty">{HITL_RELAY_HONESTY}</p>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
       {!err && !rows && <p className="lede">loading…</p>}
       {rows && rows.length === 0 && (
         <Empty hint="no HITL requests yet — pause signals from a guarded agent create rows via POST /api/hitl" />
