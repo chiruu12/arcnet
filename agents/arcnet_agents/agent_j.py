@@ -8,6 +8,8 @@ from pathlib import Path
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
+from arcnet.context import try_get_runtime
+from arcnet.guard_factory import build_guard, plant_canary_prompt
 from arcnet.guardrail import build_guard_hooks
 from arcnet_agents.tools import TOOLS
 
@@ -23,16 +25,22 @@ def build_agent_j(
     model: str | None = None,
     temperature: float = 0.0,
     instructions: str | None = None,
+    plant_canary: bool = True,
 ) -> Agent:
     model_id = model or os.getenv("ARCNET_MODEL", "gpt-4o-mini")
-    hooks = build_guard_hooks()
+    rt = try_get_runtime()
+    guard = rt.guard if rt is not None else build_guard()
+    prompt = instructions or PROMPT_J.read_text()
+    if plant_canary:
+        prompt = plant_canary_prompt(guard, prompt)
+    hooks = build_guard_hooks(guard=guard)
     return Agent(
         id=agent_id,
         name=name,
         role=role,
         model=OpenAIChat(id=model_id, temperature=temperature),
         tools=list(TOOLS),
-        instructions=instructions or PROMPT_J.read_text(),
+        instructions=prompt,
         pre_hooks=[hooks["input_guardrail"]],
         post_hooks=[hooks["output_post_hook"]],
         tool_hooks=[hooks["tool_call_middleware"]],

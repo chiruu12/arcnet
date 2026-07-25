@@ -79,7 +79,7 @@ with a named, non-blocking gap.
 | Live-work agent (dogfood fleet) | **PARTIAL** | Agent J + L/O `agents/arcnet_agents/app.py:30-36`; seed background sessions `scripts/seed_demo.py:27-131` | Agents run **scenario choreography** + seeded background rows — not continuous genuine production tasks |
 | Time Machine corpus scorecard | **SHIPPED** | `POST /api/replay/corpus` `main.py`; `corpus_service.py` stored+live modes; HQ `TimeMachine.tsx` stored scorecard strip; tests `server/tests/test_corpus_and_latency.py` | Live mode needs AgentOS + model key; stored mode works offline on seeded replays |
 | Context inspector UI | **EXPLICIT DEFER** | Sources ledger captures data `docs/12-data-api.md:91`; no HQ view | Agent-view + sources_trust cover demo |
-| F9 canaries | **MISSING** | unplug exposes `add_canary` (`docs/05-unplug-integration.md:50`) | No call sites in `sdk/` (grep `add_canary` → 0) |
+| F9 canaries | **SHIPPED** | `guard.add_canary` via `plant_canary_prompt` in `agents/arcnet_agents/agent_j.py` + `agents/hq_agent/agent.py`; detection at `output` / `tool_call` through existing `scan_output` path (`sdk/arcnet/guardrail.py`); tests `sdk/tests/test_canary.py` | Per-session token never exported — redacted from transcript args + threat payloads |
 
 ---
 
@@ -191,7 +191,7 @@ Ordered by **user-visible impact × effort to close** (highest first).
 | 7 | **Prompt-swap replay UI** — API supports `candidate_prompt`, HQ does not | Add prompt picker to `TimeMachine.tsx` wired to `POST /api/replay` |
 | 8 | ~~**Fleet Health latency dimension** — demo script promises it~~ | **SHIPPED** P26 — p50/p95 wall-clock ms on fleet cards from recorded session timestamps |
 | 9 | **Griffin auto-discovery / top-N** (P1) | Replace `ALLOWLIST` with metric discovery from SigNoz or session rollups |
-| 10 | **F9 canaries** — unplug API unused | Wire `add_canary` in `build_agent_j` prompt path + telemetry |
+| 10 | ~~**F9 canaries**~~ — **SHIPPED** (P28) | `plant_canary_prompt` + `sdk/tests/test_canary.py` |
 | 11 | **Context inspector** (deferred P1) | Step-by-step ingest view from `sources` ledger — build when bandwidth allows |
 | 12 | **Live-work dogfood agent** — fleet is scenario + seed theater | Long-running AgentOS task loop outside scenario runner |
 | 13 | **Doc hygiene** — `docs/15` router/guidance/twin rows stale | Single pass aligning product map to P8–P14 reality |

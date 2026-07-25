@@ -10,7 +10,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from arcnet.context import ArcnetRuntime, try_get_runtime
-from arcnet.guard_factory import serialize_findings, top_finding
+from arcnet.guard_factory import redact_canary_tokens, serialize_findings, top_finding
 
 logger = logging.getLogger("arcnet.guard")
 
@@ -62,6 +62,9 @@ def emit_guard_telemetry(
         for k, v in attrs.items():
             span.set_attribute(k, v)
         for f in findings:
+            evidence = str(getattr(f, "evidence", "") or "")[:200]
+            if rt is not None:
+                evidence = redact_canary_tokens(evidence, rt.guard)
             span.add_event(
                 "arcnet.finding",
                 attributes={
@@ -69,7 +72,7 @@ def emit_guard_telemetry(
                     "subcategory": getattr(f, "subcategory", "") or "",
                     "stage": getattr(f, "stage", "") or "",
                     "score": float(getattr(f, "score", 0.0) or 0.0),
-                    "evidence": str(getattr(f, "evidence", "") or "")[:200],
+                    "evidence": evidence,
                 },
             )
         if action == "block":
@@ -130,10 +133,11 @@ def _post_threat(
     evidence = ""
     subcategory = ""
     pattern_class = ""
+    guard = rt.guard
     if findings:
         top = top_finding(findings)
         if top is not None:
-            evidence = str(getattr(top, "evidence", "") or "")[:200]
+            evidence = redact_canary_tokens(str(getattr(top, "evidence", "") or "")[:200], guard)
             subcategory = getattr(top, "subcategory", "") or ""
             pattern_class = getattr(top, "stage", "") or ""
 
@@ -152,7 +156,7 @@ def _post_threat(
         "evidence": evidence,
         "trace_id": format(ctx.trace_id, "032x") if ctx.is_valid else None,
         "span_id": format(ctx.span_id, "016x") if ctx.is_valid else None,
-        "findings_detail": serialize_findings(findings),
+        "findings_detail": serialize_findings(findings, guard=guard),
     }
     if pattern_class:
         payload["pattern_class"] = pattern_class
@@ -194,7 +198,7 @@ def post_source(
         "trust_level": trust_level,
         "scan_action": scan_action,
         "findings": findings_count,
-        "findings_detail": serialize_findings(findings_list) if findings_list else None,
+        "findings_detail": serialize_findings(findings_list, guard=rt.guard) if findings_list else None,
     }
     if guard_verdict:
         payload["guard_verdict"] = guard_verdict

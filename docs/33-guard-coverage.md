@@ -136,6 +136,14 @@ Miss counts exclude intentional benign rows inside retrieved/output classes.
 
 Benign rows (`benign_user_*`, `indirect_retrieved_benign`, `output_benign_status`, `tool_call_benign_send_email`) all **allowed** as expected.
 
+### F9 prompt-leak canaries (P28, outside corpus)
+
+Per-session canary tokens are planted in agent instructions via `guard.add_canary` (`plant_canary_prompt`).
+Detection is exact-match through the secrets registry — not regex — at `output` and `tool_call`
+(content scan on non-routing args). Leaks emit `leakage` / `prompt_leak_canary` / stage `canary`
+(risk 0.99). The token value is never exported (Case File, agent-view, threats, transcripts).
+Regression: `sdk/tests/test_canary.py`. S1 taint chain unchanged when the canary is not echoed.
+
 ---
 
 ## Known gaps

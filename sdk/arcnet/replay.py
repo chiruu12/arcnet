@@ -202,7 +202,9 @@ class ReplayCursor:
                 call_args,
                 taint_sources=list(runtime.taint_sources) or None,
             )
-            verdict = guard_verdict_from_result(result, checkpoint="tool_call")
+            verdict = guard_verdict_from_result(
+                result, checkpoint="tool_call", guard=runtime.guard
+            )
             action = verdict["action"]
             call["guard_action"] = action
             call["guard_verdict"] = verdict
@@ -252,7 +254,9 @@ class ReplayCursor:
         if step.get("trust_level") == "retrieved" and runtime is not None:
             timer = LatencyTimer()
             result = runtime.guard.scan(str(output), source=Source.RETRIEVED)
-            verdict = guard_verdict_from_result(result, checkpoint="retrieved")
+            verdict = guard_verdict_from_result(
+                result, checkpoint="retrieved", guard=runtime.guard
+            )
             action = verdict["action"]
             call["retrieval_action"] = action
             call["guard_verdict"] = verdict
