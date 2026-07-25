@@ -4,6 +4,7 @@ import { API_RECOVER_INTERVAL_MS, apiBreadcrumbStatus, shouldRecoverProbe } from
 import { formatHash, navigate, parseHash, type HashState, writeHash } from "./hash";
 import type { Mode, View } from "./types";
 import { ViewErrorBoundary } from "./ViewErrorBoundary";
+import { ContextInspector } from "./views/ContextInspector";
 import { CaseFiles } from "./views/CaseFiles";
 import { Dashboards } from "./views/Dashboards";
 import { FleetHealth } from "./views/FleetHealth";
@@ -16,7 +17,7 @@ import { TimeMachine } from "./views/TimeMachine";
 
 const NAV: { group: string; items: View[] }[] = [
   { group: "// home", items: ["home"] },
-  { group: "// observe", items: ["fleet_health", "signals", "hitl", "sources_trust"] },
+  { group: "// observe", items: ["fleet_health", "signals", "hitl", "sources_trust", "context_inspector"] },
   { group: "// improve", items: ["time_machine", "case_files", "dashboards", "hq_agent"] },
 ];
 
@@ -186,6 +187,25 @@ export function App() {
                 mode={mode}
                 agentId={hash.agent}
                 onAgentChange={(agent) => patchHash({ agent: agent || undefined })}
+              />
+            )}
+            {view === "context_inspector" && (
+              <ContextInspector
+                mode={mode}
+                deepLink={{
+                  agent: hash.agent,
+                  version: hash.version,
+                  session: hash.session,
+                  model: hash.model,
+                }}
+                onDeepLinkChange={(next) =>
+                  patchHash({
+                    agent: next.agent,
+                    version: next.version,
+                    model: next.model,
+                    session: next.session,
+                  })
+                }
               />
             )}
             {view === "time_machine" && (

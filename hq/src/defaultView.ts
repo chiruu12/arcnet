@@ -6,6 +6,7 @@ const KNOWN_VIEWS = new Set<View>([
   "signals",
   "hitl",
   "sources_trust",
+  "context_inspector",
   "time_machine",
   "case_files",
   "dashboards",
