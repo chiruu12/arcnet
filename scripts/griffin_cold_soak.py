@@ -97,6 +97,8 @@ def main() -> int:
                 "last_evaluate_ms": None,
                 "last_anomaly": None,
                 "anomalies": [],
+                "discovery": None,
+                "top_series": [],
             }
         )
 
@@ -106,13 +108,10 @@ def main() -> int:
         sources: list[str] = []
         statuses: list[str] = []
         for i in range(n):
-            # Mimic loop: warm then evaluate allowlist series present in proxy
+            # Mimic loop: warm then evaluate discovered series (capped)
             src = g.ensure_series_warm(m.get_conn)
             sources.append(src)
-            series = g.active_series()
-            for sid in g.ALLOWLIST:
-                if sid in series:
-                    g.evaluate_series(m.get_conn, series_id=sid, observed=None)
+            g.run_evaluation_cycle(m.get_conn)
             snap = g.cache_snapshot()
             statuses.append(str(snap.get("status") or "cold"))
             print(

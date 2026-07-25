@@ -72,7 +72,7 @@ with a named, non-blocking gap.
 | Feature | Bucket | Evidence | Gap |
 |---------|--------|----------|-----|
 | Native SigNoz seasonal anomaly alert | **SHIPPED** (artifact) | `deploy/provision/alert-seasonal-anomaly.json:3-13` `never_demo_live`; provision `setup.py:282-283` | Cannot fire on camera (≥5m windows) — pairing story only |
-| Griffin breadth (auto-discovery, top-N) | **PARTIAL** | Hardcoded `ALLOWLIST` 3 series `griffin.py:38-42`; loop evaluates all allowlisted `griffin.py:623-625` | No auto-discovery; not top-N across fleet |
+| Griffin breadth (auto-discovery, top-N) | **SHIPPED** | Auto-discovery from seed/SQLite proxy `griffin.py` `discover_series_ids` + `run_evaluation_cycle`; eval cap `ARCNET_GRIFFIN_EVAL_CAP` (default 12); top-N `ARCNET_GRIFFIN_TOP_N` (default 3) in `cache_snapshot.top_series`; `DEFAULT_SERIES_PRIORITIES` fallback ordering | — |
 | Sources & Trust view | **SHIPPED** | `hq/src/views/SourcesTrust.tsx`; `GET /api/sources` `main.py:521-539`; ledger schema `docs/12` | Poll-only — **sources SSE** = **EXPLICIT DEFER** (`docs/29-class-audit.md:49`, by design) |
 | HITL `pause` beat | **PARTIAL** | UI `hq/src/views/Hitl.tsx:18-50`; API `main.py:1012-1057`; honesty `hq/src/hitlUtils.ts:24-25`; tests `server/tests/test_hitl_api.py:22-62` | **HITL live relay** to AgentOS = **MISSING** — SQLite-only (`repository.py:734`, `decide_hitl` no HTTP to AgentOS) |
 | Prompt-swap replay | **PARTIAL** | API accepts `candidate_prompt` `main.py:590-594` | HQ Time Machine UI is **model-only** (`TimeMachine.tsx:438` — no prompt picker) |
@@ -190,7 +190,7 @@ Ordered by **user-visible impact × effort to close** (highest first).
 | 6 | ~~**Time Machine corpus scorecard** (P1 pre-cut)~~ | **SHIPPED** P26 — `POST /api/replay/corpus` + HQ stored scorecard |
 | 7 | **Prompt-swap replay UI** — API supports `candidate_prompt`, HQ does not | Add prompt picker to `TimeMachine.tsx` wired to `POST /api/replay` |
 | 8 | ~~**Fleet Health latency dimension** — demo script promises it~~ | **SHIPPED** P26 — p50/p95 wall-clock ms on fleet cards from recorded session timestamps |
-| 9 | **Griffin auto-discovery / top-N** (P1) | Replace `ALLOWLIST` with metric discovery from SigNoz or session rollups |
+| 9 | ~~**Griffin auto-discovery / top-N** (P1)~~ | **SHIPPED** P29 — discovery from recorded series + eval cap + top-N status |
 | 10 | **F9 canaries** — unplug API unused | Wire `add_canary` in `build_agent_j` prompt path + telemetry |
 | 11 | **Context inspector** (deferred P1) | Step-by-step ingest view from `sources` ledger — build when bandwidth allows |
 | 12 | **Live-work dogfood agent** — fleet is scenario + seed theater | Long-running AgentOS task loop outside scenario runner |

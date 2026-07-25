@@ -44,6 +44,8 @@ def _reset_tabfm_state() -> None:
             "last_evaluate_ms": None,
             "last_anomaly": None,
             "anomalies": [],
+            "discovery": None,
+            "top_series": [],
         }
     )
 
