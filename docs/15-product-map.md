@@ -104,6 +104,7 @@ flowchart TB
     FH["fleet_health"]
     SIG["signals"]
     SRC["sources_trust"]
+    CI["context_inspector"]
   end
 
   subgraph improve["// improve"]
@@ -120,7 +121,9 @@ flowchart TB
   FH -->|agent| API_AF["GET /api/agent-view/fleet/all"]
   SIG -->|both| API_S["GET /api/signals + SSE"]
   SRC -->|both| API_SRC["GET /api/sources"]
-  TM -->|human| API_TM["sessions · replays · POST /api/replay"]
+  CI -->|human| API_CI["GET /api/sources?session_id=… + threats timeline"]
+  CI -->|agent| API_CI_T["composed twin from sources + /api/agent-view/threats/{id}"]
+  TM -->|human| API_TM["sessions · replays · POST /api/replay · POST /api/replay/corpus"]
   TM -->|agent| API_AR["GET /api/agent-view/replay/{id}"]
   CF -->|both| API_INC["GET /api/agent-view/incident/{id}"]
   CF -->|export| API_ZIP["GET /export/case-file/{id}"]
@@ -138,15 +141,16 @@ flowchart TB
 
 | View | Purpose | Widgets / fields shown | APIs | Empty / error | Demo beat | Status |
 |---|---|---|---|---|---|---|
-| **Shell** | Nav + mode + reachability | Sidebar IA; mini-fleet dots; `· connecting` / `· live` / `· api_down`; human/agent toggle; **hash deep-links** (`#view?agent=&version=&session=&model=` via `hash.ts`); P13 fetch resilience (`apiResilience.ts` — payload guards + error envelopes, 60 FE tests) | `GET /api/fleet` (probe + focus/interval recover via `apiRecover.ts`) | `api_down` + run-demo hint; `no agents` | Cold open chrome | **DONE** |
+| **Shell** | Nav + mode + reachability | Sidebar IA; mini-fleet dots; `· connecting` / `· live` / `· api_down`; human/agent toggle; **hash deep-links** (`#view?agent=&version=&session=&model=` via `hash.ts`); P13/P27 fetch resilience (`apiResilience.ts` — payload guards, envelope validation, error envelopes, per-view retry; **97** FE tests) | `GET /api/fleet` (probe + focus/interval recover via `apiRecover.ts`) | `api_down` + run-demo hint; `no agents` | Cold open chrome | **DONE** |
 | **home** | Landing + loop stats | Fleet/session/threat counts; quick links into observe/improve views | H: `/api/fleet` + session index · A: `GET /api/agent-view/home/all` | Empty + seam | — | **DONE** |
-| **fleet_health** | Fleet posture | Cards: name, `agent_id`, role, model, hot/ok, `[FORWARD]` if `forward_facing`; `sessions_24h`, `threats_24h`, `blocked_24h`, `cost_24h_usd`, `anomalies_24h`, `active_signals`; Griffin MAD strip (`MadStrip`); embedded threats panel (cost yes; **no latency** on cards) | H: `/api/fleet` · A: `/api/agent-view/fleet/all` | Empty + seam + loading | Beat 0–1 | **DONE** |
-| **signals** | Live defense feed | Table: time, kind (`kill`/`pause`/`steer`/`note`), severity, agent, session, reason, **`guidance`**, source, status; live SSE count (human path) | H: `/api/signals` + SSE · A: `GET /api/agent-view/signals/{id}` envelope | Empty + S1 runner hint; no dedicated loading flash | Beat 2–3 | **DONE** |
-| **hitl** | Human-in-the-loop queue | Pending requests; approve/reject; honesty string (SQLite-only relay) | H: `GET /api/hitl` + `POST /api/hitl/{id}` · A: `GET /api/agent-view/hitl/{id}` | Empty when no pending | — | **PARTIAL** — UI + SQLite decide; **no AgentOS relay** |
+| **fleet_health** | Fleet posture | Cards: name, `agent_id`, role, model, hot/ok, `[FORWARD]` if `forward_facing`; `sessions_24h`, `threats_24h`, `blocked_24h`, `cost_24h_usd`, `p50_wall_clock_ms_24h`, `p95_wall_clock_ms_24h`, `latency_source_24h`, `anomalies_24h`, `active_signals`; Griffin MAD strip (`MadStrip`); embedded threats panel | H: `/api/fleet` · A: `/api/agent-view/fleet/all` | Empty + seam + loading | Beat 0–1 | **DONE** |
+| **signals** | Live defense feed | Table: time, kind (`kill`/`pause`/`steer`/`note`), severity, agent, session, reason, **`guidance`**, source, status; live SSE count + **`connecting` / `live` / `api_down`** stream status (human path) | H: `/api/signals` + SSE · A: `GET /api/agent-view/signals/{id}` envelope | Empty + S1 runner hint; stale rows when stream offline | Beat 2–3 | **DONE** |
+| **hitl** | Human-in-the-loop queue | Pending requests; approve/reject; relay honesty string; decided rows show `relay.{attempted,delivered,detail}` | H: `GET /api/hitl` + `POST /api/hitl/{id}` (relay via `hitl_relay.py`) · A: `GET /api/agent-view/hitl/{id}` | Empty when no pending | — | **DONE** — reject → kill on signal bus + AgentOS; approve = ack only |
 | **sources_trust** | Ingested-source ledger | time, agent, session, origin, trust_level, scan_action badge, findings | H: `/api/sources` · A: `GET /api/agent-view/sources_trust/{id}` envelope | Empty + S1 hint | Beat 2 | **DONE** |
-| **time_machine** | Counterfactual proof | Session select (`has_transcript`); candidate model; baseline vs candidate cols + badges; dimension rows; divergences; verdict + recommendation; history list if ≥2 replays; SSE progress; `hand_to(claude_code)` | sessions, replays, `POST /api/replay`, SSE `replay_progress`, agent-view replay, export | No transcripts; agent empty until a **verdict exists** (seeded history or `replay.run()`). Default select = latest transcript session — **not** auto-heroes | Beat 5 (headline) | **DONE** |
-| **case_files** | Incident handoff preview | Session select; incident / root_cause / recommended_actions; MCP hint; export zip. **Human mode always loads incident agent-view** | `/api/agent-view/incident/{id}`, `/export/case-file/{id}`, sessions | No sessions; agent needs selection. Default = latest session (often clean `s_demo_*`) — **pick heroes for Beat 4** | Beat 4 | **DONE** |
-| **dashboards** | SigNoz launcher | Status line (`ui_reachable`, `api_key_present`, `query_range_ok`); 5 link cards (3 named dashboards all hit `/dashboard`; traces; alerts) | `/api/signoz/status` · A: `GET /api/agent-view/dashboards/all` via `AgentJson` | Honest warn copy; links still open | Beat 1 / close | **PARTIAL** — deep-links only, no embedded charts; named dashboards share `/dashboard` |
+| **context_inspector** | Step-by-step ingest timeline | Cascade agent → version → model → session; per-step sources ledger + linked threats; summary counts | H: `/api/sources?session_id=…` + threat rows · A: client-composed twin (`contextInspector.ts`) | Empty until session selected | Beat 2 (depth) | **DONE** — no dedicated server route |
+| **time_machine** | Counterfactual proof | Session select (`has_transcript`); **model or prompt** swap axis; baseline vs candidate cols + badges; dimension rows; divergences; verdict + recommendation; **stored corpus scorecard** strip; history list if ≥2 replays; SSE progress; `hand_to(claude_code)` | sessions, replays, `POST /api/replay`, `POST /api/replay/corpus`, SSE `replay_progress`, agent-view replay, export | No transcripts; agent empty until a **verdict exists** (seeded history or `replay.run()`). Default select = latest transcript session — **not** auto-heroes | Beat 5 (headline) | **DONE** |
+| **case_files** | Incident handoff preview | Session select; incident / root_cause / recommended_actions; MCP hint; export zip with download error seam | `/api/agent-view/incident/{id}`, `/export/case-file/{id}`, sessions | No sessions; agent needs selection. Default = latest session (often clean `s_demo_*`) — **pick heroes for Beat 4** | Beat 4 | **DONE** |
+| **dashboards** | SigNoz launcher | Status line (`ui_reachable`, `api_key_present`, `query_range_ok`, resolved dashboard names); link cards with **UUID deep-links** when provisioned; unresolved boards labeled (not silently generic) | `/api/signoz/status` · A: `GET /api/agent-view/dashboards/all` via `AgentJson` | Honest warn copy; unresolved cards not hyperlinked | Beat 1 / close | **DONE** — launcher only, no embedded charts |
 | **hq_agent** | HQ maintenance strip | Version timeline, propose/apply/pin, **`GET /api/agents/{id}/model-intel`** (catalog + evidence-grounded recommendation), MAD Griffin tools | H: HQ Agent APIs + model-intel · A: `GET /api/agent-view/hq_agent/{id}` | Empty until agent selected | — | **DONE** (subset of [`18`](18-hq-agent.md) vision) |
 
 ### 4.2 Human APIs vs agent-view
@@ -161,8 +165,10 @@ Frozen contract: [`12-data-api.md`](12-data-api.md). Serializers: `server/arcnet
 | `GET /api/threats` | Threat rows (cap 200) | Folded into incident `root_cause` | No standalone threats agent-view |
 | `GET /api/sources` | Source rows | `GET /api/agent-view/sources_trust/{id}` | Envelope `{sources:[…]}`; 404 if id unknown |
 | `GET /api/signals` | Signal rows (+ fleet-wide NULL session) | `GET /api/agent-view/signals/{id}` | Envelope `{scope, signals:[…]}`; fleet scope via `all` |
-| `POST /api/replay` → verdict | Verdict object sync | `GET /api/agent-view/replay/{id}` | Envelope around stored verdict |
+| `POST /api/replay` → verdict | Verdict object sync; accepts `candidate_model` **or** `candidate_prompt` (exactly one) | `GET /api/agent-view/replay/{id}` | Envelope around stored verdict |
+| `POST /api/replay/corpus` | Stored (default) or live aggregate scorecard; cap 10 sessions/request | — | Live mode needs AgentOS + `candidate_model` |
 | `GET /api/replays` | Index without `runs` blob | — | — |
+| `POST /api/hitl/{id}` | Decide + `relay` field (`attempted`, `delivered`, `detail`); reject → kill on signal bus + AgentOS when configured | — | `ARCNET_AGENTOS_URL=""` disables HTTP hop |
 | Case File UI | Renders incident envelope | `GET /api/agent-view/incident/{id}` + zip | Zip = `case-file.md` + same JSON envelope |
 | Write-auth (mutating POST) | — | `ARCNET_WRITE_SECRET` + `X-Arcnet-Write-Secret` when set; unset = localhost-trust | Demo default open; production sets secret ([`32`](32-deployment-notes.md)) |
 | — | — | Envelope always: `{view, id, generated_at, data, links, hints}` | `generated_at` ISO-Z; row timestamps remain **epoch-ms** (documented drift vs `12`) |
@@ -171,7 +177,9 @@ Every agent-view wraps with `{view, id, generated_at, data, links, hints}`. `lin
 
 **Documented drift (not a bug to “fix” in map):** `12` says ISO-8601 for APIs; shipped rows use epoch-ms (`13` conflict #1).
 
-**Not built:** `POST /api/replay/corpus` (P1). HITL decide does **not** relay to AgentOS (docs claim; code updates SQLite only).
+**Not built:** dedicated `GET /api/agent-view/context_inspector/{id}` server route (HQ composes twin client-side). Sources SSE still deferred.
+
+**HITL relay:** `decide_hitl` persists SQLite, posts to signal bus, and best-effort relays to AgentOS (`hitl_relay.py`, 2s timeout, always 200). Reject → kill; approve = acknowledgement only.
 
 ### 4.3 SDK / init + guard + signals
 
@@ -187,7 +195,8 @@ Every agent-view wraps with `{view, id, generated_at, data, links, hints}`. `lin
 | Replay | `replay.py` | Tool stubs from transcript; **live** guard; recorded signals only | **DONE** |
 | Transcript | `transcript.py` | Persist to server SQLite-primary | **DONE** |
 | Telemetry | `telemetry.py` | POST threats/sources to server | **DONE** |
-| Guard corpus P14 | `sdk/tests/test_guard_corpus.py`; `sdk/tests/fixtures/guard_corpus.json` | 42 synthetic attack payloads offline (25/38 caught); taxonomy in [`33-guard-coverage.md`](33-guard-coverage.md) | **DONE** |
+| Guard corpus P14 | `sdk/tests/test_guard_corpus.py`; `sdk/tests/fixtures/guard_corpus.json` | 45 synthetic attack payloads offline (28/40 caught, 70.0%); taxonomy in [`33-guard-coverage.md`](33-guard-coverage.md) | **DONE** |
+| F9 canaries | `sdk/arcnet/guardrail.py` `plant_canary_prompt` / `redact_canary_args`; `sdk/tests/test_canary.py` | Per-session token planted; leak detection at output/tool_call; values redacted from exports | **DONE** |
 
 **Integration pattern (config, not forks):**
 
@@ -234,7 +243,7 @@ Friction: `PYTHONPATH=sdk:agents`; submodule imports (`arcnet.guardrail`, …); 
 | MCP binary + Cursor/Claude configs | `deploy/mcp/` | **PARTIAL** — install works; G5 stdio handoff hung; Case File + Query Range fallback |
 | Service-account key | human UI step | **GAP** (manual; cannot create headlessly) |
 | HQ embedded charts | — | **GAP** |
-| Per-dashboard UUID deep-links from HQ | — | **GAP** (IDs change per provision) |
+| Per-dashboard UUID deep-links from HQ | `hq/src/dashboardLinks.ts` + `Dashboards.tsx` | **DONE** — unresolved boards labeled, not silently generic |
 
 ### 4.6 Time Machine / Case File / export
 
@@ -245,7 +254,7 @@ Friction: `PYTHONPATH=sdk:agents`; submodule imports (`arcnet.guardrail`, …); 
 | Progress | SSE `replay_progress` | `{replay_id, step, total_steps, phase}` | **DONE** |
 | Case File zip | `GET /export/case-file/{id}` | `case-file.md` (summary, root cause, timeline, actions, fix-prompt + MCP hints) + `case-file.json` (incident envelope) | **DONE** |
 | Incident twin | `GET /api/agent-view/incident/{id}` | goal, agent, exposure, root_cause, outcome, recommended_actions, related_replay_id | **DONE** |
-| Corpus scorecard | `POST /api/replay/corpus` | — | **GAP** (P1, pre-cut) |
+| Corpus scorecard | `POST /api/replay/corpus` | Stored + live modes; HQ Time Machine scorecard strip | **DONE** |
 
 ### 4.7 Griffin
 
@@ -254,6 +263,7 @@ Friction: `PYTHONPATH=sdk:agents`; submodule imports (`arcnet.guardrail`, …); 
 | MAD z-score worker in server | **DONE** |
 | `GET /api/griffin/status`, `POST /api/griffin/evaluate` | **DONE** |
 | Seed series (`scripts/seed.py` / demo seed) | **DONE** |
+| Auto-discovery + eval cap + top-N | **DONE** — `discover_series_ids`; `ARCNET_GRIFFIN_EVAL_CAP` (12); `ARCNET_GRIFFIN_TOP_N` (3) |
 | TabFM foundation model worker | **PARTIAL** — opt-in `ARCNET_TABFM=1` (`griffin.py:143-144`); default runtime = **MAD**; HQ labels `tabfm` only when worker healthy |
 | HQ Griffin MAD strip | **DONE** (`FleetHealth.tsx` `MadStrip` + `/api/griffin/status`); no forecast-band chart |
 
@@ -262,7 +272,7 @@ Friction: `PYTHONPATH=sdk:agents`; submodule imports (`arcnet.guardrail`, …); 
 | Surface | Path / env | What it does | Status |
 |---|---|---|---|
 | Write-auth | `ARCNET_WRITE_SECRET` ([`30-hardening.md`](30-hardening.md) P11-C, [`32-deployment-notes.md`](32-deployment-notes.md)) | When set, mutating `POST` routes require `X-Arcnet-Write-Secret` (or Bearer); unset = localhost-trust demo default | **DONE** — `server/tests/test_write_auth.py` |
-| HQ API resilience P13 | `hq/src/apiResilience.ts` | Normalizes API payloads, parses `{detail, hint}` errors, offline detection; wired through `api.ts` into views | **DONE** — 60 FE tests (`apiResilience.test.ts` + view tests) |
+| HQ API resilience P13 + P27 | `hq/src/apiResilience.ts` | Normalizes API payloads, parses `{detail, hint}` errors, offline detection, agent-view envelope validation; per-view retry (`viewRetry.ts`); wired through `api.ts` into views | **DONE** — 97 FE tests |
 
 ---
 
@@ -284,9 +294,10 @@ Verification points for later adversarial/QA. Sources: `14` §8–11, `log.md` g
 | **Agent-view** | 7 | Envelope keys; session timeline bounds (no full `recorded_output`); incident root_cause; sources 404; fleet wrap; replay wrap; hints present |
 | **Case File export** | 4 | zip members; md sections; json == incident envelope; no secret/tool dump |
 | **SDK guard** | 8 | init once; 4 checkpoints fire; S1 taint block; S2 redact; S5 input block; threat/source POSTs; steer/kill; Guard reset per session |
-| **Guard corpus P14** | 3 | `test_guard_corpus.py` offline; 42 payloads; misses documented in `33` |
+| **Guard corpus P14** | 3 | `test_guard_corpus.py` offline; 45 payloads; 28/40 (70.0%) in `33` |
+| **F9 canaries** | 2 | `test_canary.py`; redaction from exports |
 | **Write-auth** | 3 | unset = open writes; `ARCNET_WRITE_SECRET` gates mutating POST; webhook uses separate secret |
-| **HQ resilience P13** | 4 | `apiResilience.ts` normalizers; error envelope parse; offline detection; 60 FE tests green |
+| **HQ resilience P13+P27** | 5 | retry tokens; SSE stream status; envelope validation; case-file download errors; 97 FE tests green |
 | **SSE / webhook** | 6 | inline POST; SSE catch-up (best-effort last-N when Last-Event-ID numeric — not true seq); webhook 204; bad payload 400; dedupe; resolved→expired |
 | **Time Machine server** | 5 | 3× AgentOS; majority verdict; persist replays; progress events; heroes match `_phase4_g4` class |
 | **Griffin** | 4 | evaluate fires; signal `source=griffin`; status cache; MAD-only without token |
@@ -314,9 +325,9 @@ Ordered originally by demo impact; **now ordered by product usability**.
 | R1d | **Session check** | Agents lack a compact session inspection surface | **R1** | `GET /api/agent-view/check/{session_id}` bounded |
 | R2a | **case_files** | Flat session pick; wrong coupling | **R2** | Cascade Agent → model → session; hero prefer when present |
 | R2b | **time_machine** | Same flat pick; defaults ≠ heroes | **R2** | Same cascade; honest `mixed`; AgentOS-down seam |
-| 4 | **signals** | HITL relay missing | Later | AgentOS pause relay when `decide_hitl` wires through |
+| 4 | **signals** | HITL relay | **DONE** (P21) | Reject → kill on signal bus + AgentOS; approve = ack |
 | 7 | **HQ routing** | ~~No bookmarkable views~~ | **DONE** (P8) | Hash routes + optional session/agent params (`hash.ts`) |
-| 1 | **dashboards** | Named boards don’t deep-link UUID | Later | Correct UUIDs or documented picker |
+| 1 | **dashboards** | Named boards deep-link UUID | **DONE** (P22) | `dashboardLinks.ts`; unresolved labeled |
 | 5 | **fleet_health** | Mini-fleet not clickable | Later | Click → filter signals/sources or case_files |
 | 6 | **sources_trust** | Agent mode raw; no link to incident | Later | Envelope + row → case_files |
 | 8 | **Shell** | (was cosmetic demo tag) | **R1** | See R1a |
@@ -325,7 +336,7 @@ Ordered originally by demo impact; **now ordered by product usability**.
 | 11 | **Embedded SigNoz** | No charts | Later | Sparkline only if key present |
 | 12 | **Agent-view consistency** | ~~signals/sources/dashboards skip envelope~~ | **DONE** (P8-B) | All HQ views have twins; `12` view enum may lag |
 | 13 | **HITL pause UI** | Scaffold only | Later | Approve/reject when pause pending |
-| 14 | **Corpus scorecard** | No UI / API | **DEFER** (P6-C, 2026-07-23) | No corpus endpoint on server; docs/12 P1 row is contract-only |
+| 14 | **Corpus scorecard** | Scorecard UI / API | **DONE** (P26) | `POST /api/replay/corpus` + HQ strip |
 | R3 | **Model explore** | No discovery layer | **R3** | Skills + MCP scaffold; exploration-only agents |
 | HQ | **HQ Agent** | No overall maintenance agent | **HQ** ([`18`](18-hq-agent.md)) | Version timeline, MAD griffin tools, proposals, Unplug |
 | 15 | **Screenshots / video** | Human content | Parallel | Submission assets |
@@ -358,11 +369,11 @@ Method: map drafted from `hq/`, `server/arcnet_server/`, `sdk/`, `agents/`, `dep
 | V2 | Agent-view views ∈ incident, fleet, session, sources, replay | `main.py` routes + `read_models` | **PASS** | — |
 | V3 | Session agent-view body bounded (no full tool outputs in `timeline`) | `agent_session_context` excerpts/digests | **PASS** | Body yes; see V18 / A15 for escape hatch |
 | V4 | Timestamps ISO per `12` | Rows epoch-ms; envelope ISO | **WARN** (documented drift) | Map §4.2 states drift |
-| V5 | HITL relays to AgentOS (`12`) | `decide_hitl` SQLite only | **FAIL** (doc>code) | Map marks GAP / no relay |
-| V6 | `POST /api/replay/corpus` | Absent | **PASS** (map = GAP) | — |
+| V5 | HITL relays to AgentOS (`12`) | `hitl_relay.py` reject → kill; approve = ack | **PASS** (with honesty caveats) | Map updated |
+| V6 | `POST /api/replay/corpus` | Shipped P26 | **PASS** | Map §4.2 updated |
 | V7 | Mock time-machine route removed | Not in `main.py` | **PASS** | — |
 | V8 | Signals/sources HQ agent mode use agent-view | `AgentJson` → `/api/agent-view/signals/*` & `sources_trust/*` | **PASS** | Map §4.1 updated (P8-B) |
-| V9 | Dashboards = provisioned boards | HQ links generic `/dashboard` | **WARN** | Map PARTIAL + backlog #1 |
+| V9 | Dashboards = provisioned boards | HQ UUID deep-links when resolved; unresolved labeled | **PASS** | Map §4.1 updated |
 | V10 | G5 MCP complete | stdio PARTIAL per `log.md` | **PASS** (map honest) | — |
 | V11 | Griffin = TabFM by default | MAD default; TabFM opt-in `ARCNET_TABFM=1` | **PASS** (map honest) | §4.7 updated |
 | V12 | S3 in Bug Suite | No runner | **PASS** (CUT) | — |
@@ -388,7 +399,7 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 | A5 | **S4 "alert killed the agent"** | Runner evaluates Griffin then posts kill — choreography, not pure alert path | Medium if judge digs | **WARN** | Map §4.4 notes |
 | A6 | **Seasonal anomaly on camera** | ≥5m windows — cannot fire live | High if demo pretends | **PASS** if treated as screenshot | Map: artifact only |
 | A7 | **Integration friction** | Thin `__all__`; 4 Agno hook APIs; two processes; `PYTHONPATH`; manual SigNoz key | Medium for adopters | **WARN** | §4.3 expanded |
-| A8 | **HITL looks productized in `12`** | Pause kind exists; no HQ UI; no AgentOS relay | Medium | **FAIL** (docs overclaim) | Map GAP |
+| A8 | **HITL looks productized in `12`** | Relay ships; approve ≠ resume documented | Low | **PASS** (with honesty string) | Map updated |
 | A9 | **No deep links** | Hash routes ship (`#time_machine?session=…`) | Low | **PASS** | Map §3 note |
 | A10 | **Hero IDs in guide** | Stable only while seed DB preserved | Low | **WARN** | Cite `14` heroes; re-seed resets |
 | A11 | **Open write APIs** | `ARCNET_WRITE_SECRET` unset = localhost-trust writes; set = header-gated mutating POST | Expected for demo; scary if exposed without secret | **PASS** (scoped) | §4.8 write-auth |
@@ -400,7 +411,7 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 | A17 | **Beat 2 “threat feed” / “finishes safely”** | No threats HQ view; Edgar outcome `goal_reached: failed` with blocked exfil | Medium | **WARN** | Noted for demo ops |
 | A18 | **Griffin TabFM live narration** | `06`/`07` foundation-model language; HQ has no forecast band; signals say MAD | High if overclaimed | **FAIL** if narrated without MAD | Map Griffin = MAD |
 | A19 | **Hero Case File `trace_id=None`** | MCP hint no-op on money-path heroes without OTLP | Medium with A4 | **WARN** | Backlog #3 |
-| A20 | **Cold open “cost and latency”** | Fleet cards show cost, not latency; aggregates not live stream | Low | **WARN** | §4.1 fleet note |
+| A20 | **Cold open “cost and latency”** | Fleet cards show p50/p95 wall-clock ms | Low | **PASS** | §4.1 fleet updated |
 | A21 | **`api_down` needs reload** | Fleet probe is mount-once | Low | **WARN** | §4.1 shell |
 | A22 | **Bring-up docs drift** | Some checklists still say docker-compose; casting + `run-demo.sh` is path | Low | **WARN** | Prefer `14` / README |
 
@@ -410,14 +421,14 @@ Judge / confused-user lens. Severity: would it mislead a demo or review?
 
 | Area | DONE | PARTIAL | GAP / CUT / human |
 |---|---:|---:|---:|
-| HQ surfaces (shell + 9 views) | 8 (home + fleet + signals + sources + TM + CF + hq_agent + shell) | 2 hitl (relay gap) + dashboards launcher | 0 views missing |
-| Server human APIs | 12+ routes | HITL decide SQLite-only | corpus replay, AgentOS HITL relay |
+| HQ surfaces (shell + 10 views) | 9 (home + fleet + signals + sources + context_inspector + TM + CF + hq_agent + shell) | 1 hitl (approve≠resume) + dashboards launcher (no embed) | 0 views missing |
+| Server human APIs | 13+ routes | live-work dogfood | corpus replay **DONE**; G5 MCP defer |
 | Agent-view endpoints | 10+ (all HQ views) | session `full_transcript` pointer | `12` view enum may lag shipped twins |
 | SDK checkpoints + init | 5/5 core + P14 guard corpus | pause signal | thin `__all__` |
 | Server write-auth + HQ resilience | write-auth + apiResilience | — | reads still open (localhost-trust) |
 | Bug Suite scenarios | 5 | — | S3 CUT |
 | SigNoz provision assets | dashboards+alerts+webhook | MCP G5 | seasonal live, HQ UUID links, screenshots |
-| Time Machine / Case File | core path | hero default-select / MCP on heroes | corpus scorecard |
+| Time Machine / Case File | core path + corpus + prompt swap | hero default-select / MCP on heroes | — |
 | Griffin | MAD default + TabFM opt-in | — | TabPFN, HQ forecast-band chart |
 | Human ship items | — | — | screenshots, video, Slack, submission |
 

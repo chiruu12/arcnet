@@ -250,3 +250,59 @@ Fixed with re-verified evidence: `docs/15` claimed no URL router and unrendered 
 **README §Verification rewritten and then actually executed verbatim as a judge would:** server **219** · sdk **63** · agents **18** · boundaries clean · `uv lock --check` OK. The old commands under-reported the suite badly.
 **Correction to an earlier claim in this log:** P18 reported `unittest discover -s sdk/tests` as "14 OK, 1 error" and that was repeated as the suite *erroring* on the pytest-only corpus file. Re-verified directly: discover exits **0** with **14 tests OK** — it silently does not load `test_guard_corpus.py`. That is worse than an error, not better: the documented command looked like a clean pass while missing 49 of 63 tests. README now says so explicitly.
 **Gate:** server 219 (tabfm installed) / agents 18 / sdk 63 / hq 60 · boundaries clean. **Honesty:** held at **~64 (cap ≤65)**.
+
+## 2026-07-25 — P21–P31 gap-closing waves + P31 doc truth pass
+
+**P21 HITL runtime relay.** `server/arcnet_server/hitl_relay.py` — reject posts kill on the signal bus and relays to AgentOS `/internal/hitl-decide` (agno `cancel_run`); approve records an acknowledgement only (no live pause/resume). Fail-safe: 2s timeout, always persists SQLite, always returns 200 with additive `relay: {attempted, delivered, detail}`. Defaults to `http://localhost:7777` like replay; `ARCNET_AGENTOS_URL=""` disables the HTTP hop.
+
+**P22 prompt-swap + SigNoz dashboard links.** Time Machine UI adds model/prompt swap axis (`TimeMachine.tsx`). Dashboards resolve UUID deep-links via `dashboardLinks.ts`; unresolved boards show explicit copy instead of silently opening the generic shell.
+
+**P23 untainted-exfil closed.** Tool-call arguments content-scanned for leakage/secrets when taint has not already blocked; routing fields (`to`/`cc`/`bcc`/…) excluded. Measured guard coverage **28/40 (70.0%)** — `docs/33` updated by that wave.
+
+**P24 product-map hygiene** — inventory sweep.
+
+**P25 hero fixture.** `fixtures/heroes.json` + `scripts/export_heroes.py` + `scripts/seed_heroes.py` wired into `scripts/run-demo.sh`. Cold clone reproduces both hero incidents with **no API key** — 17 stored replay verdicts per hero (`s_ecfdb55d`, `s_2af44726`).
+
+**P26 fleet latency + corpus scorecard.** Fleet cards show p50/p95 wall-clock ms from recorded session timestamps (`ended_at−started_at`, fallback `usage.latency_ms`) with sample count and `latency_source_24h`; null when no samples. `POST /api/replay/corpus` stored (offline) + live modes; HQ Time Machine scorecard strip.
+
+**P27 HQ deferrals closed.** Per-view retry (`viewRetry.ts`), SSE stream-offline indicator (`StreamStatus` in `Signals.tsx`), agent-view envelope validation (`validateAgentEnvelopeShape`), case-file download error handling (`CaseFiles.tsx`). **hq 60 → 97 tests.**
+
+**P28 F9 canaries.** Per-session canary planting via `plant_canary_prompt`; leak detection at output/tool_call; canary values redacted from evidence, tool args, and exports. `sdk/tests/test_canary.py`.
+
+**P29 Griffin auto-discovery + top-N.** `discover_series_ids` from seed/SQLite proxy; eval cap `ARCNET_GRIFFIN_EVAL_CAP` (default 12); top-N `ARCNET_GRIFFIN_TOP_N` (default 3) in status. MAD remains default; TabFM opt-in `ARCNET_TABFM=1`.
+
+**P30 context inspector.** HQ `context_inspector` view — ingest timeline from sources ledger + linked threats; client-composed agent twin (no dedicated server route).
+
+**Test hygiene.** `server/tests/conftest.py` sets `ARCNET_AGENTOS_URL=""`; module-level `ARCNET_SERVER_URL` guards in `sdk/tests/test_replay.py` and `agents/tests/test_guard_scenarios.py` stop suites writing into `data/arcnet.db`.
+
+**P31 doc truth pass (this entry).** Re-audited `docs/34`, refreshed `docs/20` suite counts, rewrote `docs/plans/remaining-work.md`, aligned `docs/15-product-map.md`. **No readiness % moved.**
+
+**Gate:** server **233** / sdk **81** / agents **18** / hq **97** · boundaries clean. Live S1 (`s_81c19677`) reproduces hero recording: 3 threats — `retrieved_source_in_side_effect` 0.85 (`tool_call`), `crescendo_block` 0.92 (`tool_call` + `output`). **Honesty:** held at **~64 (cap ≤65)**.
+
+## 2026-07-25 — P21–P31 gap-closing waves + P31 doc truth pass
+
+**P21 HITL runtime relay.** `server/arcnet_server/hitl_relay.py` — reject posts kill on the signal bus and relays to AgentOS `/internal/hitl-decide` (agno `cancel_run`); approve records an acknowledgement only (no live pause/resume). Fail-safe: 2s timeout, always persists SQLite, always returns 200 with additive `relay: {attempted, delivered, detail}`. Defaults to `http://localhost:7777` like replay; `ARCNET_AGENTOS_URL=""` disables the HTTP hop.
+
+**P22 prompt-swap + SigNoz dashboard links.** Time Machine UI adds model/prompt swap axis (`TimeMachine.tsx`). Dashboards resolve UUID deep-links via `dashboardLinks.ts`; unresolved boards show explicit copy instead of silently opening the generic shell.
+
+**P23 untainted-exfil closed.** Tool-call arguments content-scanned for leakage/secrets when taint has not already blocked; routing fields (`to`/`cc`/`bcc`/…) excluded. Measured guard coverage **28/40 (70.0%)** — `docs/33` updated by that wave.
+
+**P24 product-map hygiene** — inventory sweep.
+
+**P25 hero fixture.** `fixtures/heroes.json` + `scripts/export_heroes.py` + `scripts/seed_heroes.py` wired into `scripts/run-demo.sh`. Cold clone reproduces both hero incidents with **no API key** — 17 stored replay verdicts per hero (`s_ecfdb55d`, `s_2af44726`).
+
+**P26 fleet latency + corpus scorecard.** Fleet cards show p50/p95 wall-clock ms from recorded session timestamps (`ended_at−started_at`, fallback `usage.latency_ms`) with sample count and `latency_source_24h`; null when no samples. `POST /api/replay/corpus` stored (offline) + live modes; HQ Time Machine scorecard strip.
+
+**P27 HQ deferrals closed.** Per-view retry (`viewRetry.ts`), SSE stream-offline indicator (`StreamStatus` in `Signals.tsx`), agent-view envelope validation (`validateAgentEnvelopeShape`), case-file download error handling (`CaseFiles.tsx`). **hq 60 → 97 tests.**
+
+**P28 F9 canaries.** Per-session canary planting via `plant_canary_prompt`; leak detection at output/tool_call; canary values redacted from evidence, tool args, and exports. `sdk/tests/test_canary.py`.
+
+**P29 Griffin auto-discovery + top-N.** `discover_series_ids` from seed/SQLite proxy; eval cap `ARCNET_GRIFFIN_EVAL_CAP` (default 12); top-N `ARCNET_GRIFFIN_TOP_N` (default 3) in status. MAD remains default; TabFM opt-in `ARCNET_TABFM=1`.
+
+**P30 context inspector.** HQ `context_inspector` view — ingest timeline from sources ledger + linked threats; client-composed agent twin (no dedicated server route).
+
+**Test hygiene.** `server/tests/conftest.py` sets `ARCNET_AGENTOS_URL=""`; module-level `ARCNET_SERVER_URL` guards in `sdk/tests/test_replay.py` and `agents/tests/test_guard_scenarios.py` stop suites writing into `data/arcnet.db`.
+
+**P31 doc truth pass (this entry).** Re-audited `docs/34`, refreshed `docs/20` suite counts, rewrote `docs/plans/remaining-work.md`, aligned `docs/15-product-map.md`. **No readiness % moved.**
+
+**Gate:** server **233** / sdk **81** / agents **18** / hq **97** · boundaries clean. Live S1 (`s_81c19677`) reproduces hero recording: 3 threats — `retrieved_source_in_side_effect` 0.85 (`tool_call`), `crescendo_block` 0.92 (`tool_call` + `output`). **Honesty:** held at **~64 (cap ≤65)**.
