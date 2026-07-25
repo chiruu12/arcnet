@@ -33,6 +33,7 @@ from arcnet_server.validation import (
     parse_json_object,
     require_fields,
 )
+from arcnet_server.hitl_relay import relay_hitl_decision
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
@@ -1053,8 +1054,9 @@ async def decide_hitl(hitl_id: str, request: Request) -> dict[str, Any]:
             hint="list rows via GET /api/hitl",
         )
     row = repository.decide_hitl(conn, hitl_id, decision)
+    relay = await relay_hitl_decision(conn, row, decision, insert_signal=_insert_signal)
     BUS.publish("hitl_request", row)
-    return row
+    return {**row, "relay": relay}
 
 
 # ---------------------------------------------------------------- webhook
