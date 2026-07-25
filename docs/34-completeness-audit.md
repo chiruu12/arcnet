@@ -24,7 +24,7 @@ or explicitly deferred. Overall readiness **~64% / ≤65%** in `docs/20` is
 | **server** | `.venv/bin/python -m pytest server/tests -q` | **233 passed** |
 | **sdk** (unittest) | `PYTHONPATH=sdk:server uv run python -m unittest discover -s sdk/tests -q` | **14 passed** |
 | **sdk** (pytest) | `PYTHONPATH=sdk .venv/bin/python -m pytest sdk/tests -q` | **81 passed** (incl. guard corpus + canary) |
-| **agents** | `PYTHONPATH=sdk:server:. uv run python -m unittest discover -s agents/tests -q` | **18 passed** |
+| **agents** | `PYTHONPATH=sdk:server:. uv run python -m unittest discover -s agents/tests -q` | **25 passed** |
 | **hq** | `cd hq && pnpm test` | **97 passed** |
 | **import boundaries** | `uv run python scripts/check_import_boundaries.py` | **clean** |
 
@@ -77,7 +77,7 @@ features are **SHIPPED** or **PARTIAL** with a named, non-blocking gap.
 | Sources & Trust view | **SHIPPED** | `hq/src/views/SourcesTrust.tsx`; `GET /api/sources` `main.py:521-539`; ledger schema `docs/12` | Poll-only — **sources SSE** = **EXPLICIT DEFER** (`docs/29-class-audit.md:49`, by design) |
 | HITL `pause` beat | **SHIPPED** | UI `hq/src/views/Hitl.tsx`; API `main.py:1090-1107`; relay `hitl_relay.py` (reject → kill on signal bus + AgentOS `/internal/hitl-decide`; approve = acknowledgement only); honesty `hq/src/hitlUtils.ts:26-27`; tests `server/tests/test_hitl_api.py` | `pause` signal scaffold only — approve does **not** resume a live Agno run |
 | Prompt-swap replay | **SHIPPED** | API `candidate_prompt` `main.py:596-627`; HQ model/prompt axis `TimeMachine.tsx:361-584`; tests `server/tests/test_replay_hardening.py` | Live `replay.run()` still needs AgentOS + model key |
-| Live-work agent (dogfood fleet) | **PARTIAL** | Agent J + L/O `agents/arcnet_agents/app.py:30-36`; seed background sessions `scripts/seed_demo.py:27-131` | Agents run **scenario choreography** + seeded background rows — not continuous genuine production tasks |
+| Live-work agent (dogfood fleet) | **SHIPPED** | Opt-in loop `agents/arcnet_agents/dogfood.py` (`ARCNET_DOGFOOD=1`); SDK-instrumented sessions across J/L/O; `agents/tests/test_dogfood.py` | **Off by default** — scenario runner + seed background rows unchanged; enable explicitly for continuous genuine ops tasks |
 | Time Machine corpus scorecard | **SHIPPED** | `POST /api/replay/corpus` `main.py`; `corpus_service.py` stored+live modes; HQ `TimeMachine.tsx` stored scorecard strip; tests `server/tests/test_corpus_and_latency.py` | Live mode needs AgentOS + model key; stored mode works offline on seeded replays |
 | Context inspector UI | **SHIPPED** | HQ `hq/src/views/ContextInspector.tsx` + `contextInspector.ts` ingest timeline; composes `/api/sources` + `/api/agent-view/threats/{id}`; hash route `#context_inspector?session=…`; tests `hq/src/contextInspector.test.ts` | No dedicated server route — agent mode builds envelope client-side (`ContextInspector.tsx:67`) |
 | F9 canaries | **SHIPPED** | `guard.add_canary` via `plant_canary_prompt` in `agents/arcnet_agents/agent_j.py` + `agents/hq_agent/agent.py`; detection at `output` / `tool_call` through existing `scan_output` path (`sdk/arcnet/guardrail.py`); tests `sdk/tests/test_canary.py` | Per-session token never exported — redacted from transcript args + threat payloads |
@@ -193,7 +193,7 @@ Ordered by **user-visible impact × effort to close** (highest first).
 | 9 | ~~**Griffin auto-discovery / top-N**~~ | **SHIPPED** P29 — discovery + eval cap + top-N status |
 | 10 | ~~**F9 canaries**~~ | **SHIPPED** P28 — `plant_canary_prompt` + leak detection + `sdk/tests/test_canary.py` |
 | 11 | ~~**Context inspector**~~ | **SHIPPED** P30 — `ContextInspector.tsx` ingest timeline (client-composed twin) |
-| 12 | **Live-work dogfood agent** — fleet is scenario + seed theater | Long-running AgentOS task loop outside scenario runner |
+| 12 | ~~**Live-work dogfood agent**~~ | **SHIPPED** P33 — `ARCNET_DOGFOOD=1` continuous loop (`agents/arcnet_agents/dogfood.py`); off by default |
 | 13 | ~~**Doc hygiene**~~ | **SHIPPED** P31 — product map + audit aligned to P21–P30 |
 | 14 | ~~**README verification commands**~~ | **SHIPPED** P20 — pytest line documented; counts refreshed P31 |
 | 15 | **unplug-ai input-layer gaps (9)** | Upstream `unplug-ai` PyPI package — see `docs/33` §Known gaps; ArcNet does not modify it |

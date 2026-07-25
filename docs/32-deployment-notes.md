@@ -22,6 +22,10 @@ Overall readiness stays **~64% / ≤65%** ([`docs/20-honest-progress.md`](20-hon
 | `ARCNET_TABFM` | *(unset)* | `1` → opt-in TabFM async worker (Phase 7); default runtime stays MAD. |
 | `ARCNET_TABFM_CADENCE_S` | `360` | TabFM worker interval when enabled. |
 | `ARCNET_MODEL_EXPLORE_LOOP` | *(unset)* | `1` → optional recommend+record note loop (never apply/kill). |
+| `ARCNET_DOGFOOD` | *(unset)* | `1` → opt-in continuous fleet work loop (`python -m arcnet_agents.dogfood`). Off by default — scenario runner + seed unchanged. |
+| `ARCNET_DOGFOOD_INTERVAL_S` | `300` | Seconds between dogfood iterations (minimum 30). |
+| `ARCNET_DOGFOOD_MAX_ITERATIONS` | `48` | Hard cap on loop iterations. |
+| `ARCNET_DOGFOOD_MAX_DURATION_S` | `86400` | Hard cap on total loop duration (24h). |
 | `ARCNET_EXPLORE_DIR` | `data/model_explore` | Output dir for model explore artifacts. |
 | `ARCNET_SERVER_PORT` | `8000` | Used by `scripts/run-demo.sh` only. |
 | `ARCNET_AGENTOS_PORT` | `7777` | Used by `scripts/run-demo.sh` only. |
