@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, toUserError, type AgentVersionRow } from "../api";
 import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
-import { Empty, Seam, ts } from "../components";
+import { Empty, ViewSeam, ts } from "../components";
 import { formatCostDelta } from "../modelIntel";
 import { showingOfTotal } from "../pageLabel";
 import type { AgentModelsResponse, CascadeLink, SignalRow } from "../types";
@@ -386,7 +386,7 @@ export function HqAgent({
       <p className="eyebrow">{"// run locally"}</p>
       <pre className="agent-json">{RUN_HINT}</pre>
 
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={() => setTick((t) => t + 1)} />}
       {flash && (
         <p
           className={

@@ -674,6 +674,22 @@ a.btn {
   font-size: 11px;
 }
 
+.view-seam {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.view-seam .err {
+  margin: 0;
+}
+
+.view-seam .btn.ghost {
+  margin-left: 0;
+}
+
 p.honesty {
   margin-top: 0.25rem;
   margin-bottom: 1rem;

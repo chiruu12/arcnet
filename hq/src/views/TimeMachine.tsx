@@ -16,7 +16,8 @@ import {
   replaySwapChoice,
   replaySwapValidationMessage,
 } from "../replaySwap";
-import { AgentJson, Empty, Seam, money, ts } from "../components";
+import { AgentJson, Empty, ViewSeam, money, ts } from "../components";
+import { useRetryToken } from "../viewRetry";
 
 import type { AgentModelRow, CascadeLink, CorpusScorecard, FleetRow, Mode, SessionRow, Verdict } from "../types";
 
@@ -79,6 +80,7 @@ export function TimeMachine({
   const [err, setErr] = useState<string | null>(null);
   const [scorecard, setScorecard] = useState<CorpusScorecard | null>(null);
   const [scorecardLoading, setScorecardLoading] = useState(false);
+  const [retryAt, retry] = useRetryToken();
   const prefer = useRef({
     version: deepLink?.version,
     model: deepLink?.model,
@@ -151,8 +153,8 @@ export function TimeMachine({
       cancelled = true;
       unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from deepLink
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from deepLink; retryAt for reload
+  }, [retryAt]);
 
   useEffect(() => {
     if (!agentId) {
@@ -200,7 +202,7 @@ export function TimeMachine({
     return () => {
       cancelled = true;
     };
-  }, [agentId]);
+  }, [agentId, retryAt]);
 
   useEffect(() => {
     if (!agentId || !model) {
@@ -246,7 +248,7 @@ export function TimeMachine({
     return () => {
       cancelled = true;
     };
-  }, [agentId, versionId, model, lane]);
+  }, [agentId, versionId, model, lane, retryAt]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -372,7 +374,7 @@ export function TimeMachine({
         replay one recorded session against a candidate · tool_outputs=mocked · guard=identical ·
         3 runs, majority verdict. pick agent → version → model → session.
       </p>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
 
       <div className="mad-strip">
         <p className="eyebrow">{"// corpus_scorecard"}</p>

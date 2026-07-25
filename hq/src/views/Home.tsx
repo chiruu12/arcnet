@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api, toUserError } from "../api";
 import { buildHomeStats, formatStatValue, type HomeStatKey } from "../homeStats";
 import { navigate } from "../hash";
+import { ViewSeam } from "../components";
+import { useRetryToken } from "../viewRetry";
 import type { Mode, View } from "../types";
 
 const LOOP: { label: string; view: View }[] = [
@@ -67,6 +69,7 @@ export function Home({ mode }: { mode: Mode }) {
     replays: null,
   }));
   const [err, setErr] = useState<string | null>(null);
+  const [retryAt, retry] = useRetryToken();
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +105,7 @@ export function Home({ mode }: { mode: Mode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryAt]);
 
   if (mode === "agent") {
     return (
@@ -146,7 +149,7 @@ export function Home({ mode }: { mode: Mode }) {
 
       <section className="home-stats" aria-label="live stats">
         <p className="eyebrow">{"// live_stats"}</p>
-        {err && <p className="err dim">{err}</p>}
+        {err && <ViewSeam error={err} onRetry={retry} />}
         <div className="stat-tiles">
           {STAT_KEYS.map(({ key, label }) => (
             <div className="stat-tile" key={key}>

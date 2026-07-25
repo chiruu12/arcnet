@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type GriffinStatus, toUserError } from "../api";
-import { AgentJson, Empty, Seam } from "../components";
+import { AgentJson, Empty, ViewSeam } from "../components";
+import { useRetryToken } from "../viewRetry";
 import type { FleetRow, Mode } from "../types";
 import { ThreatsPanel } from "./ThreatsPanel";
 
@@ -8,15 +9,21 @@ function MadStrip({
   status,
   err,
   onOpenSignals,
+  onRetry,
 }: {
   status: GriffinStatus | null;
   err: string | null;
   onOpenSignals?: (agentId: string) => void;
+  onRetry?: () => void;
 }) {
   if (err) {
     return (
       <div className="mad-strip">
-        <Seam error={`griffin MAD status unavailable — ${err}`} />
+        {onRetry ? (
+          <ViewSeam error={`griffin MAD status unavailable — ${err}`} onRetry={onRetry} />
+        ) : (
+          <p className="err">seam: griffin MAD status unavailable — {err}</p>
+        )}
       </div>
     );
   }
@@ -87,9 +94,12 @@ export function FleetHealth({
   const [griffin, setGriffin] = useState<GriffinStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [griffinErr, setGriffinErr] = useState<string | null>(null);
+  const [fleetRetryAt, retryFleet] = useRetryToken();
+  const [griffinRetryAt, retryGriffin] = useRetryToken();
 
   useEffect(() => {
     let cancelled = false;
+    setErr(null);
     api
       .fleet()
       .then((f) => {
@@ -98,6 +108,14 @@ export function FleetHealth({
       .catch((e: unknown) => {
         if (!cancelled) setErr(toUserError(e));
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [fleetRetryAt]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setGriffinErr(null);
     api
       .griffinStatus()
       .then((g) => {
@@ -112,7 +130,7 @@ export function FleetHealth({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [griffinRetryAt]);
 
   if (mode === "agent") return <AgentJson view="fleet" id="all" />;
 
@@ -124,9 +142,14 @@ export function FleetHealth({
         agents · trust posture · threats · cost · latency · griffin MAD. click an agent to open its
         case_files cascade; hot agents also deep-link to signals.
       </p>
-      <MadStrip status={griffin} err={griffinErr} onOpenSignals={onOpenSignals} />
+      <MadStrip
+        status={griffin}
+        err={griffinErr}
+        onOpenSignals={onOpenSignals}
+        onRetry={retryGriffin}
+      />
       <ThreatsPanel />
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retryFleet} />}
       {!err && !fleet && <p className="lede">loading…</p>}
       {fleet && fleet.length === 0 && (
         <Empty hint="no agents registered — start the server and run an instrumented agent (or seed with ./scripts/run-demo.sh)" />

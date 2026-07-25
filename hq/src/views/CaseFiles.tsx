@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, toUserError, type AgentVersionRow } from "../api";
+import { api, downloadCaseFile, toUserError, type AgentVersionRow } from "../api";
 import {
   cascadeReducer,
   emptyCascade,
@@ -7,8 +7,9 @@ import {
   preferVersion,
   type CascadeState,
 } from "../cascade";
-import { AgentJson, Empty, Seam, ts } from "../components";
+import { AgentJson, Empty, ViewSeam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
+import { useRetryToken } from "../viewRetry";
 import type {
   AgentEnvelope,
   AgentModelRow,
@@ -55,6 +56,9 @@ export function CaseFiles({
   const [versionHasNoPins, setVersionHasNoPins] = useState(false);
   const [envelope, setEnvelope] = useState<AgentEnvelope | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [downloadErr, setDownloadErr] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [retryAt, retry] = useRetryToken();
   const prefer = useRef({
     version: deepLink?.version,
     model: deepLink?.model,
@@ -125,8 +129,8 @@ export function CaseFiles({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from deepLink
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from deepLink; retryAt for reload
+  }, [retryAt]);
 
   useEffect(() => {
     if (!agentId) {
@@ -174,7 +178,7 @@ export function CaseFiles({
     return () => {
       cancelled = true;
     };
-  }, [agentId]);
+  }, [agentId, retryAt]);
 
   useEffect(() => {
     if (!agentId || !model) {
@@ -223,7 +227,7 @@ export function CaseFiles({
     return () => {
       cancelled = true;
     };
-  }, [agentId, versionId, model, lane]);
+  }, [agentId, versionId, model, lane, retryAt]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -243,7 +247,7 @@ export function CaseFiles({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, retryAt]);
 
   useEffect(() => {
     if (!onDeepLinkChange || !agentId) return;
@@ -281,6 +285,19 @@ export function CaseFiles({
       ? selectedVersion.model
       : null;
 
+  async function exportCaseFile() {
+    if (!sessionId || downloading) return;
+    setDownloadErr(null);
+    setDownloading(true);
+    try {
+      await downloadCaseFile(sessionId);
+    } catch (e: unknown) {
+      setDownloadErr(toUserError(e));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (mode === "agent") {
     if (sessionId) return <AgentJson view="incident" id={sessionId} />;
     return (
@@ -303,7 +320,8 @@ export function CaseFiles({
         hand an incident to a coding agent: root cause · timeline · recommended actions ·
         fix-prompt with SigNoz MCP hints. pick agent → version → model → session, then export.
       </p>
-      {err && <Seam error={err} />}
+      {err && <ViewSeam error={err} onRetry={retry} />}
+      {downloadErr && <ViewSeam error={downloadErr} onRetry={exportCaseFile} />}
       {fleet && fleet.length === 0 && (
         <Empty hint="no agents yet — start the server and register agents via arcnet.init (or seed with ./scripts/run-demo.sh)" />
       )}
@@ -415,9 +433,14 @@ export function CaseFiles({
             </span>
           )}
           {sessionId && (
-            <a className="btn" href={api.caseFileUrl(sessionId)} download>
-              export_case_file()
-            </a>
+            <button
+              type="button"
+              className="btn"
+              disabled={downloading}
+              onClick={() => void exportCaseFile()}
+            >
+              {downloading ? "exporting…" : "export_case_file()"}
+            </button>
           )}
           {sessionId && (
             <a
