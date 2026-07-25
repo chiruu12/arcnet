@@ -470,8 +470,11 @@ export const api = {
       `/api/agent-view/${view}/${encodeURIComponent(id)}`,
       normalizeAgentEnvelope,
     ) as Promise<AgentEnvelope>,
-  runReplay: (session_id: string, candidate_model: string) =>
-    postJSON("/api/replay", { session_id, candidate_model }, (raw) => {
+  runReplay: (
+    session_id: string,
+    candidate: { candidate_model?: string; candidate_prompt?: string },
+  ) =>
+    postJSON("/api/replay", { session_id, ...candidate }, (raw) => {
       const verdict = normalizeVerdict(raw);
       if (!verdict) {
         throw new ApiError({
