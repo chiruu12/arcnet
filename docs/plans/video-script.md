@@ -77,5 +77,5 @@ Hero sessions: Edgar **`s_ecfdb55d`** (S1 injection) · Worms **`s_2af44726`** (
 ## Rules on camera
 
 - **Numbers:** only what the run actually produced (`docs/_phase4_g4.json` + today's re-run). Never improvise.
-- **Honesty:** Griffin = MAD (TabFM only if the Phase-7 worker is live-verified before recording — otherwise don't mention it). MCP = drama, not the dependency. Readiness ~64% / ≤65 if asked.
+- **Honesty:** Griffin = MAD (TabFM only if the Phase-7 worker is live-verified before recording — otherwise don't mention it). HTTP handoff verified via `scripts/verify_mcp_handoff.py`; MCP stdio optional. Readiness ~64% / ≤65 if asked.
 - **Clips, not marathons:** one clip per shot; assemble + voice-over after. Rehearse the full sequence once before recording for real.

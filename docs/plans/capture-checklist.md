@@ -126,8 +126,8 @@ Operator-flow shots (optional, from the dry-run):
 ## Known-avoids on camera
 
 - Don't open HQ via `127.0.0.1` (blank — Vite binds `localhost`).
-- Beat 4: SigNoz MCP stdio may hang — use the HTTP Query Range / Case File evidence path
-  (`docs/06` limitations block); MCP is drama, not the dependency.
+- Beat 4: verify HTTP handoff first — `.venv/bin/python scripts/verify_mcp_handoff.py`.
+  SigNoz MCP stdio is optional; may block without `.env` key (`deploy/mcp/diag_stdio.sh`).
 - Temp-0 replay is variance reduction, not determinism — narrate only numbers a run actually
   produced.
 - Rehearse the full take the day before; deadline day is ship/submit only.

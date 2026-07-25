@@ -40,12 +40,12 @@ writing into `data/arcnet.db`.
 
 | Bucket | Count | Notes |
 |--------|------:|-------|
-| **SHIPPED** | **47** | Code + test + UI or documented API reachable |
+| **SHIPPED** | **48** | Code + test + UI or documented API reachable |
 | **PARTIAL** | **9** | Exists; material gap named |
 | **MISSING** | **2** | Planned, no implementation |
-| **EXPLICIT DEFER** | **7** | Documented cut or human-only |
+| **EXPLICIT DEFER** | **6** | Documented cut or human-only |
 
-P0 items not **SHIPPED**: **2** (F4 SigNoz MCP live, F7 MCP handoff — see §3). All other P0
+P0 items not **SHIPPED**: **1** (F4 SigNoz MCP stdio — optional; F7 HTTP handoff **SHIPPED** — see §3). All other P0
 features are **SHIPPED** or **PARTIAL** with a named, non-blocking gap.
 
 ---
@@ -57,14 +57,14 @@ features are **SHIPPED** or **PARTIAL** with a named, non-blocking gap.
 | **F1** | Instrumented fleet (SigNoz + Agno OpenInference) | **SHIPPED** | `sdk/arcnet/init.py:29-59` OTLP + `AgnoInstrumentor`; `agents/arcnet_agents/app.py:16-41` AgentOS fleet; Phase 0 trace attrs in `docs/04` | — |
 | **F2** | Trust & guard telemetry (`arcnet.guard.*`, 4 checkpoints) | **SHIPPED** | `sdk/arcnet/guardrail.py:18-80` input + retrieved; tool/output in same file; `sdk/tests/test_guard_factory.py:17-36`; `agents/tests/test_guard_scenarios.py:41-113` S1/S2/S5 stubs | — |
 | **F3** | Bug Suite S0/S1/S2/S4/S5 | **SHIPPED** | `agents/scenarios/runner.py:81-651` all five scenarios + assertions; `agents/tests/test_s1_fixture.py:30-63`; CI stubs when no live key (`agents/tests/test_guard_scenarios.py:1-3` header) | Live `runner.py --scenario all` needs `OPENAI_API_KEY` (quota-gated per `docs/20`) |
-| **F4** | SigNoz depth (dashboards, alerts, webhook) | **PARTIAL** | Provision: `deploy/provision/dashboard-*.json`, `alerts.json`, `setup.py:101-283`; webhook `server/arcnet_server/main.py:1089-1123`; tests `server/tests/test_webhook_harden.py:28-108`; status `main.py:1253-1259`; HQ UUID resolve `hq/src/dashboardLinks.ts` + `Dashboards.tsx:124-149` | **MCP live** = PARTIAL (`deploy/mcp/README.md:12` key-less fail; G5 deferred). **Service-account key** = manual UI step. Unresolved boards show explicit copy instead of silently opening generic shell |
+| **F4** | SigNoz depth (dashboards, alerts, webhook) | **PARTIAL** | Provision: `deploy/provision/dashboard-*.json`, `alerts.json`, `setup.py:101-283`; webhook `server/arcnet_server/main.py:1089-1123`; tests `server/tests/test_webhook_harden.py:28-108`; status `main.py:1253-1259`; HQ UUID resolve `hq/src/dashboardLinks.ts` + `Dashboards.tsx:124-149` | **MCP stdio** = PARTIAL (`deploy/mcp/README.md` — key-less exit, blocking stdin; HTTP handoff verified separately). **Service-account key** = manual UI step. Unresolved boards show explicit copy instead of silently opening generic shell |
 | **F5** | Signals self-correct (`steer`/`kill`) | **SHIPPED** | `sdk/arcnet/signals.py:98-163` apply_steer/kill; inline `main.py:262-272`; SSE `main.py:964-979`; HQ `hq/src/views/Signals.tsx` + SSE bus | `pause` scaffold only (see P1 HITL) |
 | **F6** | Fleet Health view | **SHIPPED** | `hq/src/views/FleetHealth.tsx:124-168`; API `main.py:273-277`; `[FORWARD]` badge `FleetHealth.tsx:155-156`; tests via FE + `server/tests/test_read_models.py` fleet envelope | **Latency** on cards: p50/p95 wall-clock ms from recorded session timestamps (`ended_at-started_at`, fallback `usage.latency_ms`) — **SHIPPED** P26 |
-| **F7** | Agent-view + Case File + MCP handoff | **PARTIAL** | Agent-view `main.py:673-933`; Case File `main.py:953-958`; tests `server/tests/test_case_file.py:67-88`; twins `server/tests/test_agent_twins_p8b.py:97-168`; MCP hints `read_models.py:123-129` | **G5 live MCP handoff** = **EXPLICIT DEFER** (`docs/03-plan.md:91`, `docs/log.md:62`). HTTP/Query Range fallback shipped; stdio may hang |
+| **F7** | Agent-view + Case File + MCP handoff | **SHIPPED** | Agent-view `main.py:673-933`; Case File `main.py:953-958`; tests `server/tests/test_case_file.py:67-88`; twins `server/tests/test_agent_twins_p8b.py:97-168`; HTTP hints `read_models.py:123-129`; verifier `scripts/verify_mcp_handoff.py` | **G5 HTTP handoff** verified (`scripts/verify_mcp_handoff.py`). SigNoz MCP stdio = optional PARTIAL only (`deploy/mcp/diag_stdio.sh`) |
 | **F13** | Griffin core (MAD) | **SHIPPED** | Worker `server/arcnet_server/griffin.py:613-628`; evaluate `main.py:1192+`; MAD tests `server/tests/test_griffin_cold_soak.py`; HQ strip `FleetHealth.tsx:34-72` | Default runtime = **MAD**; TabFM opt-in `ARCNET_TABFM=1` (`griffin.py:143-144`) — narrate honestly |
 | **F14** | Time Machine (counterfactual replay + verdict) | **SHIPPED** | Harness `sdk/arcnet/replay.py:1-30`; API `main.py:583-619`; UI `hq/src/views/TimeMachine.tsx`; verdict tests `server/tests/test_replay_service.py:42-103`; hardening `server/tests/test_replay_hardening.py`; G4 `docs/_phase4_g4.json` | Live `replay.run()` needs AgentOS `:7777` + OpenAI key |
 
-**P0 rollup:** 7 SHIPPED · 2 PARTIAL (F4, F7). No P0 **MISSING**.
+**P0 rollup:** 8 SHIPPED · 1 PARTIAL (F4 MCP stdio). No P0 **MISSING**.
 
 ---
 
@@ -92,7 +92,7 @@ features are **SHIPPED** or **PARTIAL** with a named, non-blocking gap.
 | G2 TabFM spike | **SHIPPED** | `docs/_phase2_g2.json`; decision MAD primary |
 | G3 replay tripwire | **SHIPPED** | Phase 3 exit `docs/03-plan.md:73-75` |
 | G4 hero replay stability | **SHIPPED** | `docs/_phase4_g4.json`; `server/tests/test_replay_service.py:65-103` threat stability |
-| G5 MCP handoff (live) | **EXPLICIT DEFER** | `docs/03-plan.md:91`; `deploy/mcp/README.md:12`; Case File HTTP fallback `read_models.py:123-129` |
+| G5 MCP handoff (HTTP) | **SHIPPED** | `scripts/verify_mcp_handoff.py`; incident → Case File → `/api/signoz/evidence` + Query Range probe; `deploy/mcp/README.md`. MCP stdio = optional PARTIAL (`deploy/mcp/diag_stdio.sh`) |
 | Phase 5 UI + Case File | **SHIPPED** | Ten HQ views + `home` + `hitl` + `hq_agent` + `context_inspector` in `hq/src/App.tsx:17-21`; hash routes `hq/src/hash.ts:12-27` |
 | Phase 6 ship (video, screenshots, submit) | **EXPLICIT DEFER** | `docs/03-plan.md:99-103`; README screenshot slots empty (`README.md:159` — capture deferred) |
 | P7-B TabFM ship | **PARTIAL** | Code `griffin.py:53-315`; tests `server/tests/test_tabfm_griffin.py:57-172`; live verify `docs/_phase7_p7b_live.json` | **Default off** — `ARCNET_TABFM=1` required; HQ still labels MAD unless worker live |
@@ -123,7 +123,7 @@ features are **SHIPPED** or **PARTIAL** with a named, non-blocking gap.
 | Deferral | Still accurate? | Evidence |
 |----------|-----------------|----------|
 | P6-C corpus scorecard | **No** | `POST /api/replay/corpus` shipped P26 — stored (offline) + live (bounded) |
-| G5 live MCP handoff | **Yes** | `deploy/mcp/README.md:12`; hints prefer HTTP `read_models.py:123-129` |
+| G5 live MCP handoff | **No** | HTTP handoff **SHIPPED** (`scripts/verify_mcp_handoff.py`); stdio MCP optional PARTIAL (`deploy/mcp/diag_stdio.sh`) |
 | README screenshots | **Yes** | `README.md:159` — slots reserved, capture human |
 | Context-inspector UI | **No** | `hq/src/views/ContextInspector.tsx` shipped P30 |
 | HITL live relay | **No** | `hitl_relay.py` + `main.py:1105-1107`; bounded 2s timeout; `ARCNET_AGENTOS_URL=""` disables HTTP hop |
@@ -184,7 +184,7 @@ Ordered by **user-visible impact × effort to close** (highest first).
 |------|-----|------------|
 | 1 | **Hackathon capture** (screenshots, video, submission) — blocks external judgment | Human: run `scripts/run-demo.sh`, capture per `docs/plans/capture-checklist.md`, fill README slots |
 | 2 | **Live hero replay re-verify** (OpenAI quota) — recorded G4 may be stale | Top up key; rerun `scripts/phase4_g4_check.py`; refresh `docs/_phase4_g4.json` |
-| 3 | **G5 / SigNoz MCP live handoff** — Case File beat relies on HTTP fallback | Provision `SIGNOZ_API_KEY`; debug stdio hang or document HTTP-only path in demo script |
+| 3 | ~~**G5 HTTP handoff**~~ | **SHIPPED** — `scripts/verify_mcp_handoff.py`; stdio MCP optional (`deploy/mcp/diag_stdio.sh`) |
 | 4 | ~~**HITL pause does not stop AgentOS**~~ | **SHIPPED** P21 — reject → kill on signal bus + AgentOS; approve = ack only (`hitl_relay.py`) |
 | 5 | ~~**Dashboard UUID deep-links**~~ | **SHIPPED** P22 — `dashboardLinks.ts`; unresolved boards labeled, not silently generic |
 | 6 | ~~**Time Machine corpus scorecard**~~ | **SHIPPED** P26 — `POST /api/replay/corpus` + HQ stored scorecard |
@@ -204,10 +204,10 @@ Ordered by **user-visible impact × effort to close** (highest first).
 
 | Question | Answer |
 |----------|--------|
-| Is the product **complete** vs the v2 spec? | **No** — human ship assets, live MCP handoff, live-work dogfood, and unplug-ai input-layer gaps remain open or deferred. |
-| Is the **P0 demo loop** complete? | **Yes, with named caveats** — heroes (cold-clone reproducible), Time Machine, guard, signals, Case File, and HQ views are real; MCP live and capture are the weak beats. |
-| Biggest honest risk on camera? | Operator must **select hero sessions** (defaults ≠ G4 rows); narrate **MAD not TabFM** unless `ARCNET_TABFM=1`; do not claim live MCP without key; HITL approve is ack-only. |
-| Counts | **47 SHIPPED · 9 PARTIAL · 2 MISSING · 7 EXPLICIT DEFER** |
+| Is the product **complete** vs the v2 spec? | **No** — human ship assets, optional MCP stdio, live-work dogfood, and unplug-ai input-layer gaps remain open or deferred. |
+| Is the **P0 demo loop** complete? | **Yes, with named caveats** — heroes (cold-clone reproducible), Time Machine, guard, signals, Case File HTTP handoff, and HQ views are real; capture assets and optional MCP stdio are the weak beats. |
+| Biggest honest risk on camera? | Operator must **select hero sessions** (defaults ≠ G4 rows); narrate **MAD not TabFM** unless `ARCNET_TABFM=1`; demo Beat 4 uses HTTP verify (`scripts/verify_mcp_handoff.py`), not MCP stdio; HITL approve is ack-only. |
+| Counts | **48 SHIPPED · 9 PARTIAL · 2 MISSING · 6 EXPLICIT DEFER** |
 
 ---
 

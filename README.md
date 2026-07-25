@@ -119,7 +119,7 @@ Every incident exports as a zip (`GET /export/case-file/{session_id}`) containin
 - `case-file.md` — root cause (guard checkpoint, trust level, category, evidence), timeline, recommended actions, and a **fix-prompt preamble** for a coding agent, with SigNoz MCP instructions embedded.
 - `case-file.json` — the same incident as the machine-optimal agent-view envelope.
 
-Hand it to Claude Code with the SigNoz MCP connected and it pulls the traces and proposes the fix — closing the loop from *observed incident* to *improved agent*.
+Hand it to a coding agent and it pulls bounded trace evidence over HTTP and proposes the fix — closing the loop from *observed incident* to *improved agent*. Verify: `.venv/bin/python scripts/verify_mcp_handoff.py`.
 
 ## Screenshots
 
@@ -177,8 +177,8 @@ Guard corpus detail: [`docs/33-guard-coverage.md`](docs/33-guard-coverage.md). C
 
 - **Optional write auth only** — `ARCNET_WRITE_SECRET` gates mutating `POST`s when set; demo default (unset) keeps localhost-trust. **Read surface stays open** (all `GET`s, SSE, case-file export) — not multi-tenant, not RBAC. See [`docs/32-deployment-notes.md`](docs/32-deployment-notes.md).
 - **SQLite-primary local path is the default** (`./scripts/run-demo.sh`). SigNoz (Docker) is optional
-  depth: dashboards/alerts provision when a service-account key is present; **MCP PARTIAL** (live
-  stdio handoff may hang — prefer HTTP Query Range + Case File). README screenshots and the
+  depth: dashboards/alerts provision when a service-account key is present; **MCP stdio PARTIAL**
+  (optional — HTTP handoff verified via `scripts/verify_mcp_handoff.py`). README screenshots and the
   submission video are still human tasks (`docs/14-product-guide.md` §10).
 - **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live in HQ/README.
   TabFM required on roadmap; TabPFN deferred. See [`docs/20`](docs/20-honest-progress.md) /
