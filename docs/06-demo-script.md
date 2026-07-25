@@ -31,9 +31,9 @@ S4 The Worms: token rate spikes. **Griffin flags the outlier first** (forecast b
 *(Griffin = **MAD** today, not TabFM. Ordering guaranteed by the S4 choreography in `07`.)*
 
 ## Beat 4 — Agent-view hand-off (1:40–2:10)
-Flip the incident with the **`human_view ⇄ agent_view`** toggle → the same incident as machine-optimal JSON (root cause, trust provenance, recommended actions, a `signoz:` trace pointer). Hand it to Claude Code — which has the **SigNoz MCP server** connected — and it pulls the raw spans itself and proposes the fix.
+Flip the incident with the **`human_view ⇄ agent_view`** toggle → the same incident as machine-optimal JSON (root cause, trust provenance, recommended actions, a `signoz:` trace pointer). Hand it to a coding agent — which pulls bounded span evidence over **HTTP** (`GET /api/signoz/evidence`, Query Range, Case File links) — and proposes the fix. Verify before recording: `.venv/bin/python scripts/verify_mcp_handoff.py`.
 
-> "Every view in ArcNet has an agent-readable twin. Your coding agent doesn't read a screenshot — it reads structured incidents, pulls the live trace through SigNoz's own MCP server, and fixes the agent at the source."
+> "Every view in ArcNet has an agent-readable twin. Your coding agent doesn't read a screenshot — it reads structured incidents, pulls live trace evidence through SigNoz's HTTP API, and fixes the agent at the source. SigNoz MCP stdio is optional drama, not the dependency."
 
 ## Beat 5 — Time Machine / the whoa (2:10–2:45)
 Open `time_machine` on the **Worms loop from Beat 3** and `replay.run()` against the candidate — live. Side by side: **baseline [KILLED]** (looped 19 steps until ArcNet cancelled it) vs **candidate [OK]** (stops at step 5, flags the endless pagination, reports). Verdict readout: `goal_reached killed→partial`, `steps 19→5`, `cost −82%`, `exit_code=0`. Then flip to the **pre-run Edgar replay**: **baseline [EXPLOITED]** vs **candidate [RESISTED]** — the candidate never follows the injection. (Baseline = whichever model the demo fleet runs, chosen in Phase 0 — gpt-4o-mini or haiku; candidate = a *different* model. The mock shows gpt-4o-mini vs claude-fable-5; swap the labels to match the Phase-0 pick. The corpus scorecard is a **README artifact, not an on-camera element** — the beat already carries two payoffs; don't add a third.)
@@ -65,8 +65,7 @@ SigNoz Threats & Trust dashboard full-screen, then the `> arcnet` wordmark.
 ## Limitations (honest — mirror README / `14`)
 
 - **Griffin = MAD** until Phase 7 TabFM exits; never claim TabFM/TabPFN live on camera or in slides.
-- **SigNoz MCP PARTIAL** — Beat 4 may use MCP for drama; product path prefers HTTP Query Range + Case File
-  evidence (stdio may hang).
+- **SigNoz MCP stdio PARTIAL** — Beat 4 uses the **HTTP handoff** (`scripts/verify_mcp_handoff.py`, Case File + `/api/signoz/evidence`). MCP stdio is optional; may block without `.env` key or appear hung when run bare in a terminal.
 - **HITL / apply confirm** — SQLite bookkeeping today, not live AgentOS pause relay (Phase 6).
 - **Temp-0 replay** — variance reduction, not determinism; narrate numbers the run actually produced.
 - Overall readiness **~64% / ≤65%** — see [`20-honest-progress.md`](20-honest-progress.md).

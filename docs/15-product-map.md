@@ -240,7 +240,7 @@ Friction: `PYTHONPATH=sdk:agents`; submodule imports (`arcnet.guardrail`, …); 
 | Seasonal anomaly alert | `alert-seasonal-anomaly.json` | **DONE** as **screenshot artifact** (`never_demo_live`) |
 | Webhook receiver | `POST /webhooks/signoz` | **DONE** (dedupe 5m → signal) |
 | Query Range probe | `GET /api/signoz/status` | **DONE** |
-| MCP binary + Cursor/Claude configs | `deploy/mcp/` | **PARTIAL** — install works; G5 stdio handoff hung; Case File + Query Range fallback |
+| MCP binary + Cursor/Claude configs | `deploy/mcp/` | **PARTIAL** — install + `wrap_stdio.sh`; HTTP handoff verified (`scripts/verify_mcp_handoff.py`); stdio optional |
 | Service-account key | human UI step | **GAP** (manual; cannot create headlessly) |
 | HQ embedded charts | — | **GAP** |
 | Per-dashboard UUID deep-links from HQ | `hq/src/dashboardLinks.ts` + `Dashboards.tsx` | **DONE** — unresolved boards labeled, not silently generic |

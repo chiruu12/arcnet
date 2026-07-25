@@ -1,11 +1,10 @@
 {
   "mcpServers": {
     "signoz": {
-      "command": "/Users/chiru/conductor/workspaces/chiru-os/provo/tmp/arcnet/deploy/mcp/bin/signoz-mcp-server",
+      "command": "/ABSOLUTE/PATH/TO/arcnet/deploy/mcp/wrap_stdio.sh",
       "args": [],
       "env": {
-        "SIGNOZ_URL": "http://localhost:8080",
-        "SIGNOZ_API_KEY": "${SIGNOZ_API_KEY}"
+        "SIGNOZ_URL": "http://localhost:8080"
       }
     }
   }

@@ -28,7 +28,7 @@ a run in that window records to SQLite with **no trace to open on camera**.
 | # | Item | Why it remains | Notes |
 |---|------|----------------|-------|
 | B1 | **Live hero replay re-verify** | OpenAI quota | Recorded G4 (`docs/_phase4_g4.json`) may be stale; rerun `scripts/phase4_g4_check.py` after top-up. |
-| B2 | **G5 live MCP handoff** | Upstream stdio hang | HTTP/Query Range fallback ships (`read_models.py` hints, Case File zip). Live stdio MCP still **EXPLICIT DEFER** (`deploy/mcp/README.md`). |
+| B2 | ~~**G5 HTTP handoff**~~ | **SHIPPED** — `scripts/verify_mcp_handoff.py`; stdio MCP optional (`deploy/mcp/diag_stdio.sh`) |
 | B3 | **Live-work dogfood agent** | Scenario + seed choreography | Agents J/L/O run scripted scenarios and seeded background rows — not continuous genuine production tasks. |
 | B4 | **Input-layer detection gaps (9)** | Lives in **unplug-ai** (PyPI dep) | Paraphrased override, soft probing, persona framing, newline-split tokens, JSON role smuggling, multi-turn escalation, NL tool invocation, direct exfil questions, untainted `to`-field smuggling — corpus-locked in [`docs/33-guard-coverage.md`](../33-guard-coverage.md) §Known gaps. ArcNet consumes unplug-ai; it does not modify that package. |
 
