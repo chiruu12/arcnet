@@ -47,7 +47,7 @@ Demo agents run on **Agno** (we know it well; it's also the cleanest integration
 - **Instrumentation is first-class**: SigNoz has an official Agno guide using `openinference-instrumentation-agno`, and SigNoz ships a **prebuilt Agno dashboard template** — we import it in Phase 0 and build our custom dashboards alongside it.
 - **Guardrail framework**: Agno supports pre/post hooks + a `BaseGuardrail` class. Unplug integrates as `UnplugGuardrail` — idiomatic Agno, not bolted-on middleware. (Post-hackathon this doubles as an OSS contribution candidate to Agno.)
 - **Tool hooks**: per-tool pre/post interception → `guard.check_tool_call()` + taint checks exactly where they belong.
-- **HITL built in (Agno)**: paused runs can surface approval requests over a live socket — **not wired end-to-end in ArcNet v1**: HQ approve/reject updates SQLite only; there is no relay from `decide_hitl` to AgentOS (known gap; see §Known gaps).
+- **HITL built in (Agno)**: paused runs can surface approval requests over a live socket — ArcNet v1 wires **decide → signals bus + optional AgentOS HTTP** when `ARCNET_AGENTOS_URL` is set; **live Agno pause/resume is not wired** (approve = ack only; `pause` remains a scaffold — see §Known gaps).
 - **Run cancellation** → `kill` signal. **AgentOS** (Agno's FastAPI runtime) serves the fleet → the UI triggers scenario runs over HTTP, sessions/state come free.
 
 ## Data flows
@@ -75,7 +75,7 @@ Four structurally different Agno surfaces, one shared `Guard`. `arcnet/guardrail
 | Per-tool hooks | `@tool(pre_hook=…, post_hook=…)` on `Function`; hooks may accept `agent`/`team`/`run_context`/`fc` by name |
 | Tool middleware | `Agent(tool_hooks=[fn])` — `fn` params by name: `name`/`function_name`, `func`/`function`, `args`/`arguments`, optional `agent`; call `func(**args)` to continue or **return a value** to substitute (replay stubs) |
 | Cancel / kill | `Agent.cancel_run(run_id: str) -> bool` / `Agent.acancel_run(run_id: str) -> bool` |
-| HITL | Built-in pause events (`RunPausedEvent`); confirmation flags on `Function` — HQ UI + SQLite decide shipped; **AgentOS relay not wired** |
+| HITL | Built-in pause events (`RunPausedEvent`); confirmation flags on `Function` — HQ decide relays **reject → kill** via signals + AgentOS; **approve = ack only** |
 
 ### Phase 0 Gate G1 (replay + steer) — PASSED 2026-07-21
 
@@ -90,7 +90,7 @@ Signals reach the bus two ways — both map to the canonical **`Signal{session_i
 
 SDK signal client checks the per-session queue inside tool hooks (between steps):
 - `steer` → write guidance into `agent.session_state` (Phase 0 confirmed: visible at next tool call on agno 2.7.4); continue. Fallback (still documented): per-call output substitution in the retrieval `post_hook` mutating `fc.result`
-- `pause` → **scaffold**: HQ can record approve/reject in SQLite (`POST /api/hitl/{id}`); does **not** pause or resume a live AgentOS run today
+- `pause` → **scaffold**: HQ can record approve/reject in SQLite (`POST /api/hitl/{id}`); **reject** relays `kill` on the signal bus (+ AgentOS when configured); **approve** is acknowledgement-only — does **not** resume a live Agno-paused run
 - `kill` → `Agent.cancel_run(run_id)`
 - `note` → annotate telemetry only
 
@@ -133,7 +133,7 @@ Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + runner script
 Seeds: unplug-ai's built-in labeled samples + hand-written indirect-injection page fixtures (llmail-inject style).
 
 ### `server/` — FastAPI
-Routes: `/webhooks/signoz`, `/signals/stream` (SSE per-session + firehose), `/api/fleet`, `/api/threats`, `/api/sources` (source-trust ledger), `/api/sessions/{id}`, `/api/agent-view/{view}/{id}` (machine-optimal twin of every view), `/export/case-file/{id}`, `/api/replay` (Time Machine — spec in `10`), `/api/signal` (inline fast-path from the SDK + manual pause/kill from the UI), `/api/hitl` + `/api/hitl/{hitl_id}` (approve/reject — **SQLite bookkeeping only**; no HTTP relay to AgentOS). State: SQLite (incl. the replay-ready `sessions` table) — **full schema, every API/SSE shape, and write-ownership: `12-data-api.md`** (frozen contract; all components code against it). SigNoz access: Query Range API with service-account key (server-side only). Triggers scenario + replay runs by calling AgentOS. **No auth — localhost demo surface by design; say so in the README rather than shipping auth theater.**
+Routes: `/webhooks/signoz`, `/signals/stream` (SSE per-session + firehose), `/api/fleet`, `/api/threats`, `/api/sources` (source-trust ledger), `/api/sessions/{id}`, `/api/agent-view/{view}/{id}` (machine-optimal twin of every view), `/export/case-file/{id}`, `/api/replay` (Time Machine — spec in `10`), `/api/signal` (inline fast-path from the SDK + manual pause/kill from the UI), `/api/hitl` + `/api/hitl/{hitl_id}` (approve/reject — SQLite + **fail-safe relay** via signals bus + `ARCNET_AGENTOS_URL` when set). State: SQLite (incl. the replay-ready `sessions` table) — **full schema, every API/SSE shape, and write-ownership: `12-data-api.md`** (frozen contract; all components code against it). SigNoz access: Query Range API with service-account key (server-side only). Triggers scenario + replay runs by calling AgentOS. **No auth — localhost demo surface by design; say so in the README rather than shipping auth theater.**
 
 Also hosts **Griffin** (`server/griffin.py`, async worker): FM-powered metric anomaly detection — pulls metric history from the Query Range API every 60s, forecasts expected bands with Google TabFM (zero-shot regression + split-conformal residuals), and emits `arcnet.anomaly` telemetry only for true outliers, which rides the existing alert→webhook→signal path. Design: `07-griffin-anomaly.md`.
 
@@ -142,7 +142,7 @@ Views (IA per v2):
 - **Fleet Health** — agents + trust posture (forward-facing flagged) + threats + cost + Griffin anomalies.
 - **Time Machine** (the star) — pick a recorded session, choose a candidate model/prompt, run the replay, see the side-by-side behavioral diff + verdict.
 - **Sources & Trust** — per-agent ledger of ingested sources, trust levels, what Unplug filtered/blocked.
-- **Signals** — live feed; HITL queue in dedicated `hitl` view (SQLite decide — not live AgentOS relay).
+- **Signals** — live feed; HITL queue in dedicated `hitl` view (decide relays reject → kill when configured).
 - **Case Files** — preview + download + "hand to coding agent" instructions.
 - **Global Human ⇄ Agent view toggle** — every view flips to its agent-view JSON (the machine-optimal twin).
 
@@ -152,7 +152,7 @@ The UI never **queries SigNoz's API** directly — all telemetry comes through t
 
 | Gap | Shipped today | Not built |
 |---|---|---|
-| **HITL live relay** | HQ `hitl` view; `GET/POST /api/hitl`; `decide_hitl` updates `hitl_requests` in SQLite (`repository.py:734-742`, `main.py:1055-1057`) | No HTTP call to AgentOS; `agents/` has no HITL handler; `pause` does not stop a live run (`hq/src/hitlUtils.ts:24-25`) |
+| **HITL live pause/resume** | HQ `hitl` view; `GET/POST /api/hitl`; `decide_hitl` persists SQLite + relays **reject → kill** on signal bus + AgentOS HTTP when `ARCNET_AGENTOS_URL` set (`hitl_relay.py`, `agents/arcnet_agents/app.py` `/internal/hitl-decide`) | **Approve does not resume** a live Agno-paused run; `pause` signal does not hold AgentOS (`hq/src/hitlUtils.ts`) |
 | **G5 MCP stdio handoff** | Case File + Query Range HTTP fallback | Live stdio MCP may hang — see `deploy/mcp/README.md` |
 
 ### `deploy/`

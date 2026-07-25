@@ -1,3 +1,5 @@
+import type { HitlRelayStatus } from "./types";
+
 /** One-line operator summary of a HITL payload object. */
 export function hitlPayloadSummary(payload: unknown): string {
   if (payload == null) return "—";
@@ -22,4 +24,12 @@ export function hitlPayloadSummary(payload: unknown): string {
 }
 
 export const HITL_RELAY_HONESTY =
-  "HITL decide updates SQLite only; does not pause a live AgentOS run (relay = future work).";
+  "Reject relays a kill on the signal bus and to AgentOS when ARCNET_AGENTOS_URL is set; approve records an acknowledgement only — live Agno pause/resume is not wired.";
+
+/** One-line relay status for a decided HITL row. */
+export function hitlRelaySummary(relay: HitlRelayStatus | null | undefined): string {
+  if (!relay) return "—";
+  if (!relay.attempted) return `not attempted · ${relay.detail || "relay disabled"}`;
+  if (relay.delivered) return `delivered · ${relay.detail}`;
+  return `not delivered · ${relay.detail}`;
+}

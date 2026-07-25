@@ -124,6 +124,12 @@ export type SignalRow = {
   created_at: number | null;
 };
 
+export type HitlRelayStatus = {
+  attempted: boolean;
+  delivered: boolean;
+  detail: string;
+};
+
 export type HitlRow = {
   hitl_id: string;
   run_id: string;
@@ -132,6 +138,7 @@ export type HitlRow = {
   status: string;
   created_at: number | null;
   decided_at: number | null;
+  relay?: HitlRelayStatus | null;
 };
 
 export type SourceRow = {

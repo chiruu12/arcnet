@@ -95,6 +95,60 @@ def _goal_reached(
     return "clean" if content else "failed"
 
 
+@app.post("/internal/hitl-decide")
+async def internal_hitl_decide(request: Request) -> dict[str, Any]:
+    """Apply HITL operator decisions via the signals control plane (kill / ack only)."""
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be a JSON object")
+    decision = str(body.get("decision") or "")
+    run_id = body.get("run_id")
+    run_s = str(run_id).strip() if run_id is not None else ""
+
+    if decision == "rejected":
+        cancelled = False
+        for agent in agent_os.agents or []:
+            if not run_s:
+                break
+            rid = getattr(agent, "run_id", None) or getattr(agent, "_run_id", None)
+            if rid is not None and str(rid) != run_s:
+                continue
+            cancel = getattr(agent, "cancel_run", None)
+            if callable(cancel):
+                try:
+                    cancelled = bool(cancel(run_s))
+                except Exception:
+                    cancelled = False
+            if not cancelled:
+                acancel = getattr(agent, "acancel_run", None)
+                if callable(acancel):
+                    try:
+                        cancelled = bool(await acancel(run_s))
+                    except Exception:
+                        cancelled = False
+            if cancelled:
+                break
+        return {
+            "ok": True,
+            "action": "kill",
+            "cancelled": cancelled,
+            "note": "reject maps to kill/cancel_run when a matching run is active",
+        }
+
+    if decision == "approved":
+        return {
+            "ok": True,
+            "action": "ack",
+            "cancelled": False,
+            "note": (
+                "approve is an explicit acknowledgement only — ArcNet v1 has no live "
+                "Agno pause/resume relay; the server posts a note on the signal bus."
+            ),
+        }
+
+    raise HTTPException(400, "decision must be approved|rejected")
+
+
 @app.post("/internal/replay")
 async def internal_replay(request: Request) -> dict[str, Any]:
     """Demo-agent replay adapter; arcnet-server never imports the agents package."""

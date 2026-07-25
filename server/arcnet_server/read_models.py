@@ -689,8 +689,9 @@ def agent_hitl_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
         "total": total,
         "truncated": total > len(rows),
         "relay_honesty": (
-            "HITL rows persist in SQLite; approving/rejecting does not stop a live "
-            "AgentOS run unless the operator also acts on the runtime."
+            "Reject posts kill on the signal bus and relays to AgentOS when "
+            "ARCNET_AGENTOS_URL is set; approve is acknowledgement-only — no live "
+            "Agno pause/resume in ArcNet v1."
         ),
     }
 

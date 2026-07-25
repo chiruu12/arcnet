@@ -1,10 +1,11 @@
-"""HITL create → list → decide smoke (docs/12 / P6-A)."""
+"""HITL create → list → decide smoke (docs/12 / P6-A) + decide relay (P21)."""
 
 from __future__ import annotations
 
 import os
 import tempfile
 import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -14,10 +15,14 @@ class HitlApiTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.mkdtemp()
         os.environ["ARCNET_DB_PATH"] = os.path.join(cls._tmp, "hitl.db")
+        os.environ["ARCNET_AGENTOS_URL"] = ""  # explicitly disable relay HTTP
         import arcnet_server.main as m
 
         m._conn = None
         cls.client = TestClient(m.app)
+
+    def setUp(self) -> None:
+        os.environ["ARCNET_AGENTOS_URL"] = ""  # explicitly disable relay HTTP
 
     def test_create_list_decide_status_flips(self) -> None:
         created = self.client.post(
@@ -45,6 +50,10 @@ class HitlApiTests(unittest.TestCase):
         decided = approved.json()
         self.assertEqual(decided["status"], "approved")
         self.assertIsNotNone(decided.get("decided_at"))
+        relay = decided.get("relay")
+        self.assertIsInstance(relay, dict)
+        self.assertFalse(relay["attempted"])
+        self.assertFalse(relay["delivered"])
 
         pending = self.client.get("/api/hitl?status=pending").json()
         self.assertFalse(any(r["hitl_id"] == hitl_id for r in pending))
@@ -66,6 +75,113 @@ class HitlApiTests(unittest.TestCase):
         ).json()
         bad = self.client.post(f"/api/hitl/{created['hitl_id']}", json={"decision": "maybe"})
         self.assertEqual(bad.status_code, 400)
+
+    def _seed_session(self, session_id: str = "s_hitl_relay") -> str:
+        self.client.post(
+            "/api/agents",
+            json={"agent_id": "agent_j", "name": "J", "model": "gpt-4o-mini"},
+        )
+        self.client.post(
+            "/api/sessions",
+            json={
+                "session_id": session_id,
+                "agent_id": "agent_j",
+                "scenario": "S1",
+                "goal": "hitl relay",
+                "model": "gpt-4o-mini",
+                "status": "running",
+            },
+        )
+        return session_id
+
+    def test_relay_success_posts_kill_signal(self) -> None:
+        sid = self._seed_session()
+        hitl_id = self.client.post(
+            "/api/hitl",
+            json={"run_id": "run_kill", "session_id": sid, "payload": {"reason": "stop"}},
+        ).json()["hitl_id"]
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"ok": True, "action": "kill"}
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.dict(os.environ, {"ARCNET_AGENTOS_URL": "http://agentos.test:7777"}):
+            with patch("arcnet_server.hitl_relay.httpx.AsyncClient", return_value=mock_client):
+                res = self.client.post(f"/api/hitl/{hitl_id}", json={"decision": "rejected"})
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["status"], "rejected")
+        relay = body["relay"]
+        self.assertTrue(relay["attempted"])
+        self.assertTrue(relay["delivered"])
+
+        signals = self.client.get(f"/api/signals?session_id={sid}&limit=10").json()
+        self.assertTrue(any(s.get("kind") == "kill" and s.get("source") == "hitl" for s in signals))
+
+    def test_relay_failure_still_persists_decision(self) -> None:
+        sid = self._seed_session("s_hitl_fail")
+        hitl_id = self.client.post(
+            "/api/hitl",
+            json={"run_id": "run_fail", "session_id": sid, "payload": {}},
+        ).json()["hitl_id"]
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 503
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.dict(os.environ, {"ARCNET_AGENTOS_URL": "http://agentos.test:7777"}):
+            with patch("arcnet_server.hitl_relay.httpx.AsyncClient", return_value=mock_client):
+                res = self.client.post(f"/api/hitl/{hitl_id}", json={"decision": "rejected"})
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["status"], "rejected")
+        relay = body["relay"]
+        self.assertTrue(relay["attempted"])
+        self.assertFalse(relay["delivered"])
+        self.assertIn("503", relay["detail"])
+
+        row = self.client.get("/api/hitl?status=rejected").json()
+        self.assertTrue(any(r["hitl_id"] == hitl_id for r in row))
+
+    def test_relay_timeout_still_persists_decision(self) -> None:
+        import httpx
+
+        sid = self._seed_session("s_hitl_timeout")
+        hitl_id = self.client.post(
+            "/api/hitl",
+            json={"run_id": "run_timeout", "session_id": sid, "payload": {}},
+        ).json()["hitl_id"]
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.dict(os.environ, {"ARCNET_AGENTOS_URL": "http://agentos.test:7777"}):
+            with patch("arcnet_server.hitl_relay.httpx.AsyncClient", return_value=mock_client):
+                res = self.client.post(f"/api/hitl/{hitl_id}", json={"decision": "approved"})
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["status"], "approved")
+        relay = body["relay"]
+        self.assertTrue(relay["attempted"])
+        self.assertFalse(relay["delivered"])
+        self.assertIn("timeout", relay["detail"].lower())
+
+        signals = self.client.get(f"/api/signals?session_id={sid}&limit=10").json()
+        self.assertTrue(any(s.get("kind") == "note" and s.get("source") == "hitl" for s in signals))
 
 
 if __name__ == "__main__":

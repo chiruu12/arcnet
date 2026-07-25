@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, subscribeBus, toUserError } from "../api";
 import { normalizeHitlRow } from "../apiResilience";
 import { Empty, Seam, ts } from "../components";
-import { HITL_RELAY_HONESTY, hitlPayloadSummary } from "../hitlUtils";
+import { HITL_RELAY_HONESTY, hitlPayloadSummary, hitlRelaySummary } from "../hitlUtils";
 import { showingOfTotal } from "../pageLabel";
 import type { HitlRow, Mode } from "../types";
 
@@ -121,6 +121,7 @@ export function Hitl({ mode }: { mode: Mode }) {
                 <th>session</th>
                 <th>payload</th>
                 <th>status</th>
+                <th>relay</th>
                 <th>decided</th>
                 <th>actions</th>
               </tr>
@@ -144,6 +145,7 @@ export function Hitl({ mode }: { mode: Mode }) {
                       [{r.status.toUpperCase()}]
                     </span>
                   </td>
+                  <td className="dim wrap">{hitlRelaySummary(r.relay)}</td>
                   <td className="dim">{ts(r.decided_at)}</td>
                   <td>
                     {r.status === "pending" ? (

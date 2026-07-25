@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { HITL_RELAY_HONESTY, hitlPayloadSummary } from "./hitlUtils.ts";
+import { HITL_RELAY_HONESTY, hitlPayloadSummary, hitlRelaySummary } from "./hitlUtils.ts";
 
 describe("hitlPayloadSummary", () => {
   it("prefers reason from object payload", () => {
@@ -27,9 +27,26 @@ describe("hitlPayloadSummary", () => {
 });
 
 describe("HITL relay honesty", () => {
-  it("states SQLite-only relay", () => {
-    assert.match(HITL_RELAY_HONESTY, /SQLite/);
-    assert.match(HITL_RELAY_HONESTY, /does not pause a live AgentOS run/);
+  it("describes kill relay and ack-only approve", () => {
+    assert.match(HITL_RELAY_HONESTY, /kill/);
+    assert.match(HITL_RELAY_HONESTY, /acknowledgement/);
+    assert.match(HITL_RELAY_HONESTY, /pause\/resume is not wired/);
+  });
+});
+
+describe("hitlRelaySummary", () => {
+  it("labels delivered relay", () => {
+    assert.match(
+      hitlRelaySummary({ attempted: true, delivered: true, detail: "delivered to AgentOS" }),
+      /^delivered/,
+    );
+  });
+
+  it("labels disabled relay", () => {
+    assert.match(
+      hitlRelaySummary({ attempted: false, delivered: false, detail: "relay disabled" }),
+      /^not attempted/,
+    );
   });
 });
 
@@ -52,6 +69,7 @@ describe("decideHitl request shape", () => {
           status: "approved",
           created_at: 1,
           decided_at: 2,
+          relay: { attempted: true, delivered: true, detail: "delivered to AgentOS" },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -63,6 +81,7 @@ describe("decideHitl request shape", () => {
       assert.match(calls[0]!.url, /\/api\/hitl\/hitl_abc12345$/);
       assert.equal(JSON.parse(calls[0]!.body).decision, "approved");
       assert.equal(row.status, "approved");
+      assert.equal(row.relay?.delivered, true);
     } finally {
       globalThis.fetch = original;
     }

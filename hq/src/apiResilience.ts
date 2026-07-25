@@ -7,6 +7,7 @@ import type {
   AgentEnvelope,
   AgentModelRow,
   FleetRow,
+  HitlRelayStatus,
   HitlRow,
   SessionRow,
   SignalRow,
@@ -259,6 +260,17 @@ export function normalizeSignalRows(raw: unknown): SignalRow[] {
     .filter((r): r is SignalRow => r != null);
 }
 
+export function normalizeHitlRelay(raw: unknown): HitlRelayStatus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.attempted !== "boolean" || typeof o.delivered !== "boolean") return null;
+  return {
+    attempted: o.attempted,
+    delivered: o.delivered,
+    detail: asString(o.detail) ?? "",
+  };
+}
+
 export function normalizeHitlRow(raw: unknown): HitlRow | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -277,6 +289,7 @@ export function normalizeHitlRow(raw: unknown): HitlRow | null {
     status: asString(o.status) ?? "unknown",
     created_at: asNum(o.created_at),
     decided_at: asNum(o.decided_at),
+    relay: normalizeHitlRelay(o.relay),
   };
 }
 
