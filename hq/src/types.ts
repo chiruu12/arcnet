@@ -6,6 +6,7 @@ export type View =
   | "signals"
   | "hitl"
   | "sources_trust"
+  | "context_inspector"
   | "time_machine"
   | "case_files"
   | "dashboards"

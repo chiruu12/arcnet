@@ -16,6 +16,7 @@ describe("resolveViewFromPath", () => {
     assert.equal(resolveViewFromPath("fleet_health"), "fleet_health");
     assert.equal(resolveViewFromPath("time_machine"), "time_machine");
     assert.equal(resolveViewFromPath("hq_agent"), "hq_agent");
+    assert.equal(resolveViewFromPath("context_inspector"), "context_inspector");
   });
 
   it("falls back unknown paths to home", () => {
