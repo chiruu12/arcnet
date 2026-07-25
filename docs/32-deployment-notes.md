@@ -81,3 +81,46 @@ Do **not** deploy ArcNet thinking these gaps are closed:
 4. Accept that **reads remain open** to anything that can reach the port — or block reads at the proxy (ArcNet does not support read tokens yet).
 5. Back up `ARCNET_DB_PATH`; treat it as the only source of truth.
 6. Re-read [`docs/20-honest-progress.md`](20-honest-progress.md) before claiming production readiness.
+
+## Demo database hygiene
+
+`data/arcnet.db` mixes **recorded hero incidents**, **seed_demo background fleet rows**, and (historically) **test-suite telemetry** that leaked in before suite guards landed. The live DB is precious — treat cleanup as conservative surgery, not a wipe.
+
+### Inspect / prune test-origin rows
+
+```bash
+# dry run (default) — prints grouped counts + sample session_ids, changes nothing
+.venv/bin/python scripts/clean_demo_db.py
+
+# apply — timestamped backup beside the DB first, then delete
+.venv/bin/python scripts/clean_demo_db.py --apply
+```
+
+**Removal criteria (conservative):**
+
+| Rule | What it catches | Why it is safe |
+|---|---|---|
+| **Orphan child rows** | `threats`, `sources`, `signals`, `replays`, or `hitl_requests` rows whose `session_id` is set but has **no** matching `sessions` row | Tests POST telemetry (threats/sources/signals) without creating a session — the dominant leak mode (`s_replay_steer` and short-lived `s_*` ids with synthetic S1-shaped threat sets). No session row ⇒ not a recorded incident. |
+| **Known test session trees** | A `sessions` row whose id is an **explicit literal** from a test module (e.g. `s_replay_cc`, `s_hitl_relay`, `s_robust`) | Only ids copied from test source — never pattern-matched hex ids. Removes the session and all dependent rows. |
+
+**Hard-protected (never removed, asserted before and after `--apply`):**
+
+- Hero recordings: `s_ecfdb55d` (Edgar S1), `s_2af44726` (Worms S4)
+- Seed fleet: any `s_demo_*` session from `scripts/seed_demo.py`
+
+Duplicate scenario recordings with transcripts (extra S1/S2/S4/S5 runs on `agent_j`) are **kept** — they may be genuine re-recordings; deleting a real session is worse than leaving a stray orphan's parent missing (orphan children are still removed by the first rule).
+
+`--apply` copies `arcnet.db.backup.<UTC-timestamp>` next to the database and aborts if the backup cannot be written. Dry-run prints before/projected-after table counts.
+
+### Nuclear option — pristine DB from fixtures
+
+When you want a cold clone with **only** seeded fleet + fixture-backed heroes (no historical recordings):
+
+```bash
+rm -f data/arcnet.db data/arcnet.db-wal data/arcnet.db-shm
+.venv/bin/python scripts/seed.py              # Griffin MAD history → data/griffin_series.json
+.venv/bin/python scripts/seed_demo.py         # background agents agent_l / agent_o
+.venv/bin/python scripts/seed_heroes.py       # Edgar + Worms from fixtures/heroes.json
+```
+
+Or run `./scripts/run-demo.sh` (without `--no-seed`), which runs all three seed steps before starting services. This reproduces both hero incidents and their stored replay verdicts with **no API key**. It does **not** restore ad-hoc scenario re-recordings that lived only in an old `arcnet.db`.
