@@ -30,6 +30,15 @@ from arcnet_server.db import connect, default_db_path, init_db  # noqa: E402
 
 PROTECTED_SESSION_IDS = frozenset({"s_ecfdb55d", "s_2af44726"})
 
+# One definition of "orphan", shared by the preview, the counts, and the DELETE.
+# These must never drift apart: a dry run that does not predict what --apply does
+# is worse than no dry run at all. Rows recorded during a replay carry the
+# replay_id in session_id and have no `sessions` row by design — they are real
+# provenance, not orphans.
+ORPHAN_PREDICATE = """session_id IS NOT NULL
+              AND session_id NOT IN (SELECT session_id FROM sessions)
+              AND session_id NOT IN (SELECT replay_id FROM replays)"""
+
 # Explicit session_id literals from test modules (never heuristic guesses).
 KNOWN_TEST_SESSION_IDS = frozenset(
     {
@@ -172,8 +181,7 @@ def build_plan(conn: sqlite3.Connection) -> RemovalPlan:
 
         orphan_rows = conn.execute(
             f"""SELECT DISTINCT session_id FROM {table}
-                WHERE session_id IS NOT NULL
-                  AND session_id NOT IN (SELECT session_id FROM sessions)
+                WHERE {ORPHAN_PREDICATE}
                 ORDER BY session_id"""
         ).fetchall()
         if orphan_rows:
@@ -219,8 +227,7 @@ def _count_orphan_rows(conn: sqlite3.Connection, table: str) -> int:
         return 0
     return conn.execute(
         f"""SELECT COUNT(*) FROM {table}
-            WHERE session_id IS NOT NULL
-              AND session_id NOT IN (SELECT session_id FROM sessions)"""
+            WHERE {ORPHAN_PREDICATE}"""
     ).fetchone()[0]
 
 
@@ -293,14 +300,45 @@ def print_plan(
 
 
 def backup_database(db_path: Path) -> Path:
+    """Consistent full copy via the SQLite backup API.
+
+    A plain file copy is NOT safe here: the database runs in WAL mode, so recent
+    commits live in the sidecar ``-wal`` file until a checkpoint. Copying only
+    ``arcnet.db`` silently drops them — a backup that looks fine and isn't. The
+    backup API reads through the WAL and writes one consistent database.
+    """
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_path = db_path.with_name(f"{db_path.stem}.backup.{ts}{db_path.suffix}")
     try:
-        shutil.copy2(db_path, backup_path)
-    except OSError as exc:
+        src = sqlite3.connect(db_path)
+        try:
+            dest = sqlite3.connect(backup_path)
+            try:
+                src.backup(dest)
+            finally:
+                dest.close()
+        finally:
+            src.close()
+    except (OSError, sqlite3.Error) as exc:
         raise RuntimeError(f"backup failed: {exc}") from exc
     if not backup_path.is_file() or backup_path.stat().st_size == 0:
         raise RuntimeError(f"backup missing or empty: {backup_path}")
+
+    # A backup that lost rows is worse than no backup — verify row parity.
+    src = sqlite3.connect(db_path)
+    dest = sqlite3.connect(backup_path)
+    try:
+        for table in _existing_tables(src):
+            n_src = src.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            n_dest = dest.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            if n_src != n_dest:
+                raise RuntimeError(
+                    f"backup verification failed on {table}: {n_src} rows in source, "
+                    f"{n_dest} in backup"
+                )
+    finally:
+        src.close()
+        dest.close()
     return backup_path
 
 
@@ -311,8 +349,7 @@ def apply_plan(conn: sqlite3.Connection, plan: RemovalPlan) -> None:
             continue
         conn.execute(
             f"""DELETE FROM {table}
-                WHERE session_id IS NOT NULL
-                  AND session_id NOT IN (SELECT session_id FROM sessions)"""
+                WHERE {ORPHAN_PREDICATE}"""
         )
     if plan.sessions:
         ph = ",".join("?" * len(plan.sessions))
