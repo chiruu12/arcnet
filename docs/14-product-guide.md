@@ -169,6 +169,16 @@ PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1
 PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S4
 ```
 
+### Continuous fleet dogfood (optional, off by default)
+
+Scenario runner + seed background rows are the default demo path. For genuine continuous ops work (lookup/triage against the real customer fixture DB, SDK-instrumented across Agents J/L/O):
+
+```bash
+ARCNET_DOGFOOD=1 PYTHONPATH=sdk:server:. .venv/bin/python -m arcnet_agents.dogfood
+```
+
+Requires `OPENAI_API_KEY` and a running ArcNet server. Bounded via `ARCNET_DOGFOOD_INTERVAL_S`, `ARCNET_DOGFOOD_MAX_ITERATIONS`, `ARCNET_DOGFOOD_MAX_DURATION_S`. Without a key the loop idles with clear logs — no model calls. See [`32-deployment-notes.md`](32-deployment-notes.md).
+
 Demo narration (camera script, timings, backup-clip notes): **[`06-demo-script.md`](06-demo-script.md)**.
 
 ---

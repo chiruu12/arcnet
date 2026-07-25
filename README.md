@@ -64,6 +64,17 @@ cd hq && pnpm install && cd ..
 
 `run-demo.sh` seeds Griffin baselines, a sample fleet, and the two recorded hero incidents (Edgar `s_ecfdb55d`, Worms `s_2af44726` from `fixtures/heroes.json`), then starts the ArcNet server and the agent replay runtime and serves HQ. A cold clone therefore renders Time Machine history and Case Files without any API key. Hit `replay.run()` in the Time Machine (needs `OPENAI_API_KEY`) to re-derive a counterfactual live, or export any incident as a Case File.
 
+### Optional: continuous fleet dogfood (off by default)
+
+The demo fleet is scenario choreography plus seeded background rows unless you opt in. With `ARCNET_DOGFOOD` unset, behavior is unchanged. To run genuine support/ops tasks on a bounded loop (Agents J/L/O, SDK-instrumented sessions):
+
+```bash
+# separate terminal — needs OPENAI_API_KEY + running server from run-demo.sh
+ARCNET_DOGFOOD=1 PYTHONPATH=sdk:server:. .venv/bin/python -m arcnet_agents.dogfood
+```
+
+Tune with `ARCNET_DOGFOOD_INTERVAL_S` (default 300), `ARCNET_DOGFOOD_MAX_ITERATIONS` (default 48), `ARCNET_DOGFOOD_MAX_DURATION_S` (default 86400). Without a model key the loop logs and idles — no crash-loop, no token burn.
+
 ### Optional: SigNoz depth (Docker)
 
 ```bash
