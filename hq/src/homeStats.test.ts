@@ -26,6 +26,10 @@ const fleetRow = (id: string): FleetRow => ({
     cost_24h_usd: 0,
     anomalies_24h: 0,
     active_signals: 0,
+    p50_wall_clock_ms_24h: null,
+    p95_wall_clock_ms_24h: null,
+    latency_sample_count_24h: 0,
+    latency_source_24h: null,
   },
 });
 

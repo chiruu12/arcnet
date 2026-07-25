@@ -1,6 +1,7 @@
 import type {
   AgentEnvelope,
   AgentModelsResponse,
+  CorpusScorecard,
   HitlRow,
   SessionRow,
   SignalRow,
@@ -13,6 +14,7 @@ import {
   normalizeAgentEnvelope,
   normalizeAgentModelRows,
   normalizeAgentVersionRows,
+  normalizeCorpusScorecard,
   normalizeFleetRows,
   normalizeHitlRows,
   normalizeReplayRows,
@@ -484,6 +486,21 @@ export const api = {
       }
       return verdict;
     }),
+  replayCorpus: (body?: {
+    mode?: "stored" | "live";
+    session_ids?: string[];
+    candidate_model?: string;
+  }) =>
+    postJSON("/api/replay/corpus", body ?? { mode: "stored" }, (raw) => {
+      const scorecard = normalizeCorpusScorecard(raw);
+      if (!scorecard) {
+        throw new ApiError({
+          message: "corpus scorecard returned malformed payload",
+          path: "/api/replay/corpus",
+        });
+      }
+      return scorecard;
+    }) as Promise<CorpusScorecard>,
   caseFileUrl: (sessionId: string) => `${BASE}/export/case-file/${sessionId}`,
   signozStatus: () => getJSON("/api/signoz/status", normalizeSignozStatus),
   griffinStatus: () => getJSON("/api/griffin/status", normalizeGriffinStatus),

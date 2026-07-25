@@ -213,7 +213,7 @@ flowchart LR
 | P5-B | **DONE** | honesty greps clean; excerpt bounds + A15 hatch tested |
 | P6-A | **DONE** | HQ `hitl` view + GET /api/hitl + SSE decide; honesty in UI + docs/14 |
 | P6-B | **DONE** | shell api_down recovers on focus + 20s interval (`apiRecover.ts`); threats table on fleet_health; sources agent-view already shipped — dashboards twin wired via `AgentJson` + `/api/agent-view/dashboards/all` |
-| P6-C | **DEFER** | no corpus endpoint on server; docs/12 P1 row is contract-only |
+| P6-C | **DONE** | `POST /api/replay/corpus` stored+live modes; HQ Time Machine stored scorecard strip (P26) |
 | P7-A | **DONE** | spike `docs/_phase7_g7.json` — load~54s, fit+predict median~80s/series CPU; decision N=1 @ 360s cadence; `tabfm_worker.py` stub + MAD fallback test; not wired / no HQ `tabfm` label |
 | P7-B | **DONE** (opt-in) | TabFM worker ships behind **`ARCNET_TABFM=1`** — default runtime estimator stays **MAD** (`griffin.py:143-144`); async worker + MAD degrade; live-verified 2026-07-24 (`_phase7_p7b_live.json`); HQ labels `tabfm` only when worker healthy — **not live by default** |
 | H-1 | **TODO** | Track H |

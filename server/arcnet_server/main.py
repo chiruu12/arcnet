@@ -34,6 +34,11 @@ from arcnet_server.validation import (
     require_fields,
 )
 from arcnet_server.hitl_relay import relay_hitl_decision
+from arcnet_server.corpus_service import (
+    CORPUS_MAX_SESSIONS,
+    live_corpus_scorecard,
+    stored_corpus_scorecard,
+)
 from arcnet_server.replay_service import execute_replay, prompt_ref
 
 _conn = None
@@ -640,6 +645,49 @@ async def post_replay(request: Request) -> dict[str, Any]:
         },
     )
     return verdict
+
+
+@app.post("/api/replay/corpus")
+async def post_replay_corpus(request: Request) -> dict[str, Any]:
+    """Aggregate replay verdicts across sessions — stored (default) or live."""
+    require_write_auth(request)
+    body = await parse_json_object(request)
+    mode = str(body.get("mode") or "stored").strip().lower()
+    if mode not in ("stored", "live"):
+        raise HTTPException(400, "mode must be 'stored' or 'live'")
+
+    raw_ids = body.get("session_ids")
+    session_ids: list[str] | None = None
+    if raw_ids is not None:
+        if not isinstance(raw_ids, list) or not all(isinstance(x, str) for x in raw_ids):
+            raise HTTPException(400, "session_ids must be a list of session_id strings")
+        session_ids = [str(x) for x in raw_ids if str(x).strip()]
+        if len(session_ids) > CORPUS_MAX_SESSIONS:
+            raise HTTPException(
+                400,
+                f"session_ids exceeds cap of {CORPUS_MAX_SESSIONS} — pass a smaller list",
+            )
+
+    conn = get_conn()
+    if mode == "stored":
+        try:
+            return stored_corpus_scorecard(conn, session_ids=session_ids)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    candidate_model = body.get("candidate_model")
+    if not candidate_model or not str(candidate_model).strip():
+        raise HTTPException(400, "candidate_model is required for live corpus mode")
+    try:
+        return await live_corpus_scorecard(
+            conn,
+            session_ids=session_ids,
+            candidate_model=str(candidate_model).strip(),
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"agent replay runtime unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 # ---------------------------------------------------------------- agent read side (machine twins)

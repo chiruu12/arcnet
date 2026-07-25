@@ -25,6 +25,31 @@ export type Health = {
   cost_24h_usd: number;
   anomalies_24h: number;
   active_signals: number;
+  p50_wall_clock_ms_24h: number | null;
+  p95_wall_clock_ms_24h: number | null;
+  latency_sample_count_24h: number;
+  latency_source_24h: string | null;
+};
+
+export type CorpusScorecard = {
+  mode: "stored" | "live";
+  session_count: number;
+  verdict_counts: Record<string, number>;
+  goals_reached: { baseline: number; candidate: number; of: number };
+  cost_delta_usd_total: number;
+  cost_delta_pct_median: number | null;
+  steps_delta_median: number | null;
+  threat_resistance: {
+    threat_sessions: number;
+    candidate_resisted: number;
+    rate: number | null;
+  };
+  honesty: string;
+  requested_session_ids?: string[];
+  sessions_with_replay?: number;
+  sessions_missing_replay?: string[];
+  sessions_replayed?: number;
+  candidate_model?: string;
 };
 
 export type FleetRow = {
