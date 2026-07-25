@@ -1,28 +1,25 @@
 import { useEffect, useState } from "react";
 import { api, type SignozStatus, toUserError } from "../api";
+import {
+  resolveDashboardLinks,
+  type DashKey,
+  type DashboardLinkDef,
+  UNRESOLVED_DASHBOARD_NOTE,
+} from "../dashboardLinks";
 import { AgentJson } from "../components";
 import type { Mode } from "../types";
 
 /** Fallback only before /api/signoz/status returns (or if the probe fails). */
 const SIGNOZ_FALLBACK: string = import.meta.env.VITE_SIGNOZ_URL ?? "http://localhost:8080";
 
-type DashKey = "fleet_ops" | "threats_trust" | "cost_tokens" | "agno";
-
-const ENV_DASH: Record<DashKey, string | undefined> = {
+const ENV_DASH: Partial<Record<DashKey, string | undefined>> = {
   fleet_ops: import.meta.env.VITE_SIGNOZ_DASHBOARD_FLEET,
   threats_trust: import.meta.env.VITE_SIGNOZ_DASHBOARD_THREATS,
   cost_tokens: import.meta.env.VITE_SIGNOZ_DASHBOARD_COST,
   agno: import.meta.env.VITE_SIGNOZ_DASHBOARD_AGNO,
 };
 
-type LinkDef = {
-  name: string;
-  key?: DashKey;
-  path: string;
-  desc: string;
-};
-
-const LINKS: LinkDef[] = [
+const LINKS: DashboardLinkDef[] = [
   {
     name: "fleet_overview",
     key: "fleet_ops",
@@ -50,23 +47,6 @@ const LINKS: LinkDef[] = [
   { name: "traces", path: "/traces-explorer", desc: "raw span explorer for any session trace_id" },
   { name: "alerts", path: "/alerts", desc: "v5 query-based alert rules → /webhooks/signoz" },
 ];
-
-function baseUrl(s: SignozStatus | null): string {
-  const raw = s?.signoz_url || SIGNOZ_FALLBACK;
-  return raw.replace(/\/$/, "");
-}
-
-function dashboardId(s: SignozStatus | null, key: DashKey): string | undefined {
-  const fromStatus = s?.dashboards?.[key];
-  const fromEnv = ENV_DASH[key]?.trim();
-  return (fromStatus || fromEnv || undefined) || undefined;
-}
-
-function linkPath(s: SignozStatus | null, link: LinkDef): string {
-  if (!link.key) return link.path;
-  const id = dashboardId(s, link.key);
-  return id ? `/dashboard/${id}` : link.path;
-}
 
 function statusLine(
   s: SignozStatus | null,
@@ -125,13 +105,9 @@ export function Dashboards({ mode }: { mode: Mode }) {
     };
   }, []);
 
-  const signozBase = baseUrl(status);
+  const signozBase = status?.signoz_url?.replace(/\/$/, "") || SIGNOZ_FALLBACK.replace(/\/$/, "");
   const line = statusLine(status, probeErr, signozBase);
-  const resolvedLinks = LINKS.map((l) => ({
-    ...l,
-    href: `${signozBase}${linkPath(status, l)}`,
-    uuid: l.key ? dashboardId(status, l.key) : undefined,
-  }));
+  const resolvedLinks = resolveDashboardLinks(status, SIGNOZ_FALLBACK, LINKS, ENV_DASH);
 
   const body = (
     <>
@@ -141,22 +117,33 @@ export function Dashboards({ mode }: { mode: Mode }) {
       </p>
       <p className={`meta ${line.warn ? "warn-text" : ""}`}>{line.text}</p>
       <div className="grid">
-        {resolvedLinks.map((l) => (
-          <a
-            key={l.name}
-            className="agent link-card"
-            href={l.href}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <h3>{l.name}</h3>
-            <div className="meta">{l.href}</div>
-            <p className="step">
-              {l.desc}
-              {l.key && !l.uuid ? " · UUID unresolved — opens dashboard list" : ""}
-            </p>
-          </a>
-        ))}
+        {resolvedLinks.map((l) => {
+          if (l.resolved) {
+            return (
+              <a
+                key={l.name}
+                className="agent link-card"
+                href={l.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <h3>{l.name}</h3>
+                <div className="meta">{l.href}</div>
+                <p className="step">
+                  {l.desc}
+                  {l.uuid ? ` · uuid=${l.uuid}` : ""}
+                </p>
+              </a>
+            );
+          }
+          return (
+            <div key={l.name} className="agent link-card unresolved">
+              <h3>{l.name}</h3>
+              <div className="meta warn-text">{UNRESOLVED_DASHBOARD_NOTE}</div>
+              <p className="step dim">{l.desc}</p>
+            </div>
+          );
+        })}
       </div>
     </>
   );

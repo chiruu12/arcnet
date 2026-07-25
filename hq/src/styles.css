@@ -603,8 +603,13 @@ a.btn {
   border-color: var(--accent-border);
 }
 
-.link-card h3 {
-  color: var(--accent);
+.link-card.unresolved {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.link-card.unresolved h3 {
+  color: var(--text-2);
 }
 
 .sidebar-footer {

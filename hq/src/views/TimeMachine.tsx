@@ -7,7 +7,17 @@ import {
   preferVersion,
   type CascadeState,
 } from "../cascade";
+import {
+  canRunReplaySwap,
+  replayHistoryAxis,
+  replayHistoryLabel,
+  replaySwapAxis,
+  replaySwapAxisTag,
+  replaySwapChoice,
+  replaySwapValidationMessage,
+} from "../replaySwap";
 import { AgentJson, Empty, Seam, money, ts } from "../components";
+
 import type { AgentModelRow, CascadeLink, FleetRow, Mode, SessionRow, Verdict } from "../types";
 
 type Progress = { step: number; total_steps: number; phase: string } | null;
@@ -60,7 +70,8 @@ export function TimeMachine({
   const [models, setModels] = useState<AgentModelRow[]>([]);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [versionHasNoPins, setVersionHasNoPins] = useState(false);
-  const [candidate, setCandidate] = useState(DEFAULT_CANDIDATE);
+  const [candidateModel, setCandidateModel] = useState(DEFAULT_CANDIDATE);
+  const [candidatePrompt, setCandidatePrompt] = useState("");
   const [replays, setReplays] = useState<ReplayRow[]>([]);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [running, setRunning] = useState(false);
@@ -291,13 +302,19 @@ export function TimeMachine({
     [sessions, sessionId],
   );
 
+  const swapAxis = replaySwapAxis(candidateModel, candidatePrompt);
+  const swapBlocked = replaySwapValidationMessage(candidateModel, candidatePrompt);
+  const canRun = Boolean(sessionId) && !running && canRunReplaySwap(candidateModel, candidatePrompt);
+
   async function run() {
-    if (!sessionId || running) return;
+    if (!sessionId || running || !canRunReplaySwap(candidateModel, candidatePrompt)) return;
+    const choice = replaySwapChoice(candidateModel, candidatePrompt);
+    if (!choice) return;
     setRunning(true);
     setErr(null);
     setProgress(null);
     try {
-      const v = await api.runReplay(sessionId, candidate.trim());
+      const v = await api.runReplay(sessionId, choice);
       setVerdict(v);
       const r = await api.replays(sessionId);
       setReplays(r);
@@ -323,15 +340,19 @@ export function TimeMachine({
   const b = (verdict?.baseline ?? {}) as Record<string, unknown>;
   const c = (verdict?.candidate ?? {}) as Record<string, unknown>;
   const isThreat = verdict != null && "resisted_injection" in c;
+  const headline =
+    swapAxis === "prompt"
+      ? isThreat
+        ? "would a different prompt have resisted the attack?"
+        : "would a different prompt have handled this incident better?"
+      : isThreat
+        ? "would a different model have resisted the attack?"
+        : "would a different model have handled this incident better?";
 
   return (
     <>
       <p className="eyebrow">{"// counterfactual_replay"}</p>
-      <h1>
-        {isThreat
-          ? "would a different model have resisted the attack?"
-          : "would a different model have handled this incident better?"}
-      </h1>
+      <h1>{headline}</h1>
       <p className="lede">
         replay one recorded session against a candidate · tool_outputs=mocked · guard=identical ·
         3 runs, majority verdict. pick agent → version → model → session.
@@ -436,9 +457,21 @@ export function TimeMachine({
         </label>
         <label>
           candidate_model
-          <input value={candidate} onChange={(e) => setCandidate(e.target.value)} />
+          <input
+            value={candidateModel}
+            onChange={(e) => setCandidateModel(e.target.value)}
+            placeholder="gpt-4o"
+          />
         </label>
-        <button className="btn" type="button" disabled={running || !sessionId} onClick={run}>
+        <label>
+          candidate_prompt
+          <input
+            value={candidatePrompt}
+            onChange={(e) => setCandidatePrompt(e.target.value)}
+            placeholder="paste hardened system prompt…"
+          />
+        </label>
+        <button className="btn" type="button" disabled={!canRun} onClick={run}>
           {running
             ? progress
               ? `replay.run() ${progress.phase} ${progress.step}/${progress.total_steps}`
@@ -446,6 +479,11 @@ export function TimeMachine({
             : "replay.run()"}
         </button>
       </div>
+
+      {swapBlocked && <p className="meta warn-text">{swapBlocked}</p>}
+      {swapAxis === "none" && !swapBlocked && sessionId && (
+        <p className="meta dim">enter candidate_model or candidate_prompt to replay.run()</p>
+      )}
 
       {lane === "unversioned" && (
         <p className="dim">
@@ -466,7 +504,10 @@ export function TimeMachine({
       {session && (
         <p className="meta">
           baseline [{session.model ?? "?"} · recorded {ts(session.started_at)}] ⇄ candidate [
-          {candidate} · replay] · scenario={session.scenario ?? "—"} · goal="{session.goal ?? "—"}"
+          {swapAxis === "prompt"
+            ? `prompt · ${candidatePrompt.trim().slice(0, 48)}${candidatePrompt.trim().length > 48 ? "…" : ""}`
+            : `${candidateModel.trim() || "?"} · model`}
+          · replay] · scenario={session.scenario ?? "—"} · goal="{session.goal ?? "—"}"
         </p>
       )}
 
@@ -556,23 +597,26 @@ export function TimeMachine({
       )}
 
       {!verdict && sessionId && (
-        <Empty hint={`no replay for ${sessionId} yet — hit replay.run() to compare models`} />
+        <Empty hint="no replay for this session yet — pick model or prompt and hit replay.run()" />
       )}
 
       {replays.length > 1 && (
         <div className="history">
           <p className="eyebrow">{"// replay_history"}</p>
-          {replays.map((r) => (
+          {replays.map((r) => {
+            const axis = replayHistoryAxis(r);
+            return (
             <button
               key={r.replay_id}
               type="button"
               className={`history-row ${verdict?.replay_id === r.replay_id ? "active" : ""}`}
               onClick={() => setVerdict(r.verdict)}
             >
-              {r.replay_id} · {r.candidate_model ?? r.candidate_prompt_ref ?? "?"} ·{" "}
+              {replaySwapAxisTag(axis)} {r.replay_id} · {replayHistoryLabel(r)} ·{" "}
               {r.verdict?.verdict ?? "?"} · {ts(r.created_at)}
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
