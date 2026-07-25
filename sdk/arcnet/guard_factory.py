@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from unplug import Action, Guard, GuardConfig, ScanResult
+from unplug import Action, Guard, GuardConfig, ScanResult, TaintedText
+
+_ROUTING_ARG_KEYS = frozenset({"to", "cc", "bcc", "from", "recipient", "recipients"})
+_CONTENT_BLOCK_CATEGORIES = frozenset({"leakage", "secrets"})
+_CONTENT_BLOCK_ACTIONS = frozenset(
+    {Action.BLOCK, Action.REDACT, Action.REVIEW, Action.ABSTAIN}
+)
 
 EVIDENCE_MAX = 200
 
@@ -47,6 +53,51 @@ def top_finding(findings: list[Any]) -> Any | None:
     if not findings:
         return None
     return max(findings, key=lambda f: float(getattr(f, "score", 0.0) or 0.0))
+
+
+def _tool_args_content_text(arguments: dict[str, Any]) -> str:
+    """Serialize tool argument values for leakage/secrets scan (exclude routing fields)."""
+    parts = [
+        f"{key}={value}"
+        for key, value in sorted(arguments.items())
+        if key not in _ROUTING_ARG_KEYS
+    ]
+    return "\n".join(parts)
+
+
+def _content_scan_blocks_tool_call(result: ScanResult) -> bool:
+    findings = list(result.findings or [])
+    if not findings:
+        return False
+    if result.action not in _CONTENT_BLOCK_ACTIONS:
+        return False
+    return any(
+        (getattr(finding, "category", "") or "") in _CONTENT_BLOCK_CATEGORIES
+        for finding in findings
+    )
+
+
+def check_tool_call_with_content_guard(
+    guard: Guard,
+    tool_name: str,
+    arguments: dict[str, Any],
+    *,
+    taint_sources: list[TaintedText] | None = None,
+) -> ScanResult:
+    """Taint check first; scan non-routing args for leakage/secrets when not blocked."""
+    result = guard.check_tool_call(tool_name, arguments, taint_sources=taint_sources)
+    if result.action == Action.BLOCK:
+        return result
+    try:
+        text = _tool_args_content_text(arguments)
+        if not text.strip():
+            return result
+        content_result = guard.scan_output(text)
+        if _content_scan_blocks_tool_call(content_result):
+            return content_result
+    except Exception:
+        pass
+    return result
 
 
 def guard_verdict_from_result(result: ScanResult, *, checkpoint: str) -> dict[str, Any]:
