@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 import httpx
 
@@ -13,9 +14,21 @@ from arcnet_server import repository
 logger = logging.getLogger("arcnet.hitl_relay")
 
 RELAY_TIMEOUT_S = 2.0
+RELAY_MAX_RESPONSE_BYTES = 4096
+_ALLOWED_AGENTOS_SCHEMES = frozenset({"http", "https"})
 # Same default as replay_service, so the relay is live in the standard bring-up.
 # Set ARCNET_AGENTOS_URL="" to record on the signal bus without an HTTP relay.
 AGENTOS_DEFAULT_URL = "http://localhost:7777"
+
+
+def _validate_agentos_base(base: str) -> str | None:
+    """Only http(s) URLs with a host — blocks file:// and bare paths (SSRF guard)."""
+    parsed = urlparse(base)
+    if parsed.scheme not in _ALLOWED_AGENTOS_SCHEMES:
+        return None
+    if not parsed.netloc:
+        return None
+    return base.rstrip("/")
 
 
 def _agentos_base() -> str | None:
@@ -23,7 +36,13 @@ def _agentos_base() -> str | None:
     if raw is None:
         raw = AGENTOS_DEFAULT_URL
     base = raw.strip().rstrip("/")
-    return base or None
+    if not base:
+        return None
+    validated = _validate_agentos_base(base)
+    if validated is None:
+        logger.warning("invalid ARCNET_AGENTOS_URL %r — relay disabled", base)
+        return None
+    return validated
 
 
 def _resolve_agent_id(conn, session_id: str | None) -> str:
@@ -63,13 +82,23 @@ def _signal_payload(hitl_row: dict[str, Any], decision: str, *, agent_id: str) -
 
 
 async def _post_agentos(base: str, payload: dict[str, Any]) -> tuple[bool, str]:
-    url = f"{base}/internal/hitl-decide"
+    validated = _validate_agentos_base(base)
+    if validated is None:
+        return False, "AgentOS URL must be http(s) with a host"
+    url = f"{validated}/internal/hitl-decide"
+    timeout = httpx.Timeout(RELAY_TIMEOUT_S, connect=RELAY_TIMEOUT_S)
     try:
-        async with httpx.AsyncClient(timeout=RELAY_TIMEOUT_S) as client:
-            res = await client.post(url, json=payload)
-        if res.status_code == 200:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            async with client.stream("POST", url, json=payload) as res:
+                nbytes = 0
+                async for chunk in res.aiter_bytes():
+                    nbytes += len(chunk)
+                    if nbytes > RELAY_MAX_RESPONSE_BYTES:
+                        break
+                status_code = res.status_code
+        if status_code == 200:
             return True, "delivered to AgentOS"
-        return False, f"AgentOS HTTP {res.status_code}"
+        return False, f"AgentOS HTTP {status_code}"
     except httpx.TimeoutException:
         return False, f"AgentOS timeout after {RELAY_TIMEOUT_S:.0f}s"
     except Exception as exc:  # noqa: BLE001 — fail-safe: never raise into request path
