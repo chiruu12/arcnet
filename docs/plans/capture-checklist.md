@@ -81,11 +81,12 @@ PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1   #
 ## Bring-up for recording
 
 ```bash
-./scripts/run-demo.sh        # default data/arcnet.db — this is the DB with the hero recordings
+./scripts/run-demo.sh        # seeds heroes from fixtures/heroes.json into data/arcnet.db
 ```
 
-- **Use the default DB.** A custom `ARCNET_DB_PATH` seeds background fleet only (2 agents,
-  18 sessions) — no hero incidents to show.
+- **Cold clone path:** `./scripts/run-demo.sh` loads the committed hero fixture (Edgar
+  `s_ecfdb55d`, Worms `s_2af44726`) — Time Machine history and Case Files render without a key.
+  A custom `ARCNET_DB_PATH` still works; re-run `scripts/seed_heroes.py` if you point at a fresh file.
 - **HQ binds `http://localhost:5173`** — use `localhost`, not `127.0.0.1`, in the browser.
 - Server `http://127.0.0.1:8000` · AgentOS `http://127.0.0.1:7777`.
 - Hero session ids: Edgar **`s_ecfdb55d`** (S1) · Worms **`s_2af44726`** (S4).

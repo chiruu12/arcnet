@@ -62,7 +62,7 @@ cd hq && pnpm install && cd ..
 # → API      http://127.0.0.1:8000/api/fleet
 ```
 
-`run-demo.sh` seeds Griffin baselines and a sample fleet, starts the ArcNet server and the agent replay runtime, then serves HQ. Recorded hero incidents ship in history; hit `replay.run()` in the Time Machine (needs `OPENAI_API_KEY`) to re-derive a counterfactual live, or export any incident as a Case File.
+`run-demo.sh` seeds Griffin baselines, a sample fleet, and the two recorded hero incidents (Edgar `s_ecfdb55d`, Worms `s_2af44726` from `fixtures/heroes.json`), then starts the ArcNet server and the agent replay runtime and serves HQ. A cold clone therefore renders Time Machine history and Case Files without any API key. Hit `replay.run()` in the Time Machine (needs `OPENAI_API_KEY`) to re-derive a counterfactual live, or export any incident as a Case File.
 
 ### Optional: SigNoz depth (Docker)
 
@@ -145,7 +145,7 @@ uv lock --check
 cd hq && pnpm build && pnpm test   # 60 passed
 
 # Hero replay stability gate (needs OPENAI_API_KEY + running services;
-# session ids = the recorded heroes shipped in data/arcnet.db)
+# session ids = the recorded heroes in fixtures/heroes.json)
 uv run python scripts/phase4_g4_check.py --s1 s_ecfdb55d --s4 s_2af44726
 ```
 

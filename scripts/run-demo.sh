@@ -43,6 +43,8 @@ if [[ "${1:-}" != "--no-seed" ]]; then
   .venv/bin/python scripts/seed.py
   echo "seed.fleet() — background agents"
   .venv/bin/python scripts/seed_demo.py
+  echo "seed.heroes() — Edgar + Worms recordings"
+  .venv/bin/python scripts/seed_heroes.py
 fi
 
 port_free() {
