@@ -101,18 +101,34 @@ def mad_judge(
     min_points: int = 30,
 ) -> dict[str, Any]:
     """Robust z-score on rolling median/MAD. Returns forecast band + outlier flag."""
-    if len(values) < min_points:
+    finite = [float(v) for v in values if math.isfinite(float(v))]
+    if len(finite) < min_points:
         return {
             "status": "warming",
-            "n": len(values),
+            "n": len(finite),
             "outlier": False,
             "forecast": None,
             "band_lo": None,
             "band_hi": None,
             "observed": observed,
         }
-    hist = values[:-1] if observed is None and len(values) > min_points else values
-    obs = float(observed if observed is not None else values[-1])
+    hist = finite[:-1] if observed is None and len(finite) > min_points else finite
+    raw_obs = observed if observed is not None else finite[-1]
+    obs = float(raw_obs)
+    if not math.isfinite(obs):
+        med = _median(hist)
+        return {
+            "status": "ready",
+            "n": len(hist),
+            "outlier": False,
+            "forecast": med,
+            "band_lo": med,
+            "band_hi": med,
+            "observed": None,
+            "z": None,
+            "mad": None,
+            "sigma": None,
+        }
     med = _median(hist)
     abs_dev = [abs(v - med) for v in hist]
     mad = _median(abs_dev) or 1e-9
