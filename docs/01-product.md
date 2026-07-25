@@ -95,7 +95,7 @@ Every P0 item carries a demo beat (`06-demo-script.md`). Feature IDs are stable 
 - F10 LLM judge · F11 second framework adapter · Agent K · S3 Serleena.
 
 ## Demo story (full script in `06`)
-1. **Fleet Health** — agents on SigNoz; one flagged **forward-facing** (higher injection-risk), trust posture next to cost/latency.
+1. **Fleet Health** — agents on SigNoz; one flagged **forward-facing** (higher injection-risk), trust posture next to **cost** on fleet cards (`cost_24h_usd` — **no latency row** on cards yet; latency exists in SigNoz traces, not the HQ aggregate).
 2. **Edgar** — forward-facing agent scrapes a page with a hidden injection → Unplug flags the untrusted source, filters it, blocks the exfil, `steer` → self-corrects.
 3. **Griffin** — token-rate outlier flagged before any static threshold (The Worms).
 4. **Agent-view** — flip the incident to its machine format; hand to Claude Code/Codex → it reads the trust-annotated Case File (+ pulls raw traces via SigNoz MCP) and proposes the fix.
