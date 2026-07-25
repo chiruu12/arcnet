@@ -11,7 +11,12 @@ from agno.run.team import TeamRunInput
 from unplug import Action, Guard, Source, TaintedText, TrustLevel
 
 from arcnet.context import get_runtime, try_get_runtime
-from arcnet.guard_factory import BLOCK_STEER_GUIDANCE, build_guard, guard_verdict_from_result
+from arcnet.guard_factory import (
+    BLOCK_STEER_GUIDANCE,
+    build_guard,
+    check_tool_call_with_content_guard,
+    guard_verdict_from_result,
+)
 from arcnet.telemetry import LatencyTimer, emit_guard_telemetry, post_source
 
 
@@ -147,7 +152,8 @@ def tool_call_middleware(
         return func(**call_args) if func else None
 
     timer = LatencyTimer()
-    result = rt.guard.check_tool_call(
+    result = check_tool_call_with_content_guard(
+        rt.guard,
         tool_name,
         call_args,
         taint_sources=list(rt.taint_sources) or None,

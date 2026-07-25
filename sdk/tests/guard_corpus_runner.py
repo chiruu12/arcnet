@@ -9,7 +9,11 @@ from typing import Any, Literal
 
 from unplug import Action, Guard, Source, TaintedText, TrustLevel
 
-from arcnet.guard_factory import build_guard, guard_verdict_from_result
+from arcnet.guard_factory import (
+    build_guard,
+    check_tool_call_with_content_guard,
+    guard_verdict_from_result,
+)
 
 CORPUS_PATH = Path(__file__).resolve().parent / "fixtures" / "guard_corpus.json"
 
@@ -65,7 +69,8 @@ def _scan_output(guard: Guard, payload: str) -> Any:
 
 def _scan_tool_call(guard: Guard, entry: dict[str, Any]) -> Any:
     taint_sources = [_default_taint()] if entry.get("taint") else None
-    return guard.check_tool_call(
+    return check_tool_call_with_content_guard(
+        guard,
         entry["tool"],
         dict(entry.get("args") or {}),
         taint_sources=taint_sources,
