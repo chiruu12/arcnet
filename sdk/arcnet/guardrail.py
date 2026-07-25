@@ -16,6 +16,8 @@ from arcnet.guard_factory import (
     build_guard,
     check_tool_call_with_content_guard,
     guard_verdict_from_result,
+    plant_canary_prompt,
+    redact_canary_args,
 )
 from arcnet.telemetry import LatencyTimer, emit_guard_telemetry, post_source
 
@@ -33,9 +35,10 @@ class UnplugGuardrail(BaseGuardrail):
 
     def check(self, run_input: RunInput | TeamRunInput) -> None:
         text = run_input.input_content_string()
+        guard = self._guard()
         timer = LatencyTimer()
-        result = self._guard().scan(text, source=Source.USER)
-        verdict = guard_verdict_from_result(result, checkpoint="input")
+        result = guard.scan(text, source=Source.USER)
+        verdict = guard_verdict_from_result(result, checkpoint="input", guard=guard)
         emit_guard_telemetry(
             checkpoint="input",
             action=verdict["action"],
@@ -73,7 +76,7 @@ def retrieval_post_hook(fc: Any = None) -> None:
     text = str(raw)
     timer = LatencyTimer()
     result = rt.guard.scan(text, source=Source.RETRIEVED)
-    verdict = guard_verdict_from_result(result, checkpoint="retrieved")
+    verdict = guard_verdict_from_result(result, checkpoint="retrieved", guard=rt.guard)
     emit_guard_telemetry(
         checkpoint="retrieved",
         action=verdict["action"],
@@ -158,7 +161,7 @@ def tool_call_middleware(
         call_args,
         taint_sources=list(rt.taint_sources) or None,
     )
-    verdict = guard_verdict_from_result(result, checkpoint="tool_call")
+    verdict = guard_verdict_from_result(result, checkpoint="tool_call", guard=rt.guard)
     emit_guard_telemetry(
         checkpoint="tool_call",
         action=verdict["action"],
@@ -184,7 +187,7 @@ def tool_call_middleware(
         if rt.transcript is not None:
             rt.transcript.record_tool_call(
                 tool=tool_name,
-                args=call_args,
+                args=redact_canary_args(call_args, rt.guard),
                 recorded_output=None,
                 guard=verdict,
             )
@@ -207,7 +210,7 @@ def tool_call_middleware(
             # Record first so retrieval_post_hook can stamp guard onto this step.
             rt.transcript.record_tool_call(
                 tool=tool_name,
-                args=call_args,
+                args=redact_canary_args(call_args, rt.guard),
                 recorded_output=str(out),
                 trust_level="retrieved",
             )
@@ -218,7 +221,7 @@ def tool_call_middleware(
     if rt.transcript is not None:
         rt.transcript.record_tool_call(
             tool=tool_name,
-            args=call_args,
+            args=redact_canary_args(call_args, rt.guard),
             recorded_output=str(out) if out is not None else None,
             guard=verdict,
             trust_level="tool_output",
@@ -259,7 +262,7 @@ def output_post_hook(run_output: Any = None, **_: Any) -> None:
         return
     timer = LatencyTimer()
     result = rt.guard.scan_output(text)
-    verdict = guard_verdict_from_result(result, checkpoint="output")
+    verdict = guard_verdict_from_result(result, checkpoint="output", guard=rt.guard)
     findings = list(result.findings or [])
     latency_ms = result.latency_ms if result.latency_ms is not None else timer.ms()
     is_leak = any((getattr(f, "category", "") or "") == "leakage" for f in findings)
@@ -316,7 +319,8 @@ def output_post_hook(run_output: Any = None, **_: Any) -> None:
 
 def build_guard_hooks(guard: Guard | None = None) -> dict[str, Any]:
     """Return the four distinctly named checkpoint callables + input guardrail."""
-    resolved = guard if guard is not None else build_guard()
+    rt = try_get_runtime()
+    resolved = guard if guard is not None else (rt.guard if rt is not None else build_guard())
     input_guardrail = UnplugGuardrail(guard=resolved)
     return {
         "input_guardrail": input_guardrail,
@@ -324,3 +328,15 @@ def build_guard_hooks(guard: Guard | None = None) -> dict[str, Any]:
         "tool_call_middleware": tool_call_middleware,
         "output_post_hook": output_post_hook,
     }
+
+
+def plant_agent_canary(
+    prompt: str,
+    *,
+    guard: Guard | None = None,
+    label: str = "system_prompt",
+) -> str:
+    """Plant a per-session canary in agent instructions (fail-safe)."""
+    rt = try_get_runtime()
+    resolved = guard if guard is not None else (rt.guard if rt is not None else build_guard())
+    return plant_canary_prompt(resolved, prompt, label=label)

@@ -2,9 +2,9 @@
 
 ## Ground rules
 
-- Consume **`unplug-ai==0.5.2` from PyPI** as a normal dependency — never vendor its code into this repo (hackathon "no prior work" rule: ArcNet is the build; unplug-ai is a published library we use, same as Agno).
+- Consume **`unplug-ai==0.6.0` from PyPI** as a normal dependency — never vendor its code into this repo (hackathon "no prior work" rule: ArcNet is the build; unplug-ai is a published library we use, same as Agno).
 - The local `unplug-v1` checkout is a **diverged old branch (0.2.0, ~228 commits behind)** — do not code against it. Use the PyPI package; read upstream `origin/main` source only for reference.
-- **Phase-0 smoke test PASSED (2026-07-21)** — first test = exact S1 taint chain. Confirmed against installed `unplug-ai==0.5.2`:
+- **Phase-0 smoke test PASSED (2026-07-21)** — first test = exact S1 taint chain. Confirmed against installed `unplug-ai==0.6.0`:
   - Exports: `Guard, ScanResult, Finding, Action, Source, TaintedText, TrustLevel, GuardConfig` (+ `Action.ABSTAIN` exists — was missing from earlier docs).
   - `scan` / `scan_output` / `check_tool_call` / `notify_taint_source` / `wrap_for_context` / `add_canary` / `with_tiny` / `metrics` all present with signatures recorded below.
   - **S1 chain (the load-bearing path):** `scan(poisoned, RETRIEVED)` → `action=block` (injection findings) → `wrap_for_context` + `notify_taint_source("fetch_url", origin="retrieved")` → `check_tool_call("send_email", args, taint_sources=[TaintedText(...)])` → **`action=block`** (`retrieved_source_in_side_effect` score 0.85).
@@ -27,7 +27,7 @@ A fast, CPU-only guard: regex scanner families + normalization + taint tracking,
 
 **Phase-4 placement decision:** keep Unplug in-process. Its checks are synchronous control-flow gates and its taint state is session-local; a separate service would add network latency and availability risk to the path that must block a dangerous tool call. vLLM is not applicable: Unplug is a guard/scanner library, not an autoregressive language model server. The optional LLM judge remains P2 and, if ever enabled, may call a provider or compatible LLM endpoint without moving the core guard out of process.
 
-## Core contract (Phase 0 confirmed on installed `unplug-ai==0.5.2`)
+## Core contract (Phase 0 confirmed on installed `unplug-ai==0.6.0`)
 
 ```python
 from unplug import Guard, GuardConfig, ScanResult, Finding, Action, Source, TaintedText, TrustLevel
@@ -47,7 +47,7 @@ res = guard.check_tool_call(
 - `check_tool_call(tool_name: str, arguments: dict, *, taint_sources: list[TaintedText] | None = None, approved: bool | None = None) -> ScanResult`
 - `notify_taint_source(tool_name: str, *, origin: str = "") -> None`
 - `wrap_for_context(text: str, source: Source | str = RETRIEVED) -> str`  # returns tagged string, not TaintedText
-- `add_canary(prompt: str, *, label: str = "system_prompt") -> str`
+- `add_canary(prompt: str, *, label: str = "system_prompt") -> str` — mints a 16-char hex token, prepends `<!-- canary TOKEN -->` to the prompt, registers the token in the guard's secrets registry. Any reappearance in `scan_output` / content scans yields `leakage` / `prompt_leak_canary` / stage `canary` (score 0.99). ArcNet plants via `plant_canary_prompt` in `build_agent_j` / `build_hq_agent` on the session `Guard`; never exports the token (Case File, agent-view, threats, transcripts).
 - `with_tiny(*, auto_download: bool = True, require_ml: bool = False, **kwargs) -> Guard`
 
 `ScanResult`: `safe`, `action`, `risk_score`, `findings`, `redacted_text`, `latency_ms`, `stages_run`, plus Phase-0 extras: `degraded`, `degraded_layers`, `approval` (populated on `review` for side-effect tools).

@@ -15,6 +15,8 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.decorator import tool
 
+from arcnet.context import try_get_runtime
+from arcnet.guard_factory import build_guard, plant_canary_prompt
 from arcnet.guardrail import build_guard_hooks
 from arcnet import hq_tools
 
@@ -197,12 +199,17 @@ def build_hq_agent(
     name: str = "HQ Agent",
     model: str | None = None,
     temperature: float = 0.0,
+    plant_canary: bool = True,
 ) -> Agent:
     model_id = model or os.getenv("ARCNET_HQ_MODEL") or os.getenv("ARCNET_MODEL", "gpt-4o-mini")
-    hooks = build_guard_hooks()
+    rt = try_get_runtime()
+    guard = rt.guard if rt is not None else build_guard()
     instructions = _INSTRUCTIONS
     if PROMPTS.exists():
         instructions = PROMPTS.read_text() + "\n\n" + _INSTRUCTIONS
+    if plant_canary:
+        instructions = plant_canary_prompt(guard, instructions)
+    hooks = build_guard_hooks(guard=guard)
     return Agent(
         id=agent_id,
         name=name,

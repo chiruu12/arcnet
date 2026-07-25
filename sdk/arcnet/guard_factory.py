@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from unplug import Action, Guard, GuardConfig, ScanResult, TaintedText
+
+logger = logging.getLogger("arcnet.guard")
 
 _ROUTING_ARG_KEYS = frozenset({"to", "cc", "bcc", "from", "recipient", "recipients"})
 _CONTENT_BLOCK_CATEGORIES = frozenset({"leakage", "secrets"})
@@ -30,23 +33,78 @@ def build_guard(config: GuardConfig | None = None) -> Guard:
     return Guard(config=config or arcnet_guard_config())
 
 
+def canary_tokens(guard: Guard) -> list[str]:
+    """Known canary token values for this guard session (never log or export)."""
+    try:
+        return [record.token for record in guard.canaries.records()]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def redact_canary_tokens(text: str, guard: Guard | None = None) -> str:
+    """Strip planted canary values from text before persistence or export."""
+    if not text or guard is None:
+        return text
+    out = text
+    for token in canary_tokens(guard):
+        if not token:
+            continue
+        out = out.replace(f"<!-- canary {token} -->", "<!-- [REDACTED:canary] -->")
+        out = out.replace(token, "[REDACTED:canary]")
+    return out
+
+
+def redact_canary_args(arguments: dict[str, Any], guard: Guard | None = None) -> dict[str, Any]:
+    """Redact canary tokens from tool-call args before transcript persistence."""
+    if guard is None or not arguments:
+        return arguments
+    redacted: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if isinstance(value, str):
+            redacted[key] = redact_canary_tokens(value, guard)
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def plant_canary_prompt(
+    guard: Guard,
+    prompt: str,
+    *,
+    label: str = "system_prompt",
+) -> str:
+    """Plant a per-session canary in agent instructions (fail-safe)."""
+    try:
+        return guard.add_canary(prompt, label=label)
+    except Exception:  # noqa: BLE001
+        logger.debug("canary plant failed; using unmodified prompt", exc_info=True)
+        return prompt
+
+
 def action_name(action: Action | str) -> str:
     return action.value if hasattr(action, "value") else str(action)
 
 
-def serialize_finding(finding: Any) -> dict[str, Any]:
+def serialize_finding(finding: Any, *, guard: Guard | None = None) -> dict[str, Any]:
     """Bounded finding row for SQLite / case-file export."""
+    evidence = str(getattr(finding, "evidence", "") or "")[:EVIDENCE_MAX]
+    if guard is not None:
+        evidence = redact_canary_tokens(evidence, guard)
     return {
         "category": getattr(finding, "category", None),
         "subcategory": getattr(finding, "subcategory", None),
         "stage": getattr(finding, "stage", None),
         "score": float(getattr(finding, "score", 0.0) or 0.0),
-        "evidence": str(getattr(finding, "evidence", "") or "")[:EVIDENCE_MAX],
+        "evidence": evidence,
     }
 
 
-def serialize_findings(findings: list[Any] | None) -> list[dict[str, Any]]:
-    return [serialize_finding(f) for f in (findings or [])]
+def serialize_findings(
+    findings: list[Any] | None,
+    *,
+    guard: Guard | None = None,
+) -> list[dict[str, Any]]:
+    return [serialize_finding(f, guard=guard) for f in (findings or [])]
 
 
 def top_finding(findings: list[Any]) -> Any | None:
@@ -100,7 +158,12 @@ def check_tool_call_with_content_guard(
     return result
 
 
-def guard_verdict_from_result(result: ScanResult, *, checkpoint: str) -> dict[str, Any]:
+def guard_verdict_from_result(
+    result: ScanResult,
+    *,
+    checkpoint: str,
+    guard: Guard | None = None,
+) -> dict[str, Any]:
     """First-class guard verdict for transcript steps, threats, and signals."""
     findings = list(result.findings or [])
     top = top_finding(findings)
@@ -114,7 +177,10 @@ def guard_verdict_from_result(result: ScanResult, *, checkpoint: str) -> dict[st
         verdict["rule"] = getattr(top, "subcategory", None)
         verdict["pattern_class"] = getattr(top, "stage", None)
         verdict["top_score"] = float(getattr(top, "score", 0.0) or 0.0)
-        verdict["evidence"] = str(getattr(top, "evidence", "") or "")[:EVIDENCE_MAX]
+        evidence = str(getattr(top, "evidence", "") or "")[:EVIDENCE_MAX]
+        if guard is not None:
+            evidence = redact_canary_tokens(evidence, guard)
+        verdict["evidence"] = evidence
     if findings:
-        verdict["findings"] = serialize_findings(findings)
+        verdict["findings"] = serialize_findings(findings, guard=guard)
     return verdict
