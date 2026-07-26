@@ -158,7 +158,7 @@ class CanaryDetectionTests(unittest.TestCase):
             session_id="s_canary",
             agent_id="agent_j",
             goal="test",
-            model="gpt-4o-mini",
+            model="legacy-baseline-v1",
         )
         redacted = redact_canary_args({"body": token}, guard)
         rt.transcript.record_tool_call(
@@ -190,7 +190,7 @@ class CanaryExportSafetyTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "support/ops", "forward_facing", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "support/ops", "forward_facing", "legacy-baseline-v1", ts, ts),
         )
         transcript = {
             "session_id": "s_canary_export",
@@ -220,7 +220,7 @@ class CanaryExportSafetyTests(unittest.TestCase):
                 "agent_j",
                 "canary",
                 "test",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "failed",
                 json.dumps({"goal_reached": "failed"}),

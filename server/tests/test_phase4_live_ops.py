@@ -29,7 +29,7 @@ class Phase4LiveOpsTests(unittest.TestCase):
         cls.client = TestClient(m.app)
         cls.client.post(
             "/api/agents",
-            json={"agent_id": "agent_j", "name": "J", "model": "gpt-4o-mini"},
+            json={"agent_id": "agent_j", "name": "J", "model": "legacy-baseline-v1"},
         )
         cls.sid = f"s_p4_{int(time.time())}"
         cls.client.post(
@@ -39,7 +39,7 @@ class Phase4LiveOpsTests(unittest.TestCase):
                 "agent_id": "agent_j",
                 "scenario": "S1",
                 "goal": "phase4",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
                 "status": "completed",
             },
         )
@@ -70,8 +70,8 @@ class Phase4LiveOpsTests(unittest.TestCase):
     def test_apply_probe_mismatch_when_reachable(self) -> None:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = b'{"model":"gpt-4o-mini"}'
-        mock_resp.json.return_value = {"model": "gpt-4o-mini", "process": "agentos"}
+        mock_resp.content = b'{"model":"legacy-baseline-v1"}'
+        mock_resp.json.return_value = {"model": "legacy-baseline-v1", "process": "agentos"}
 
         mock_client = MagicMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -93,7 +93,7 @@ class Phase4LiveOpsTests(unittest.TestCase):
         probe = ok.json()["agentos_probe"]
         self.assertTrue(probe["probed"])
         self.assertTrue(probe["reachable"])
-        self.assertEqual(probe["live_model"], "gpt-4o-mini")
+        self.assertEqual(probe["live_model"], "legacy-baseline-v1")
         self.assertEqual(probe["sqlite_model"], "gpt-4o")
         self.assertFalse(probe["models_match"])
         self.assertIn("Restart", probe["note"])

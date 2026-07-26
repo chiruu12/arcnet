@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
 OTLP = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
-MODEL = os.getenv("ARCNET_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("ARCNET_MODEL", "gpt-5.6-luna")
 
 
 def setup_otel(service_name: str = "arcnet-hello") -> None:

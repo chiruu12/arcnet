@@ -13,7 +13,8 @@ form shows no cutoff time, so don't ride the deadline.
 | GitHub link | https://github.com/chiruu12/arcnet |
 | Deployed link (optional) | leave blank (local-first: `./scripts/run-demo.sh`) |
 | YouTube video | (unlisted link — record per `video-script.md`) |
-| Blog link | (publish `blog-draft.md` first) |
+| Blog link | (publish `blog-draft.md` to dev.to first — must work logged-out) |
+| Social post (side quest) | https://www.linkedin.com/feed/update/urn:li:ugcPost:7486894602336235520/ |
 
 ## Project description (paste + edit)
 

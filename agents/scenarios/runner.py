@@ -614,7 +614,7 @@ def main(argv: list[str] | None = None) -> int:
         print("OPENAI_API_KEY required", file=sys.stderr)
         return 2
 
-    model = os.getenv("ARCNET_MODEL", "gpt-4o-mini")
+    model = os.getenv("ARCNET_MODEL", "gpt-5.6-luna")
     init(
         service_name="arcnet-scenarios",
         agent_id="agent_j",

@@ -54,7 +54,7 @@ class GriffinDiscoveryTests(unittest.TestCase):
                     conn.execute(
                         "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
                         "VALUES (?,?,?,?,?,?,?)",
-                        (agent_id, agent_id, "ops", "internal", "gpt-4o-mini", t, t),
+                        (agent_id, agent_id, "ops", "internal", "legacy-baseline-v1", t, t),
                     )
                 for i in range(35):
                     for agent_id, token_base in (("agent_j", 100), ("agent_k", 500)):
@@ -74,7 +74,7 @@ class GriffinDiscoveryTests(unittest.TestCase):
                                 agent_id,
                                 "S1",
                                 "g",
-                                "gpt-4o-mini",
+                                "legacy-baseline-v1",
                                 0.0,
                                 "completed",
                                 "{}",
@@ -115,7 +115,7 @@ class GriffinDiscoveryTests(unittest.TestCase):
                 conn.execute(
                     "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
                     "VALUES (?,?,?,?,?,?,?)",
-                    ("agent_j", "J", "ops", "internal", "gpt-4o-mini", t, t),
+                    ("agent_j", "J", "ops", "internal", "legacy-baseline-v1", t, t),
                 )
                 for i in range(35):
                     usage = json.dumps(
@@ -130,7 +130,7 @@ class GriffinDiscoveryTests(unittest.TestCase):
                             "agent_j",
                             "S1",
                             "g",
-                            "gpt-4o-mini",
+                            "legacy-baseline-v1",
                             0.0,
                             "completed",
                             "{}",

@@ -18,36 +18,95 @@ import httpx
 TASK_TYPES: dict[str, dict[str, Any]] = {
     "tool_heavy": {
         "label": "Tool-heavy / loop-prone agents",
-        "prefer": ["gpt-5.6-luna", "gpt-4o", "gpt-4.1", "o4-mini"],
-        "avoid_hint": "avoid cheapest nano for long tool chains",
+        "prefer": ["gpt-5.6-terra", "gpt-5.6-luna", "kimi-k2.7-code", "claude-sonnet-4-6"],
+        "avoid_hint": "avoid cheapest nano/flash for long tool chains",
     },
     "injection_resist": {
         "label": "Forward-facing retrieval + side effects",
-        "prefer": ["gpt-5.6-luna", "gpt-4o", "gpt-4.1", "o3-mini"],
+        "prefer": ["gpt-5.6-terra", "claude-sonnet-4-6", "gpt-5.6-sol", "grok-4.5"],
         "avoid_hint": "prefer stronger instruction-following over cheapest batch",
     },
     "cheap_batch": {
         "label": "Cost-sensitive internal batch",
-        "prefer": ["gpt-4o-mini", "gpt-4.1-mini", "o4-mini"],
-        "avoid_hint": "reserve flagship models for contested incidents",
+        "prefer": ["gpt-5.6-luna", "deepseek-v4-flash", "claude-haiku-4-5", "gemini-3-flash"],
+        "avoid_hint": "reserve frontier models for contested incidents",
     },
     "long_context": {
         "label": "Large transcript / case-file analysis",
-        "prefer": ["gpt-4.1", "gpt-4o", "o3-mini"],
+        "prefer": ["kimi-k2.7-code", "kimi-k3", "gpt-5.6-luna", "claude-sonnet-4-6", "qwen3.8-max-preview", "gemini-3.1-pro"],
         "avoid_hint": "check context window vs transcript size before switching",
     },
 }
 
-# Curated snapshot — update when provider lineup shifts (document in docs/log).
+# Offline fallback when ArcNet server catalog is unreachable.
 _OPENAI_SNAPSHOT: list[dict[str, Any]] = [
-    {"id": "gpt-5.6-luna", "family": "gpt-5", "tier": "flagship", "notes": "newest flagship — frontier reasoning + agentic tool use"},
-    {"id": "gpt-4o", "family": "gpt-4o", "tier": "reliable", "notes": "strong default candidate"},
-    {"id": "gpt-4o-mini", "family": "gpt-4o", "tier": "cheap", "notes": "baseline / batch"},
-    {"id": "gpt-4.1", "family": "gpt-4.1", "tier": "reliable", "notes": "long-context reliable"},
-    {"id": "gpt-4.1-mini", "family": "gpt-4.1", "tier": "cheap", "notes": "cheaper 4.1"},
-    {"id": "o4-mini", "family": "o-series", "tier": "reasoning", "notes": "tool-heavy reasoning"},
-    {"id": "o3-mini", "family": "o-series", "tier": "reasoning", "notes": "stronger reasoning, higher cost"},
+    {"id": "gpt-5.6-luna", "family": "gpt-5.6", "tier": "mid", "notes": "cost-optimized fleet baseline"},
+    {"id": "gpt-5.6-terra", "family": "gpt-5.6", "tier": "high", "notes": "balanced professional tier"},
+    {"id": "gpt-5.6-sol", "family": "gpt-5.6", "tier": "frontier", "notes": "frontier reasoning"},
+    {"id": "claude-sonnet-4-6", "family": "claude", "tier": "high", "notes": "proven Sonnet tier"},
+    {"id": "claude-opus-5", "family": "claude", "tier": "frontier", "notes": "frontier anthropic"},
+    {"id": "kimi-k2.7-code", "family": "kimi", "tier": "high", "notes": "verified open-weight coding"},
+    {"id": "kimi-k3", "family": "kimi", "tier": "high", "notes": "API preview — prefer k2.7-code for weights"},
+    {"id": "qwen3.8-max-preview", "family": "qwen", "tier": "frontier", "notes": "Alibaba preview flagship"},
+    {"id": "qwen3.6-35b-a3b", "family": "qwen", "tier": "high", "notes": "verified Apache-2.0 open-weight"},
+    {"id": "deepseek-v4-flash", "family": "deepseek", "tier": "light", "notes": "cheapest throughput"},
+    {"id": "deepseek-v4-pro", "family": "deepseek", "tier": "high", "notes": "open-weight SOTA coding efficiency"},
 ]
+
+
+def fetch_arcnet_catalog(
+    *,
+    server_url: str | None = None,
+    provider: str | None = None,
+    status: str | None = None,
+    capability_tier: str | None = None,
+    min_context: int | None = None,
+    reasoning: bool | None = None,
+) -> dict[str, Any]:
+    """Fetch GET /api/models/catalog with snapshot fallback."""
+    from arcnet.hq import _base
+
+    base = _base(server_url)
+    params: dict[str, Any] = {}
+    if provider:
+        params["provider"] = provider
+    if status:
+        params["status"] = status
+    if capability_tier:
+        params["capability_tier"] = capability_tier
+    if min_context is not None:
+        params["min_context"] = min_context
+    if reasoning is not None:
+        params["reasoning"] = reasoning
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(f"{base}/api/models/catalog", params=params or None)
+            r.raise_for_status()
+            payload = r.json()
+        if isinstance(payload, dict) and isinstance(payload.get("models"), list):
+            return {
+                "source": "arcnet_api",
+                "catalog_version": payload.get("catalog_version"),
+                "models": payload["models"],
+                "count": payload.get("count", len(payload["models"])),
+                "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+    except Exception as exc:  # noqa: BLE001
+        fallback_note = f"arcnet catalog fetch failed ({type(exc).__name__}); snapshot fallback"
+    else:
+        fallback_note = None
+    models = [
+        {"id": m["id"], "provider": "openai", "capability_tier": m.get("tier"), **m}
+        for m in _OPENAI_SNAPSHOT
+    ]
+    return {
+        "source": "snapshot_fallback",
+        "catalog_version": "offline",
+        "models": models,
+        "count": len(models),
+        "note": fallback_note,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
 
 
 def list_task_types() -> list[dict[str, str]]:
@@ -201,6 +260,8 @@ def recommend_models(
             "exploration_only": True,
         }
     live_flag = constraints.get("live")
+    server_url = constraints.get("server_url")
+    arcnet_catalog = fetch_arcnet_catalog(server_url=server_url if isinstance(server_url, str) else None)
     if live_flag is None:
         live = bool(os.getenv("OPENAI_API_KEY", "").strip())
     else:
@@ -209,14 +270,20 @@ def recommend_models(
         constraints.get("provider") or "openai",
         live=live,
     )
+    # Merge ArcNet catalog ids into lookup for prefer-list validation.
+    arcnet_by_id = {
+        m["id"]: m
+        for m in arcnet_catalog.get("models", [])
+        if isinstance(m, dict) and isinstance(m.get("id"), str)
+    }
     by_id = {
         m["id"]: m
         for m in catalog.get("models", [])
         if isinstance(m, dict) and isinstance(m.get("id"), str)
     }
+    by_id.update(arcnet_by_id)
     max_cost = constraints.get("max_cost_usd")
     session_id = constraints.get("session_id")
-    server_url = constraints.get("server_url")
     if isinstance(server_url, str):
         pass
     else:
@@ -282,6 +349,8 @@ def recommend_models(
         "task_type": task_type,
         "constraints": {**constraints, "live_resolved": live},
         "catalog_source": catalog.get("source"),
+        "arcnet_catalog_source": arcnet_catalog.get("source"),
+        "arcnet_catalog_version": arcnet_catalog.get("catalog_version"),
         "recommendations": ranked,
         "avoid_hint": meta["avoid_hint"],
         "tm_evidence": tm_notes,

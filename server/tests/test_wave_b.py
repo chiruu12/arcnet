@@ -24,7 +24,7 @@ class WaveBApplyReloadTests(unittest.TestCase):
         cls.client = TestClient(m.app)
         cls.client.post(
             "/api/agents",
-            json={"agent_id": "agent_j", "name": "J", "model": "gpt-4o-mini"},
+            json={"agent_id": "agent_j", "name": "J", "model": "legacy-baseline-v1"},
         )
 
     @classmethod
@@ -80,7 +80,7 @@ class WaveBGriffinStatusTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "J", "ops", "forward_facing", "gpt-4o-mini", t, t),
+            ("agent_j", "J", "ops", "forward_facing", "legacy-baseline-v1", t, t),
         )
         for i in range(35):
             usage = json.dumps({"total_tokens": 100 + i, "cost_usd": 0.01 * i, "tool_calls": i})
@@ -93,7 +93,7 @@ class WaveBGriffinStatusTests(unittest.TestCase):
                     "agent_j",
                     "S1",
                     "g",
-                    "gpt-4o-mini",
+                    "legacy-baseline-v1",
                     0.0,
                     "completed",
                     "{}",
@@ -159,7 +159,7 @@ class WaveBSignozEvidenceTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "J", "ops", "internal", "gpt-4o-mini", t, t),
+            ("agent_j", "J", "ops", "internal", "legacy-baseline-v1", t, t),
         )
         conn.execute(
             "INSERT INTO sessions(session_id, agent_id, scenario, goal, model, temperature, "
@@ -170,7 +170,7 @@ class WaveBSignozEvidenceTests(unittest.TestCase):
                 "agent_j",
                 "S1",
                 "g",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "completed",
                 "{}",
@@ -300,7 +300,7 @@ class WaveBModelExploreTests(unittest.TestCase):
                         "verdict": "better",
                         "confidence": "med",
                         "recommendation": "switch",
-                        "baseline": {"model": "gpt-4o-mini", "resisted_injection": False},
+                        "baseline": {"model": "legacy-baseline-v1", "resisted_injection": False},
                         "candidate": {
                             "model": "gpt-4o",
                             "resisted_injection": True,
@@ -329,7 +329,7 @@ class WaveBModelExploreTests(unittest.TestCase):
                     "candidate_model": "gpt-4o",
                     "verdict": {
                         "baseline": {
-                            "model": "gpt-4o-mini",
+                            "model": "legacy-baseline-v1",
                             "resisted_injection": False,
                             "cost_usd": 0.01,
                         },
@@ -345,7 +345,7 @@ class WaveBModelExploreTests(unittest.TestCase):
                     "candidate_model": "gpt-4o",
                     "verdict": {
                         "baseline": {
-                            "model": "gpt-4o-mini",
+                            "model": "legacy-baseline-v1",
                             "resisted_injection": False,
                             "cost_usd": 0.01,
                         },
@@ -361,7 +361,7 @@ class WaveBModelExploreTests(unittest.TestCase):
                     "candidate_model": "o3-mini",
                     "verdict": {
                         "baseline": {
-                            "model": "gpt-4o-mini",
+                            "model": "legacy-baseline-v1",
                             "resisted_injection": True,
                             "cost_usd": 0.01,
                         },
@@ -379,9 +379,9 @@ class WaveBModelExploreTests(unittest.TestCase):
         self.assertEqual(out["dimension_winners"]["resisted_injection"], "gpt-4o")
         # cost: gpt-4o wins r1+r2 (baseline cheaper? wait — lower cost wins)
         # r1: cand 0.02 > base 0.01 → baseline; r2: same → baseline; r3: cand cheaper → o3-mini
-        # majority for cost_usd is gpt-4o-mini (2 votes)
-        self.assertEqual(out["dimension_winners"]["cost_usd"], "gpt-4o-mini")
-        self.assertEqual(out["replays"][-1]["dimension_winners"]["resisted_injection"], "gpt-4o-mini")
+        # majority for cost_usd is legacy-baseline-v1 (2 votes)
+        self.assertEqual(out["dimension_winners"]["cost_usd"], "legacy-baseline-v1")
+        self.assertEqual(out["replays"][-1]["dimension_winners"]["resisted_injection"], "legacy-baseline-v1")
 
     def test_recommend_without_session_keeps_curated_order(self) -> None:
         from arcnet.model_explore import TASK_TYPES, recommend_models
@@ -491,7 +491,7 @@ class WaveBCheckTraceLinkTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "J", "ops", "internal", "gpt-4o-mini", t, t),
+            ("agent_j", "J", "ops", "internal", "legacy-baseline-v1", t, t),
         )
         conn.execute(
             "INSERT INTO sessions(session_id, agent_id, scenario, goal, model, temperature, "
@@ -502,7 +502,7 @@ class WaveBCheckTraceLinkTests(unittest.TestCase):
                 "agent_j",
                 "S1",
                 "g",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "completed",
                 "{}",

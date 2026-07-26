@@ -24,7 +24,7 @@ def create_os() -> AgentOS:
         service_name="arcnet-agents",
         agent_id="agent_j",
         exposure="forward_facing",
-        model=os.getenv("ARCNET_MODEL", "gpt-4o-mini"),
+        model=os.getenv("ARCNET_MODEL", "gpt-5.6-luna"),
     )
     agent_j = build_agent_j()
     agent_l = build_fleet_clone(agent_id="agent_l", name="Agent L")
@@ -48,7 +48,7 @@ def internal_runtime() -> dict[str, Any]:
     SQLite ``agents.model`` can change without restarting this process; operators
     compare ``model`` here to the applied SQLite model to know when reload is done.
     """
-    model = os.getenv("ARCNET_MODEL", "gpt-4o-mini")
+    model = os.getenv("ARCNET_MODEL", "gpt-5.6-luna")
     agent_ids = [str(a.id) for a in (agent_os.agents or []) if getattr(a, "id", None)]
     return {
         "process": "agentos",

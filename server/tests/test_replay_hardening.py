@@ -225,7 +225,7 @@ class BuildVerdictHardeningTests(unittest.TestCase):
         threat_session = {
             "session_id": "s_threat",
             "scenario": "S1",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
             "outcome": {
                 "goal_reached": "failed",
                 "steps": 4,

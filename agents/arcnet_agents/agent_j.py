@@ -27,7 +27,7 @@ def build_agent_j(
     instructions: str | None = None,
     plant_canary: bool = True,
 ) -> Agent:
-    model_id = model or os.getenv("ARCNET_MODEL", "gpt-4o-mini")
+    model_id = model or os.getenv("ARCNET_MODEL", "gpt-5.6-luna")
     rt = try_get_runtime()
     guard = rt.guard if rt is not None else build_guard()
     prompt = instructions or PROMPT_J.read_text()

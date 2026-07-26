@@ -287,6 +287,36 @@ def list_agent_models(
     return out
 
 
+def search_models(
+    *,
+    provider: str | None = None,
+    status: str | None = None,
+    capability_tier: str | None = None,
+    min_context: int | None = None,
+    reasoning: bool | None = None,
+    server_url: str | None = None,
+) -> dict[str, Any]:
+    """Search static ArcNet model catalog (GET /api/models/catalog)."""
+    params: list[str] = []
+    if provider:
+        params.append(f"provider={provider}")
+    if status:
+        params.append(f"status={status}")
+    if capability_tier:
+        params.append(f"capability_tier={capability_tier}")
+    if min_context is not None:
+        params.append(f"min_context={int(min_context)}")
+    if reasoning is not None:
+        params.append(f"reasoning={'true' if reasoning else 'false'}")
+    qs = f"?{'&'.join(params)}" if params else ""
+    out = _get(
+        f"/api/models/catalog{qs}",
+        server_url=server_url,
+        tool="search_models",
+    )
+    return _wrap_ok("search_models", out)
+
+
 def recommend_models(
     task_type: str,
     *,
@@ -464,7 +494,7 @@ def propose_model_change(
     guidance = (
         f"Proposed model change for {agent_id}: {from_bit}{to_model}."
         + (f" task_type={task_type}." if task_type else "")
-        + " Apply via POST /api/agents/{id}/apply-model with confirm:true (human-gated)."
+        + f" Apply via POST /api/agents/{agent_id}/apply-model with confirm:true (human-gated)."
         + (f" evidence_refs={','.join(refs[:6])}." if refs else "")
     )
     body: dict[str, Any] = {

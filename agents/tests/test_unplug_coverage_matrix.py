@@ -32,6 +32,7 @@ HQ_TOOLS = (
     "replay_compare",
     "griffin_anomalies",
     "list_agent_models",
+    "search_models",
     "recommend_models",
     "agent_version_timeline",
     "register_agent_version",
@@ -65,7 +66,7 @@ class UnplugCoverageMatrixTests(unittest.TestCase):
             build_agent_j(),
             build_fleet_clone(agent_id="agent_l", name="Agent L"),
             build_fleet_clone(agent_id="agent_o", name="Agent O"),
-            build_hq_agent(model="gpt-4o-mini"),
+            build_hq_agent(model="legacy-baseline-v1"),
         ]
         for agent in agents:
             self.assertTrue(agent.pre_hooks, f"{agent.id} missing pre_hooks")

@@ -79,7 +79,7 @@ class HitlApiTests(unittest.TestCase):
     def _seed_session(self, session_id: str = "s_hitl_relay") -> str:
         self.client.post(
             "/api/agents",
-            json={"agent_id": "agent_j", "name": "J", "model": "gpt-4o-mini"},
+            json={"agent_id": "agent_j", "name": "J", "model": "legacy-baseline-v1"},
         )
         self.client.post(
             "/api/sessions",
@@ -88,7 +88,7 @@ class HitlApiTests(unittest.TestCase):
                 "agent_id": "agent_j",
                 "scenario": "S1",
                 "goal": "hitl relay",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
                 "status": "running",
             },
         )

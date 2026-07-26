@@ -851,3 +851,234 @@ p.honesty {
   padding-top: 16px;
   border-top: 1px solid var(--border);
 }
+
+/* HQ agent — proposal cards + apply workflow + TOON panels */
+.proposal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+
+.proposal-card {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proposal-card.selected {
+  border-color: var(--accent-border);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+
+.proposal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proposal-migration {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.proposal-target {
+  color: var(--accent);
+}
+
+.proposal-arrow {
+  color: var(--muted);
+}
+
+.proposal-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
+.proposal-status.ok {
+  color: var(--ok);
+}
+
+.proposal-status.warn {
+  color: var(--warn);
+}
+
+.proposal-reason {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.proposal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.chip.legacy {
+  color: var(--warn);
+}
+
+.chip.preview {
+  color: var(--accent);
+  border-color: var(--accent-dim, var(--border));
+}
+
+.chip.chip-btn {
+  cursor: pointer;
+  background: var(--bg-elevated, var(--bg-surface));
+  font-family: inherit;
+}
+
+.chip.chip-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.apply-card {
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: 14px 16px;
+  margin: 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.apply-selected {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.apply-migration {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.apply-from {
+  color: var(--text-2);
+}
+
+.apply-model-input {
+  flex: 1;
+  min-width: 200px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--accent);
+  background: var(--bg-code);
+  border: 1px solid var(--accent-border);
+  padding: 8px 10px;
+}
+
+.apply-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.apply-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  min-width: 160px;
+}
+
+.apply-fields input {
+  font: inherit;
+  font-size: 12px;
+  color: var(--bright);
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.apply-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.toon-panel {
+  margin: 12px 0 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-code);
+}
+
+.toon-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.toon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.toon-dot.red {
+  background: #ff5f57;
+}
+
+.toon-dot.amber {
+  background: #febc2e;
+}
+
+.toon-dot.green {
+  background: #28c840;
+}
+
+.toon-title {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.toon-body {
+  margin: 0;
+  border: none;
+  max-height: 420px;
+}
+
+.legacy-row {
+  opacity: 0.72;
+}

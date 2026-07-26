@@ -24,7 +24,7 @@ Everything below serves one sentence: **"one person built this during the event 
 
 ## Phase 0 — Foundations & de-risk (timeboxed: one focused day — it de-risks everything else)
 
-- [x] **Two 10-minute checks before any code:** (a) provider keys — **OPENAI present** (baseline `gpt-4o-mini` + candidate `gpt-4o`); **ANTHROPIC missing/unfunded** → H1 PARTIAL (b) submission form + exact deadline — **H3 BLOCKED** (human; form still "coming soon" on event page)
+- [x] **Two 10-minute checks before any code:** (a) provider keys — **OPENAI present** (baseline `legacy-baseline-v1` + candidate `gpt-4o`); **ANTHROPIC missing/unfunded** → H1 PARTIAL (b) submission form + exact deadline — **H3 BLOCKED** (human; form still "coming soon" on event page)
 - [ ] **Post the unplug-ai provenance disclosure in the SigNoz Slack** — **H2 BLOCKED** (human must post + ask for written ruling); text ready in README
 - [x] Scaffold repo (layout per `02`), uv workspaces + pnpm app, `.env.example` fully enumerated
 - [x] SigNoz self-hosted via Foundry/Docker Compose; pin **v0.133.0**; UI healthy; Mac usage noted in `04`/`log`
@@ -78,7 +78,7 @@ Everything below serves one sentence: **"one person built this during the event 
 
 - [x] `arcnet/replay.py` — replay harness per `10-time-machine.md`: tool stubs with step cursor, divergence logging, temp 0, same guardrail
 - [x] `POST /api/replay` — load recorded session → replay vs candidate model → **trajectory diff** `{goal_reached, steps, tool_errors, cost, latency, tokens}` + security dims for threat sessions → verdict + recommendation (3-run majority)
-- [x] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4) — **G4 PASS** (reassessed 2026-07-21, `scripts/phase4_g4_check.py` → `docs/_phase4_g4.json`): Edgar stable `mixed` 3/3 (baseline gpt-4o-mini attempts `send_email` → blocked; candidate gpt-4o resists 3/3, `exfil 0 vs 1`; `mixed` only because gpt-4o costs ~10× more) and Worms stable `mixed` 3/3 (candidate breaks the loop, `killed`→`partial`). Fix was a delivered-path S1 fixture + behavior-based goal predicates + threat-session verdict stability — **no guard weakening** (`docs/10`, `docs/11`).
+- [x] Verify **both hero replays**: Worms (baseline killed → candidate stops the loop) and Edgar (baseline exploited → candidate resists); **stable across 3 runs each** (gate G4) — **G4 PASS** (reassessed 2026-07-21, `scripts/phase4_g4_check.py` → `docs/_phase4_g4.json`): Edgar stable `mixed` 3/3 (baseline legacy-baseline-v1 attempts `send_email` → blocked; candidate gpt-4o resists 3/3, `exfil 0 vs 1`; `mixed` only because gpt-4o costs ~10× more) and Worms stable `mixed` 3/3 (candidate breaks the loop, `killed`→`partial`). Fix was a delivered-path S1 fixture + behavior-based goal predicates + threat-session verdict stability — **no guard weakening** (`docs/10`, `docs/11`).
 - [x] `GET /api/agent-view/replay/{id}` — machine-optimal JSON of the verdict
 
 **Exit: `POST /api/replay` returns real, stable Worms + Edgar counterfactuals; agent-view JSON of them.** → **PASS / G4 green** (both heroes stable `mixed` 3/3; honest cost tradeoff surfaced in the recommendation, security win explicit).

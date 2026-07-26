@@ -109,7 +109,7 @@ def config_from_env() -> DogfoodConfig:
         max_iterations=max(1, _env_int("ARCNET_DOGFOOD_MAX_ITERATIONS", 48)),
         max_duration_s=max(60.0, _env_float("ARCNET_DOGFOOD_MAX_DURATION_S", 86_400.0)),
         server_url=os.getenv("ARCNET_SERVER_URL", "http://localhost:8000").rstrip("/"),
-        model=os.getenv("ARCNET_MODEL", "gpt-4o-mini"),
+        model=os.getenv("ARCNET_MODEL", "gpt-5.6-luna"),
     )
 
 

@@ -151,6 +151,10 @@ This worktree has **no `.env` / API key** — live scenario re-runs are **DEFER*
 | hq_agent | list_agent_models | retrieved | N/A | No retrieval tool in agent toolkit — checkpoint not on code path |
 | hq_agent | list_agent_models | tool_call | COVERED | `tool_call_middleware` on every HQ `@tool` · `agents/tests/test_hq_agent.py::test_build_hq_agent_has_tools_and_guards` |
 | hq_agent | list_agent_models | output | COVERED | `sdk/arcnet/guardrail.py::output_post_hook` · `agents/tests/test_guard_scenarios.py` (S2 stub) · bounded excerpts `sdk/arcnet/hq_tools.py` |
+| hq_agent | search_models | input | COVERED | `sdk/arcnet/guardrail.py::UnplugGuardrail.check` · `agents/tests/test_guard_scenarios.py` (S5 stub) · `agents/hq_agent/agent.py::build_hq_agent` · `arcnet.init` + `build_guard_hooks()` |
+| hq_agent | search_models | retrieved | N/A | No retrieval tool in agent toolkit — checkpoint not on code path |
+| hq_agent | search_models | tool_call | COVERED | `tool_call_middleware` on every HQ `@tool` · `agents/tests/test_hq_agent.py::test_build_hq_agent_has_tools_and_guards` |
+| hq_agent | search_models | output | COVERED | `sdk/arcnet/guardrail.py::output_post_hook` · `agents/tests/test_guard_scenarios.py` (S2 stub) · bounded excerpts `sdk/arcnet/hq_tools.py` |
 | hq_agent | recommend_models | input | COVERED | `sdk/arcnet/guardrail.py::UnplugGuardrail.check` · `agents/tests/test_guard_scenarios.py` (S5 stub) · `agents/hq_agent/agent.py::build_hq_agent` · `arcnet.init` + `build_guard_hooks()` |
 | hq_agent | recommend_models | retrieved | N/A | No retrieval tool in agent toolkit — checkpoint not on code path |
 | hq_agent | recommend_models | tool_call | COVERED | `tool_call_middleware` on every HQ `@tool` · `agents/tests/test_hq_agent.py::test_build_hq_agent_has_tools_and_guards` |

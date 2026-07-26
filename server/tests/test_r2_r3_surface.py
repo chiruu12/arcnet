@@ -28,7 +28,7 @@ class HqClientTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_sdk", "SDK", "test", "internal", "gpt-4o-mini", t, t),
+            ("agent_sdk", "SDK", "test", "internal", "legacy-baseline-v1", t, t),
         )
         transcript = json.dumps(
             {
@@ -53,7 +53,7 @@ class HqClientTests(unittest.TestCase):
                 "agent_sdk",
                 "S1",
                 "goal",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "completed",
                 "{}",
@@ -122,11 +122,10 @@ class ModelExploreTests(unittest.TestCase):
         rec = recommend_models("injection_resist")
         self.assertTrue(rec["exploration_only"])
         self.assertGreaterEqual(len(rec["recommendations"]), 1)
-        # Newest flagship leads the prefer list for forward-facing traffic;
-        # gpt-4o remains a recommended fallback.
+        # Current catalog prefer list for forward-facing traffic
         models = [r["model"] for r in rec["recommendations"]]
-        self.assertEqual(models[0], "gpt-5.6-luna")
-        self.assertIn("gpt-4o", models)
+        self.assertEqual(models[0], "gpt-5.6-terra")
+        self.assertIn("gpt-5.6-sol", models)
         with tempfile.TemporaryDirectory() as td:
             note = record_recommendation_note(
                 task_type="injection_resist",
@@ -143,7 +142,7 @@ class ModelExploreTests(unittest.TestCase):
 
         cat = fetch_provider_catalog("openai", live=False)
         self.assertEqual(cat["source"], "snapshot")
-        self.assertTrue(any(m["id"] == "gpt-4o" for m in cat["models"]))
+        self.assertTrue(any(m["id"] == "gpt-5.6-luna" for m in cat["models"]))
 
 
 class SignozDashboardMapTests(unittest.TestCase):

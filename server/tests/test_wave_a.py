@@ -28,7 +28,7 @@ class WaveAVersionFilterTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "support/ops", "forward_facing", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "support/ops", "forward_facing", "legacy-baseline-v1", ts, ts),
         )
         conn.execute(
             """INSERT INTO agent_versions
@@ -38,7 +38,7 @@ class WaveAVersionFilterTests(unittest.TestCase):
                 "av_wave_a",
                 "agent_j",
                 "wave-a.1",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 None,
                 "agents/prompts/agent_j.md",
                 "baseline seed",
@@ -46,8 +46,8 @@ class WaveAVersionFilterTests(unittest.TestCase):
             ),
         )
         for sid, model, pin in (
-            ("s_pin_a", "gpt-4o-mini", "av_wave_a"),
-            ("s_pin_b", "gpt-4o-mini", "av_wave_a"),
+            ("s_pin_a", "legacy-baseline-v1", "av_wave_a"),
+            ("s_pin_b", "legacy-baseline-v1", "av_wave_a"),
             ("s_other", "gpt-4o", None),
         ):
             conn.execute(
@@ -103,7 +103,7 @@ class WaveAVersionFilterTests(unittest.TestCase):
         vp = check["version_pinpoint"]
         self.assertEqual(vp["version_id"], "av_wave_a")
         self.assertEqual(vp["version"], "wave-a.1")
-        self.assertEqual(vp["model"], "gpt-4o-mini")
+        self.assertEqual(vp["model"], "legacy-baseline-v1")
         self.assertEqual(vp["source_ref"], "agents/prompts/agent_j.md")
         self.assertTrue(vp["pinned_session_matches"])
         self.assertIn("source_ref=", vp["narrative"])
@@ -114,7 +114,7 @@ class WaveAVersionFilterTests(unittest.TestCase):
             json={
                 "version_id": "av_ord_1",
                 "version": "older.1",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
                 "source_ref": "scripts/seed_demo.py",
             },
         )

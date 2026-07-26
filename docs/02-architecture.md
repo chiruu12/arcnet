@@ -118,7 +118,7 @@ This is **replay-from-trace, not live re-execution** — deterministic, cheap (o
 - Telemetry namespace `arcnet.*`: see `04-signoz-integration.md`.
 
 ### `agents/` — demo fleet + Bug Suite
-Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. **Model pick (Phase 0):** baseline `gpt-4o-mini` (`ARCNET_MODEL`); candidate `gpt-4o` (`ARCNET_CANDIDATE_MODEL`) — both via `OPENAI_API_KEY` (present). `ANTHROPIC_API_KEY` not funded in this env → Haiku path deferred; pricing table has placeholders.
+Agent J on **AgentOS** (single FastAPI app): support/ops agent. Tools: `fetch_url` (injection vector), `lookup_customer` (seeded PII), `send_email` (exfil vector), `run_query` (destructive vector). Background fleet: **agents L & O** — clones of J with distinct ids running S0 on a loop, so Fleet Health is populated even if the Agent K persona (P2) is cut. **Model pick (Phase 0):** baseline `legacy-baseline-v1` (`ARCNET_MODEL`); candidate `gpt-4o` (`ARCNET_CANDIDATE_MODEL`) — both via `OPENAI_API_KEY` (present). `ANTHROPIC_API_KEY` not funded in this env → Haiku path deferred; pricing table has placeholders.
 
 Bug Suite scenarios (`agents/scenarios/`), each = seeded fixture + runner script + **telemetry assertions** (full spec, fixtures, goal predicates, camera notes: **`11-scenarios.md`**):
 | # | Codename | Attack | Expected chain |
@@ -199,7 +199,7 @@ Enumerated so the "judge runs `docker compose up` + `run-demo.sh`" claim is real
 
 | Var | Purpose | Who needs it |
 |---|---|---|
-| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Demo agent model (gpt-4o-mini vs haiku — pick in Phase 0 by which key the dev has) | agents/, sdk/ |
+| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Demo agent model (legacy-baseline-v1 vs haiku — pick in Phase 0 by which key the dev has) | agents/, sdk/ |
 | `ARCNET_MODEL` | Which model id to use (drives `pricing.py` lookup) | agents/ |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP → SigNoz collector (self-host: `http://localhost:4318`) | sdk/ |
 | `SIGNOZ_API_KEY` | Service-account key for Query Range API (server-side only) | server/ |

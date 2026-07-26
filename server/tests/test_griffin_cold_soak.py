@@ -74,7 +74,7 @@ class GriffinColdSoakTests(unittest.TestCase):
                 conn.execute(
                     "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
                     "VALUES (?,?,?,?,?,?,?)",
-                    ("agent_j", "J", "ops", "forward_facing", "gpt-4o-mini", t, t),
+                    ("agent_j", "J", "ops", "forward_facing", "legacy-baseline-v1", t, t),
                 )
                 for i in range(35):
                     usage = json.dumps(
@@ -89,7 +89,7 @@ class GriffinColdSoakTests(unittest.TestCase):
                             "agent_j",
                             "S1",
                             "g",
-                            "gpt-4o-mini",
+                            "legacy-baseline-v1",
                             0.0,
                             "completed",
                             "{}",

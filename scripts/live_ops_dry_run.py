@@ -58,7 +58,7 @@ def _run(client, *, agentos_url: str) -> int:
             "agent_id": "agent_j",
             "name": "Agent J",
             "exposure": "forward_facing",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
         },
     )
     if agent.status_code != 200:
@@ -72,7 +72,7 @@ def _run(client, *, agentos_url: str) -> int:
             "agent_id": "agent_j",
             "scenario": "S1",
             "goal": "live ops dry-run",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
             "status": "completed",
         },
     )
@@ -105,7 +105,7 @@ def _run(client, *, agentos_url: str) -> int:
             "severity": "info",
             "reason": "live_ops: upgrade for injection_resist",
             "guidance": (
-                "Proposed model change for agent_j: gpt-4o-mini → gpt-4o. "
+                "Proposed model change for agent_j: legacy-baseline-v1 → gpt-4o. "
                 f"evidence_refs=agent:agent_j,session:{sid}"
             ),
             "source": "hq_agent",

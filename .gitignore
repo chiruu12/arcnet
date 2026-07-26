@@ -11,8 +11,11 @@ hq/dist/
 hq/.vite/
 *.egg-info/
 .uv/
+# deploy/casting.yaml.lock is intentionally TRACKED: judges re-run
+# `foundryctl forge -f deploy/casting.yaml` against it to reproduce the SigNoz
+# deployment. deploy/pours/ stays ignored — it is regenerated output and the
+# compose file there has local credentials injected into it.
 deploy/pours/
-deploy/casting.yaml.lock
 deploy/provision/.dashboard-ids.json
 *.db
 data/

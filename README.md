@@ -1,10 +1,10 @@
 # ArcNet
 
-**Make your agents work properly — and enhance them.** Observability + active defense for AI-native systems, built on [SigNoz](https://signoz.io).
+**Watch your agents. Fix them. Prove the fix.** The maintenance layer for agent fleets — observability + active defense, built on [SigNoz](https://signoz.io).
 
 > *Agents that watch themselves — and get better.*
 
-ArcNet is the enhancement layer for agent fleets: it watches behavior, cost, and **the trust of everything an agent ingests**. Attacks come in through untrusted sources (scraped pages, tool outputs), so [unplug-ai](https://pypi.org/project/unplug-ai/) tags every source's trust level, filters the untrusted ones before they reach the model, and flags forward-facing agents as higher-risk. When something slips through, ArcNet traces it (OpenTelemetry → SigNoz), alerts on it, and **signals the agent to self-correct** ([Agno](https://www.agno.com) guardrails + run cancellation).
+ArcNet is the maintenance layer for agent fleets: it watches behavior, cost, and **the trust of everything an agent ingests**. Attacks come in through untrusted sources (scraped pages, tool outputs), so [unplug-ai](https://pypi.org/project/unplug-ai/) tags every source's trust level, filters the untrusted ones before they reach the model, and flags forward-facing agents as higher-risk. When something slips through, ArcNet traces it (OpenTelemetry → SigNoz), alerts on it, and **signals the agent to self-correct** ([Agno](https://www.agno.com) guardrails + run cancellation).
 
 Then the two pillars that close the improve loop at the **agent-session** level:
 
@@ -31,7 +31,7 @@ Both hero replays are **live model runs, verified stable across 3× replay** (`s
 
 | | S1 "Edgar" — indirect injection | S4 "Worms" — runaway loop |
 |---|---|---|
-| baseline (`gpt-4o-mini`, recorded) | follows a poisoned page's social-engineering, attempts `send_email` exfil → **blocked by taint guard** at the tool-call checkpoint | paginates forever, token burn flagged by Griffin → **killed** |
+| baseline (`legacy-baseline-v1`, recorded) | follows a poisoned page's social-engineering, attempts `send_email` exfil → **blocked by taint guard** at the tool-call checkpoint | paginates forever, token burn flagged by Griffin → **killed** |
 | candidate (`gpt-4o`, replayed) | **resists the injection 3/3**, answers the shipping question (`exfil 0 vs 1`) | **breaks the loop itself** (6 paginate calls vs 8, no kill needed) |
 | verdict | `mixed` — security improved, ~10× cost | `mixed` — reliability improved, higher cost |
 
@@ -85,6 +85,14 @@ cd deploy && foundryctl cast -f casting.yaml && cd ..
 python deploy/provision/setup.py     # dashboards + v5 alert rules
 ./deploy/mcp/install.sh              # SigNoz MCP for the Case File beat
 ```
+
+### Watch your own framework's agents
+
+The server speaks standard OTLP/HTTP on `POST /v1/traces`. Any
+[OpenInference](https://github.com/Arize-ai/openinference)-instrumented framework — LangChain,
+LlamaIndex, CrewAI, OpenAI Agents SDK, DSPy, Agno — feeds the fleet with one pip install and one
+exporter env var; sessions land in `fleet_health` with tokens, tool errors, and Griffin coverage
+(observe-only: guard + Time Machine need the SDK). Quickstart: [`docs/36-otlp-ingest.md`](docs/36-otlp-ingest.md).
 
 ## Architecture & model boundaries
 

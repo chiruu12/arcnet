@@ -98,7 +98,7 @@ def _seed_hero_rows(client) -> tuple[str, str]:
             "agent_id": "agent_j",
             "name": "Agent J",
             "exposure": "forward_facing",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
         },
     )
     if agent.status_code != 200:
@@ -127,7 +127,7 @@ def _seed_hero_rows(client) -> tuple[str, str]:
             "agent_id": "agent_j",
             "scenario": "S1",
             "goal": "p9c verdict roundtrip",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
             "status": "failed",
             "transcript": transcript,
         },
@@ -143,7 +143,7 @@ def _seed_hero_rows(client) -> tuple[str, str]:
             "kind": "note",
             "severity": "info",
             "reason": "p9c graph-walk proposal",
-            "guidance": f"Proposed model change for agent_j: gpt-4o-mini → gpt-4o session:{sid}",
+            "guidance": f"Proposed model change for agent_j: legacy-baseline-v1 → gpt-4o session:{sid}",
             "source": "hq_agent",
         },
     )
@@ -218,7 +218,7 @@ def _section_model_intel(client, agent_id: str) -> None:
     if res.status_code != 200:
         raise AssertionError(f"model-intel: {res.status_code} {res.text}")
     body = res.json()
-    if body.get("catalog_version") != "2026-07":
+    if body.get("catalog_version") != model_catalog.CATALOG_VERSION:
         raise AssertionError(f"catalog_version: {body.get('catalog_version')}")
     candidates = body.get("candidates") or []
     if not candidates:
@@ -387,7 +387,13 @@ def _section_hitl(client) -> None:
         if decided.json().get("status") != "approved":
             raise AssertionError("decide status not approved")
 
+        # decide also publishes the relay's acknowledgement signal first (P21) —
+        # drain until the hitl_request status event arrives
         ev2 = _next_hitl()
+        for _ in range(4):
+            if ev2.event == "hitl_request":
+                break
+            ev2 = _next_hitl()
         if ev2.event != "hitl_request" or ev2.data.get("status") != "approved":
             raise AssertionError(f"BUS decide publish miss: {ev2}")
 

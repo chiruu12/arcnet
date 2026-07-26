@@ -27,7 +27,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
                 "agent_id": "agent_j",
                 "name": "Agent J",
                 "exposure": "forward_facing",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
             },
         )
 
@@ -44,14 +44,14 @@ class AgentVersionRegistryTests(unittest.TestCase):
                 "agent_id": "agent_j",
                 "name": "Agent J",
                 "exposure": "forward_facing",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
             },
         )
         created = self.client.post(
             "/api/agents/agent_j/versions",
             json={
                 "version": "2026-07-22.1",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
                 "source_ref": "git:deadbeef",
                 "notes": "baseline",
             },
@@ -70,7 +70,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
         self.assertEqual(tl.status_code, 200)
         data = tl.json()
         self.assertEqual(data["agent_id"], "agent_j")
-        self.assertEqual(data["current_model"], "gpt-4o-mini")
+        self.assertEqual(data["current_model"], "legacy-baseline-v1")
         self.assertTrue(data["versions"])
 
     def test_create_requires_version(self) -> None:
@@ -84,7 +84,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
             json={
                 "session_id": sid,
                 "agent_id": "agent_j",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
                 "status": "completed",
             },
         )
@@ -116,7 +116,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
                 "kind": "note",
                 "severity": "info",
                 "reason": "apply me",
-                "guidance": "Proposed model change for agent_j: gpt-4o-mini → gpt-4o.",
+                "guidance": "Proposed model change for agent_j: legacy-baseline-v1 → gpt-4o.",
                 "source": "hq_agent",
             },
         ).json()
@@ -143,7 +143,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
     def test_apply_model_rejects_cross_agent_session_and_proposal(self) -> None:
         self.client.post(
             "/api/agents",
-            json={"agent_id": "agent_l", "name": "L", "model": "gpt-4o-mini"},
+            json={"agent_id": "agent_l", "name": "L", "model": "legacy-baseline-v1"},
         )
         foreign_sess = self.client.post(
             "/api/sessions",
@@ -151,7 +151,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
                 "agent_id": "agent_l",
                 "scenario": "s1",
                 "goal": "other agent",
-                "model": "gpt-4o-mini",
+                "model": "legacy-baseline-v1",
             },
         ).json()["session_id"]
         foreign_prop = self.client.post(
@@ -196,7 +196,7 @@ class AgentVersionRegistryTests(unittest.TestCase):
         """Duplicate version_id must not leave agents.model bumped without a new row."""
         first = self.client.post(
             "/api/agents/agent_j/apply-model",
-            json={"confirm": True, "model": "gpt-4o-mini", "version": "v-dup-base"},
+            json={"confirm": True, "model": "legacy-baseline-v1", "version": "v-dup-base"},
         )
         self.assertEqual(first.status_code, 200)
         vid = first.json()["version"]["version_id"]
@@ -233,7 +233,7 @@ class HqToolsTests(unittest.TestCase):
         cls.client = TestClient(m.app)
         cls.client.post(
             "/api/agents",
-            json={"agent_id": "agent_j", "name": "J", "model": "gpt-4o-mini"},
+            json={"agent_id": "agent_j", "name": "J", "model": "legacy-baseline-v1"},
         )
         # Point tools at the TestClient ASGI app via httpx transport override:
         # use real server URL pattern by patching _base to talk through TestClient.
@@ -280,7 +280,7 @@ class HqToolsTests(unittest.TestCase):
                 "agent_j",
                 "gpt-4o",
                 "injection_resist upgrade",
-                from_model="gpt-4o-mini",
+                from_model="legacy-baseline-v1",
                 task_type="injection_resist",
             )
             self.assertEqual(prop["source"], "hq_agent")

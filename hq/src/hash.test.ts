@@ -41,7 +41,7 @@ describe("formatHash", () => {
       view: "time_machine",
       agent: "agent_j",
       version: "av_x",
-      model: "gpt-4o-mini",
+      model: "legacy-baseline-v1",
       session: "s_2af44726",
     };
     const raw = formatHash(state);

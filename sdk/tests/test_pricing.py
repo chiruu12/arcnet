@@ -16,7 +16,8 @@ class PricingAlignmentTests(unittest.TestCase):
     def test_shared_model_ids_match_catalog_mtok_rates(self) -> None:
         model_catalog = self._catalog()
         shared = [mid for mid in PRICES if model_catalog.get_model(mid) is not None]
-        self.assertIn("gpt-4o-mini", shared)
+        self.assertIn("gpt-5.6-luna", shared)
+        self.assertIn("legacy-baseline-v1", shared)
         self.assertIn("gpt-4o", shared)
         for model_id in shared:
             inp_per_1k, out_per_1k = PRICES[model_id]
@@ -49,7 +50,7 @@ class PricingAlignmentTests(unittest.TestCase):
 
     def test_anthropic_catalog_ids_resolve_through_pricing(self) -> None:
         model_catalog = self._catalog()
-        absent_from_prices = {"claude-opus-4-8"}
+        absent_from_prices: set[str] = set()
         anthropic_ids = [
             m["id"] for m in model_catalog.MODELS if m.get("provider") == "anthropic"
         ]
@@ -66,7 +67,7 @@ class PricingAlignmentTests(unittest.TestCase):
             inp_per_1k, out_per_1k = PRICES[price_key]
             self.assertAlmostEqual(float(row["input_usd_per_mtok"]), inp_per_1k * 1000.0, places=8)
             self.assertAlmostEqual(float(row["output_usd_per_mtok"]), out_per_1k * 1000.0, places=8)
-        self.assertEqual(absent_from_prices, {"claude-opus-4-8"})
+        self.assertEqual(absent_from_prices, set())
         self.assertEqual(
             CATALOG_ID_ALIASES["claude-haiku-4-5"],
             "claude-haiku-4-5-20251001",

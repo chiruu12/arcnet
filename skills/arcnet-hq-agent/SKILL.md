@@ -47,7 +47,7 @@ hq_tools.case_file_view("s_…")
 hq_tools.replay_compare("s_…")
 hq_tools.griffin_anomalies()  # estimator=mad
 hq_tools.recommend_models("injection_resist", constraints={"session_id": "s_…"})
-hq_tools.propose_model_change("agent_j", "gpt-4o", "S1 resists poorly", from_model="gpt-4o-mini", session_id="s_…")
+hq_tools.propose_model_change("agent_j", "gpt-4o", "S1 resists poorly", from_model="legacy-baseline-v1", session_id="s_…")
 out = hq_tools.apply_model_change("agent_j", "gpt-4o", "2026-07-22.2", confirm=True)  # human-gated
 # out["agentos_reload_required"] is True — restart AgentOS manually
 ```

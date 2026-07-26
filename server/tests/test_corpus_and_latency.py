@@ -73,7 +73,7 @@ class FleetLatencyTests(unittest.TestCase):
         self.conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "ops", "internal", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "ops", "internal", "legacy-baseline-v1", ts, ts),
         )
         # Wall-clock samples: 1000ms and 3000ms
         self.conn.execute(
@@ -139,7 +139,7 @@ class CorpusScorecardTests(unittest.TestCase):
         self.conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "ops", "internal", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "ops", "internal", "legacy-baseline-v1", ts, ts),
         )
         for sid, verdict_name, resisted in (
             ("s_c1", "improved", None),

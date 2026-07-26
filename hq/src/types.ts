@@ -86,28 +86,55 @@ export type AgentModelRow = {
 };
 
 /** Additive model-intelligence payload (docs/27). Cascade list is `models`. */
+export type ModelFit = {
+  score: number;
+  reasons: string[];
+  blockers: string[];
+};
+
 export type ModelCandidate = {
   id: string;
   provider: string;
+  display_name?: string;
+  capability_tier: string;
+  cost_class: string;
   tier: string;
+  status: string;
   input_usd_per_mtok: number;
+  cached_input_usd_per_mtok: number;
   output_usd_per_mtok: number;
   context_window: number;
+  max_output_tokens: number | null;
   reasoning: boolean;
+  reasoning_control?: string;
   strengths: string;
+  caveats: string[];
+  price_verified: string | null;
   projected_cost_usd: number | null;
+  projected_cost_usd_cached: number | null;
   projected_cost_delta: number | null;
   price_label: string;
   is_current: boolean;
+  bucket?: string;
+  fit?: ModelFit;
 };
 
 export type ReasoningRecommendation = {
   recommend: boolean;
   model_id: string;
+  capability_tier?: string;
   tier: string;
-  rationale: string;
-  evidence: Record<string, unknown>;
+  summary?: string;
+  rationale?: string;
+  evidence: Record<string, unknown> | unknown[];
   price_label: string;
+};
+
+export type RecommendationBuckets = {
+  recommended_upgrade: ModelCandidate[];
+  cost_saver: ModelCandidate[];
+  peer: ModelCandidate[];
+  not_advised: ModelCandidate[];
 };
 
 export type AgentModelsResponse = {
@@ -132,7 +159,10 @@ export type AgentModelsResponse = {
     adversarial_replay_count: number;
   };
   baseline_projected_cost_usd: number | null;
+  baseline_projected_cost_usd_cached?: number | null;
   candidates: ModelCandidate[];
+  catalog_highlights?: ModelCandidate[];
+  recommendation_buckets?: RecommendationBuckets;
   reasoning_recommendation: ReasoningRecommendation | null;
   honesty: string;
 };

@@ -54,7 +54,7 @@ def _run(client) -> int:
             "agent_id": "agent_j",
             "name": "Agent J",
             "exposure": "forward_facing",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
         },
     )
     if agent.status_code != 200:
@@ -68,7 +68,7 @@ def _run(client) -> int:
             "agent_id": "agent_j",
             "scenario": "S1",
             "goal": "e2e propose-apply-pin",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
             "status": "completed",
         },
     )
@@ -80,7 +80,7 @@ def _run(client) -> int:
         "/api/agents/agent_j/versions",
         json={
             "version": "e2e.baseline",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
             "source_ref": "scripts/e2e_path_to_95.py",
             "notes": "e2e baseline",
         },
@@ -98,7 +98,7 @@ def _run(client) -> int:
             "severity": "info",
             "reason": "e2e: upgrade for injection_resist",
             "guidance": (
-                "Proposed model change for agent_j: gpt-4o-mini → gpt-4o. "
+                "Proposed model change for agent_j: legacy-baseline-v1 → gpt-4o. "
                 "evidence_refs=agent:agent_j,session:" + sid
             ),
             "source": "hq_agent",

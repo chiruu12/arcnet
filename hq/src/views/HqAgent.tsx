@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, toUserError, type AgentVersionRow } from "../api";
 import { cascadeReducer, emptyCascade, type CascadeState } from "../cascade";
-import { Empty, ViewSeam, ts } from "../components";
-import { formatCostDelta } from "../modelIntel";
+import { Empty, ToonPanel, ViewSeam, ts } from "../components";
+import { formatCostDelta, formatPricePerMtok, bucketLabel } from "../modelIntel";
 import { showingOfTotal } from "../pageLabel";
-import type { AgentModelsResponse, CascadeLink, SignalRow } from "../types";
+import {
+  parseModelProposal,
+  parseModelProposals,
+  proposalStatusClass,
+  type ModelProposal,
+} from "../proposals";
+import { modelIntelToToon, proposalsToToon } from "../toon";
+import type { AgentModelsResponse, CascadeLink, Mode, ModelCandidate, SignalRow } from "../types";
 
 const RUN_HINT =
   'PYTHONPATH=sdk:agents uv run python -m hq_agent "fleet health + griffin MAD + proposals"';
@@ -12,11 +19,141 @@ const RUN_HINT =
 const PROPOSALS_PAGE = 40;
 const VERSIONS_PAGE = 50;
 
-/** Pull trailing model id from proposal guidance like "…: gpt-4o-mini → gpt-4o." */
+/** Pull trailing model id from proposal guidance like "…: legacy-baseline-v1 → gpt-4o." */
 function parseProposedModel(guidance: string | null): string {
   if (!guidance) return "";
-  const m = guidance.match(/→\s*([A-Za-z0-9._-]+)|:\s*([A-Za-z0-9._-]+)\./);
-  return (m?.[1] || m?.[2] || "").trim();
+  const m = guidance.match(/→\s*([A-Za-z0-9._-]+)/);
+  return (m?.[1] ?? "").trim();
+}
+
+function ProposalCard({
+  proposal,
+  selected,
+  busy,
+  onSelect,
+}: {
+  proposal: ModelProposal;
+  selected: boolean;
+  busy: boolean;
+  onSelect: (p: ModelProposal) => void;
+}) {
+  const statusCls = proposalStatusClass(proposal.status);
+  return (
+    <article className={`proposal-card ${selected ? "selected" : ""}`}>
+      <div className="proposal-head">
+        <div className="proposal-migration">
+          {proposal.from_model ? (
+            <>
+              <code>{proposal.from_model}</code>
+              <span className="proposal-arrow">→</span>
+            </>
+          ) : null}
+          <code className="proposal-target">{proposal.to_model ?? "—"}</code>
+        </div>
+        <span className={`proposal-status ${statusCls}`}>{proposal.status}</span>
+      </div>
+      <p className="proposal-reason">{proposal.reason}</p>
+      {proposal.task_type && (
+        <p className="dim">
+          task_type=<code>{proposal.task_type}</code>
+        </p>
+      )}
+      {proposal.evidence_refs.length > 0 && (
+        <div className="chip-row">
+          {proposal.evidence_refs.map((ref) => (
+            <span className="chip" key={ref}>
+              {ref}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="proposal-foot">
+        <span className="dim">{ts(proposal.created_at)}</span>
+        {proposal.status !== "applied" && (
+          <button
+            type="button"
+            className={`btn ${selected ? "" : "ghost"}`}
+            onClick={() => onSelect(proposal)}
+            disabled={busy}
+          >
+            {selected ? "selected" : "select_for_apply()"}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ModelCandidateTable({
+  rows,
+  onPick,
+}: {
+  rows: ModelCandidate[];
+  onPick?: (modelId: string) => void;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>model</th>
+          <th>capability</th>
+          <th>cost class</th>
+          <th>in / cached / out</th>
+          <th>context</th>
+          <th>max out</th>
+          <th>Δ cost</th>
+          <th>status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((c) => (
+          <tr key={c.id} className={c.status === "legacy" ? "legacy-row" : undefined}>
+            <td>
+              <code>{c.id}</code>
+              <div className="chip-row">
+                {c.is_current && <span className="chip">current</span>}
+                {c.reasoning && <span className="chip">reasoning</span>}
+                {c.status === "legacy" && <span className="chip legacy">legacy</span>}
+                {c.status === "preview" && <span className="chip preview">preview</span>}
+                {onPick && !c.is_current && (
+                  <button
+                    type="button"
+                    className="chip chip-btn"
+                    onClick={() => onPick(c.id)}
+                  >
+                    pick_for_apply
+                  </button>
+                )}
+              </div>
+              <div className="dim wrap">{c.strengths}</div>
+              {c.caveats.length > 0 && (
+                <div className="dim wrap">
+                  {c.caveats.map((cv) => (
+                    <div key={cv}>[!] {cv}</div>
+                  ))}
+                </div>
+              )}
+              {c.price_verified && (
+                <div className="dim">verified {c.price_verified}</div>
+              )}
+            </td>
+            <td className="dim">{c.capability_tier || c.tier}</td>
+            <td className="dim">{c.cost_class || "—"}</td>
+            <td className="dim">
+              {formatPricePerMtok(c.input_usd_per_mtok)} /{" "}
+              {formatPricePerMtok(c.cached_input_usd_per_mtok)} /{" "}
+              {formatPricePerMtok(c.output_usd_per_mtok)}
+            </td>
+            <td className="dim">{c.context_window.toLocaleString()}</td>
+            <td className="dim">{c.max_output_tokens?.toLocaleString() ?? "—"}</td>
+            <td className="dim">{formatCostDelta(c.projected_cost_delta)}</td>
+            <td className="dim">{c.status}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 function formatApplyError(e: unknown): string {
@@ -31,9 +168,11 @@ function formatApplyError(e: unknown): string {
 }
 
 export function HqAgent({
+  mode = "human",
   deepLink,
   onDeepLinkChange,
 }: {
+  mode?: Mode;
   deepLink?: CascadeLink;
   onDeepLinkChange?: (next: CascadeLink) => void;
 }) {
@@ -58,6 +197,7 @@ export function HqAgent({
   const [applyConfirm, setApplyConfirm] = useState(false);
   const [pinSessionRequired, setPinSessionRequired] = useState(true);
   const [applyProposalId, setApplyProposalId] = useState<string | null>(null);
+  const [selectedProposal, setSelectedProposal] = useState<ModelProposal | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [reloadBanner, setReloadBanner] = useState<string | null>(null);
   const [pinpoint, setPinpoint] = useState<string | null>(null);
@@ -207,13 +347,53 @@ export function HqAgent({
     setTick((n) => n + 1);
   }
 
-  function prepApply(p: SignalRow) {
-    const model = parseProposedModel(p.guidance);
-    setApplyModel(model);
-    setApplyProposalId(p.signal_id);
+  const parsedProposals = useMemo(
+    () => (proposals ? parseModelProposals(proposals) : []),
+    [proposals],
+  );
+
+  const modelIntelToon = useMemo(
+    () => (modelIntel ? modelIntelToToon(modelIntel) : ""),
+    [modelIntel],
+  );
+
+  const catalogHighlights = useMemo(() => {
+    if (!modelIntel) return [];
+    if (modelIntel.catalog_highlights?.length) return modelIntel.catalog_highlights;
+    const highlightIds = new Set([
+      "kimi-k2.7-code",
+      "kimi-k3",
+      "qwen3.8-max-preview",
+      "qwen3.6-35b-a3b",
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+    ]);
+    return modelIntel.candidates.filter((c) => !c.is_current && highlightIds.has(c.id));
+  }, [modelIntel]);
+
+  const proposalsToon = useMemo(
+    () => proposalsToToon(parsedProposals),
+    [parsedProposals],
+  );
+
+  function prepApplyFromCandidate(modelId: string) {
+    setSelectedProposal(null);
+    setApplyProposalId(null);
+    setApplyModel(modelId);
     setApplyConfirm(false);
-    if (p.session_id && !sessionId) {
-      setCascade((s) => cascadeReducer(s, { type: "set_session", sessionId: p.session_id! }));
+  }
+
+  function prepApply(p: ModelProposal | SignalRow) {
+    const proposal = "to_model" in p ? p : parseModelProposal(p);
+    const model = proposal.to_model ?? parseProposedModel(proposal.guidance);
+    setSelectedProposal(proposal);
+    setApplyModel(model);
+    setApplyProposalId(proposal.signal_id);
+    setApplyConfirm(false);
+    if (proposal.session_id && !sessionId) {
+      setCascade((s) =>
+        cascadeReducer(s, { type: "set_session", sessionId: proposal.session_id! }),
+      );
     }
     if (!applyVersion) {
       const d = new Date();
@@ -268,6 +448,7 @@ export function HqAgent({
       }
       setApplyConfirm(false);
       setApplyProposalId(null);
+      setSelectedProposal(null);
       setCascade((s) =>
         cascadeReducer(s, {
           type: "set_version",
@@ -397,147 +578,213 @@ export function HqAgent({
         </p>
       )}
 
-      <p className="eyebrow">{"// models (catalog projections)"}</p>
-      {modelIntel === null && !err && <p className="lede">loading…</p>}
-      {modelIntel && (
+      {mode === "agent" ? (
         <>
-          <p className="dim" role="status">
-            catalog={modelIntel.catalog_version || "—"} ·{" "}
-            {modelIntel.price_label || "list-price estimate"} · usage_tokens=
-            {modelIntel.usage_evidence.total_tokens} (
-            {modelIntel.usage_evidence.session_count} sessions)
+          <p className="eyebrow">{"// agent_view · toon"}</p>
+          <p className="lede dim">
+            machine-optimal catalog + proposal envelopes — TOON tabular encoding (not JSON).
           </p>
-          {modelIntel.reasoning_recommendation && (
-            <p className="lede">
-              reasoning_rec: <code>{modelIntel.reasoning_recommendation.model_id}</code> (
-              {modelIntel.reasoning_recommendation.tier}) —{" "}
-              {modelIntel.reasoning_recommendation.rationale}
-            </p>
+          {modelIntel === null && !err && <p className="lede">loading model_intel…</p>}
+          {modelIntel && (
+            <ToonPanel title="model_intel.toon" body={modelIntelToon} />
           )}
-          {modelIntel.candidates.length === 0 ? (
-            <Empty hint="no catalog candidates" />
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>model</th>
-                  <th>tier</th>
-                  <th>Δ cost</th>
-                  <th>strengths</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modelIntel.candidates.slice(0, 12).map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      {c.id}
-                      {c.is_current ? " · current" : ""}
-                      {c.reasoning ? " · reasoning" : ""}
-                    </td>
-                    <td className="dim">{c.tier}</td>
-                    <td className="dim">{formatCostDelta(c.projected_cost_delta)}</td>
-                    <td className="dim wrap">{c.strengths}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {proposals === null && !err && <p className="lede">loading proposals…</p>}
+          {proposals && (
+            <ToonPanel title="model_proposals.toon" body={proposalsToon} />
           )}
         </>
-      )}
-
-      <p className="eyebrow">{"// apply_model (human-gated)"}</p>
-      <div className="control-bar">
-        <label>
-          model
-          <input
-            value={applyModel}
-            onChange={(e) => setApplyModel(e.target.value)}
-            placeholder="gpt-4o"
-            spellCheck={false}
-          />
-        </label>
-        <label>
-          version
-          <input
-            value={applyVersion}
-            onChange={(e) => setApplyVersion(e.target.value)}
-            placeholder="2026-07-22.1"
-            spellCheck={false}
-          />
-        </label>
-        <label>
-          source_ref
-          <input
-            value={applySourceRef}
-            onChange={(e) => setApplySourceRef(e.target.value)}
-            placeholder="git sha / prompt path"
-            spellCheck={false}
-          />
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={pinSessionRequired}
-            onChange={(e) => setPinSessionRequired(e.target.checked)}
-          />
-          pin_session
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={applyConfirm}
-            onChange={(e) => setApplyConfirm(e.target.checked)}
-          />
-          confirm
-        </label>
-        <button type="button" className="btn" onClick={submitApply} disabled={busy}>
-          apply
-        </button>
-      </div>
-
-      <p className="eyebrow">{"// model_proposals"}</p>
-      {proposals === null && !err && <p className="lede">loading…</p>}
-      {proposals && proposals.length === 0 && (
-        <Empty hint="no hq_agent proposals — run the agent or call propose_model_change" />
-      )}
-      {proposals && proposals.length > 0 && (
+      ) : (
         <>
-          <p className="dim" role="status">
-            {showingOfTotal(proposals.length, proposalsTotal)}
-          </p>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>time</th>
-                <th>reason</th>
-                <th>guidance</th>
-                <th>status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {proposals.map((p) => (
-                <tr key={p.signal_id}>
-                  <td className="dim">{ts(p.created_at)}</td>
-                  <td className="wrap">{p.reason}</td>
-                  <td className="dim wrap">{p.guidance ?? "—"}</td>
-                  <td>{p.status}</td>
-                  <td>
-                    {p.status !== "applied" && (
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() => prepApply(p)}
-                        disabled={busy}
-                      >
-                        prep_apply
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <p className="eyebrow">{"// models (catalog projections)"}</p>
+          {modelIntel === null && !err && <p className="lede">loading…</p>}
+          {modelIntel && (
+            <>
+              <p className="dim" role="status">
+                catalog={modelIntel.catalog_version || "—"} ·{" "}
+                {modelIntel.price_label || "list-price estimate"} · usage_tokens=
+                {modelIntel.usage_evidence.total_tokens} (
+                {modelIntel.usage_evidence.session_count} sessions)
+              </p>
+              {modelIntel.reasoning_recommendation && (
+                <p className="lede">
+                  reasoning_rec: <code>{modelIntel.reasoning_recommendation.model_id}</code> (
+                  {modelIntel.reasoning_recommendation.capability_tier ??
+                    modelIntel.reasoning_recommendation.tier}
+                  ) —{" "}
+                  {modelIntel.reasoning_recommendation.summary ??
+                    modelIntel.reasoning_recommendation.rationale}
+                </p>
+              )}
+              {modelIntel.candidates.length === 0 ? (
+                <Empty hint="no catalog candidates" />
+              ) : (
+                <>
+                  {catalogHighlights.length > 0 && (
+                <>
+                  <p className="eyebrow">{"// new in catalog"}</p>
+                  <p className="dim step">
+                    {modelIntel.catalog_version || "—"} additions — click a model to prep apply
+                  </p>
+                  <ModelCandidateTable
+                    rows={catalogHighlights}
+                    onPick={prepApplyFromCandidate}
+                  />
+                </>
+              )}
+              {(
+                [
+                  "recommended_upgrade",
+                  "cost_saver",
+                  "peer",
+                  "not_advised",
+                ] as const
+              ).map((bucket) => {
+                const rows =
+                  modelIntel.recommendation_buckets?.[bucket] ??
+                  modelIntel.candidates.filter(
+                    (c) => !c.is_current && (c.bucket ?? "not_advised") === bucket,
+                  );
+                if (rows.length === 0) return null;
+                return (
+                  <div key={bucket}>
+                    <p className="eyebrow">{`// ${bucketLabel(bucket)}`}</p>
+                    <p className="dim" role="status">
+                      {rows.length} model{rows.length === 1 ? "" : "s"}
+                    </p>
+                    <ModelCandidateTable rows={rows} onPick={prepApplyFromCandidate} />
+                  </div>
+                );
+              })}
+                  {modelIntel.candidates.some((c) => c.is_current) && (
+                    <>
+                      <p className="eyebrow">{"// current"}</p>
+                      <ModelCandidateTable
+                        rows={modelIntel.candidates.filter((c) => c.is_current)}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          <p className="eyebrow">{"// model_proposals"}</p>
+          {proposals === null && !err && <p className="lede">loading…</p>}
+          {proposals && proposals.length === 0 && (
+            <Empty hint="no hq_agent proposals — run the agent or call propose_model_change" />
+          )}
+          {proposals && proposals.length > 0 && (
+            <>
+              <p className="dim" role="status">
+                {showingOfTotal(proposals.length, proposalsTotal)} · select a card to prep apply
+              </p>
+              <div className="proposal-grid">
+                {parsedProposals.map((p) => (
+                  <ProposalCard
+                    key={p.signal_id}
+                    proposal={p}
+                    selected={selectedProposal?.signal_id === p.signal_id}
+                    busy={busy}
+                    onSelect={prepApply}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          <p className="eyebrow">{"// apply_model (human-gated)"}</p>
+          <div className="apply-card">
+            {selectedProposal && (
+              <div className="apply-selected">
+                <span className="dim">from proposal</span>
+                <code>{selectedProposal.signal_id.slice(0, 8)}</code>
+                {selectedProposal.from_model && (
+                  <>
+                    <span className="proposal-arrow">→</span>
+                    <code>{selectedProposal.to_model}</code>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setSelectedProposal(null);
+                    setApplyProposalId(null);
+                  }}
+                >
+                  clear
+                </button>
+              </div>
+            )}
+            <div className="apply-migration">
+              {selectedProposal?.from_model && (
+                <>
+                  <code className="apply-from">{selectedProposal.from_model}</code>
+                  <span className="proposal-arrow">→</span>
+                </>
+              )}
+              <input
+                className="apply-model-input"
+                value={applyModel}
+                onChange={(e) => setApplyModel(e.target.value)}
+                placeholder="target model id"
+                spellCheck={false}
+                aria-label="model"
+                list="hq-model-ids"
+              />
+              <datalist id="hq-model-ids">
+                {catalogHighlights.map((c) => (
+                  <option key={`hi-${c.id}`} value={c.id} />
+                ))}
+                {(modelIntel?.candidates ?? [])
+                  .filter((c) => !c.is_current)
+                  .map((c) => (
+                    <option key={c.id} value={c.id} />
+                  ))}
+              </datalist>
+            </div>
+            <div className="apply-fields">
+              <label>
+                version
+                <input
+                  value={applyVersion}
+                  onChange={(e) => setApplyVersion(e.target.value)}
+                  placeholder="2026-07-22.1"
+                  spellCheck={false}
+                />
+              </label>
+              <label>
+                source_ref
+                <input
+                  value={applySourceRef}
+                  onChange={(e) => setApplySourceRef(e.target.value)}
+                  placeholder="git sha / prompt path"
+                  spellCheck={false}
+                />
+              </label>
+            </div>
+            <div className="apply-actions">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={pinSessionRequired}
+                  onChange={(e) => setPinSessionRequired(e.target.checked)}
+                />
+                pin_session
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={applyConfirm}
+                  onChange={(e) => setApplyConfirm(e.target.checked)}
+                />
+                confirm
+              </label>
+              <button type="button" className="btn" onClick={submitApply} disabled={busy}>
+                apply()
+              </button>
+            </div>
+          </div>
         </>
       )}
 

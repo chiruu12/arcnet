@@ -64,14 +64,14 @@ class ReadModelTests(unittest.TestCase):
         ts = now_ms()
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "support/ops", "forward_facing", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "support/ops", "forward_facing", "legacy-baseline-v1", ts, ts),
         )
         conn.execute(
             """INSERT INTO sessions (session_id, agent_id, scenario, goal, model, temperature,
                status, outcome, usage, trace_id, transcript, started_at, ended_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
-                "s_rm", "agent_j", "S1", "check shipping for #4415", "gpt-4o-mini", 0.0,
+                "s_rm", "agent_j", "S1", "check shipping for #4415", "legacy-baseline-v1", 0.0,
                 "failed", json.dumps({"goal_reached": "failed", "exfil_attempts": 1}),
                 json.dumps({"cost_usd": 0.0005}), "trace_rm",
                 json.dumps(_transcript()), ts, ts,

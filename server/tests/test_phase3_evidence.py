@@ -83,7 +83,7 @@ class QueryRangeGoldenFixtureTests(unittest.TestCase):
                     conn.execute(
                         "INSERT INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
                         "VALUES (?,?,?,?,?,?,?)",
-                        ("agent_j", "J", "ops", "internal", "gpt-4o-mini", t, t),
+                        ("agent_j", "J", "ops", "internal", "legacy-baseline-v1", t, t),
                     )
                     conn.execute(
                         "INSERT INTO sessions(session_id, agent_id, scenario, goal, model, temperature, "
@@ -94,7 +94,7 @@ class QueryRangeGoldenFixtureTests(unittest.TestCase):
                             "agent_j",
                             "S1",
                             "g",
-                            "gpt-4o-mini",
+                            "legacy-baseline-v1",
                             0.0,
                             "completed",
                             "{}",

@@ -155,6 +155,10 @@ def seed_fixture(conn: sqlite3.Connection, fixture: dict[str, Any]) -> dict[str,
             counts[table] = 0
             continue
         columns = list(rows[0].keys())
+        # Hero fixture must not clobber seeded agent_versions.model — skip that table.
+        if table == "agent_versions":
+            counts[table] = 0
+            continue
         col_list = ", ".join(columns)
         placeholders = ", ".join("?" * len(columns))
         sql = f"INSERT OR REPLACE INTO {table} ({col_list}) VALUES ({placeholders})"

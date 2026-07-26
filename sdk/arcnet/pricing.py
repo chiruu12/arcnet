@@ -1,10 +1,17 @@
 """Model price constants ($ per 1k tokens). Verified/updated in Phase 0."""
 
-# (input_$/1k, output_$/1k) — OpenAI public pricing as of 2026-07
+# (input_$/1k, output_$/1k) — catalog-aligned as of 2026-07e
 PRICES: dict[str, tuple[float, float]] = {
-    "gpt-4o-mini": (0.00015, 0.0006),
+    "gpt-5.6-luna": (0.001, 0.006),
+    "gpt-5.6-terra": (0.0025, 0.015),
+    "gpt-5.6-sol": (0.005, 0.03),
+    "legacy-baseline-v1": (0.00015, 0.0006),
     "gpt-4o": (0.0025, 0.01),
-    # Anthropic placeholders — fill when ANTHROPIC_API_KEY is funded
+    "claude-opus-5": (0.005, 0.025),
+    "claude-opus-4-8": (0.005, 0.025),
+    "claude-fable-5": (0.01, 0.05),
+    "claude-sonnet-5": (0.002, 0.01),
+    "claude-sonnet-4-6": (0.003, 0.015),
     "claude-haiku-4-5-20251001": (0.001, 0.005),
     "claude-sonnet-4-5-20250929": (0.003, 0.015),
 }
@@ -12,7 +19,6 @@ PRICES: dict[str, tuple[float, float]] = {
 # Bare catalog ids (docs/27 model_catalog) -> dated Anthropic API slugs in PRICES.
 CATALOG_ID_ALIASES: dict[str, str] = {
     "claude-haiku-4-5": "claude-haiku-4-5-20251001",
-    "claude-sonnet-5": "claude-sonnet-4-5-20250929",
 }
 
 

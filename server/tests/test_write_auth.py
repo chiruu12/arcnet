@@ -54,7 +54,7 @@ WRITE_ROUTES: list[tuple[str, str, dict]] = [
     (
         "POST",
         "/api/agents/agent_w/apply-model",
-        {"confirm": True, "model": "gpt-4o-mini", "version": "wa.apply"},
+        {"confirm": True, "model": "legacy-baseline-v1", "version": "wa.apply"},
     ),
     ("POST", "/api/replay", {"session_id": "s_missing", "candidate_model": "gpt-4o"}),
     ("POST", "/api/hitl", {"run_id": "run_wa", "session_id": "s_wa"}),
@@ -100,7 +100,7 @@ class WriteAuthTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_w", "Write Auth Agent", "ops", "internal", "gpt-4o-mini", ts, ts),
+            ("agent_w", "Write Auth Agent", "ops", "internal", "legacy-baseline-v1", ts, ts),
         )
         conn.commit()
 

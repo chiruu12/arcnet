@@ -40,10 +40,10 @@ describe("cascadeReducer", () => {
     const next = cascadeReducer(prev, {
       type: "set_version",
       versionId: "av_1",
-      model: "gpt-4o-mini",
+      model: "legacy-baseline-v1",
     });
     assert.equal(next.versionId, "av_1");
-    assert.equal(next.model, "gpt-4o-mini");
+    assert.equal(next.model, "legacy-baseline-v1");
     assert.equal(next.sessionId, "");
     assert.equal(next.lane, "versioned");
   });

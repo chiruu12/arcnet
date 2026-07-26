@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "arcnet": {
+      "command": "/ABSOLUTE/PATH/TO/arcnet/.venv/bin/arcnet-mcp",
+      "args": [],
+      "env": {
+        "ARCNET_SERVER_URL": "http://localhost:8000"
+      }
+    },
+    "signoz": {
+      "command": "/ABSOLUTE/PATH/TO/arcnet/deploy/mcp/wrap_stdio.sh",
+      "args": [],
+      "env": {
+        "SIGNOZ_URL": "http://localhost:8080"
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@ class HqAgentBuildTests(unittest.TestCase):
         from hq_agent import HQ_TOOLS, build_hq_agent
 
         self.assertGreaterEqual(len(HQ_TOOLS), 10)
-        agent = build_hq_agent(model="gpt-4o-mini")
+        agent = build_hq_agent(model="legacy-baseline-v1")
         self.assertEqual(agent.id, "hq_agent")
         self.assertTrue(agent.pre_hooks)
         self.assertTrue(agent.post_hooks)

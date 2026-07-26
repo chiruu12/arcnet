@@ -90,7 +90,7 @@ Phased plan after founder review ([`16` §11](16-product-review-brief.md)). Goal
 ```bash
 ./scripts/run-demo.sh   # or existing server + seeded DB
 # open http://localhost:5173/#case_files
-# 1) pick agent_j → 2) pick model (e.g. gpt-4o-mini) → 3) pick session (prefer Edgar)
+# 1) pick agent_j → 2) pick model (e.g. legacy-baseline-v1) → 3) pick session (prefer Edgar)
 # export_case_file() downloads zip
 ```
 

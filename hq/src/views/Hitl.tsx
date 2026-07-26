@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, subscribeBus, toUserError } from "../api";
 import { normalizeHitlRow } from "../apiResilience";
-import { Empty, ViewSeam, ts } from "../components";
+import { AgentToonBody, Empty, ViewSeam, ts } from "../components";
 import { HITL_RELAY_HONESTY, hitlPayloadSummary, hitlRelaySummary } from "../hitlUtils";
 import { showingOfTotal } from "../pageLabel";
 import { useRetryToken } from "../viewRetry";
@@ -84,12 +84,12 @@ export function Hitl({ mode }: { mode: Mode }) {
   if (mode === "agent") {
     return (
       <>
-        <p className="eyebrow">{"// agent_view"}</p>
+        <p className="eyebrow">{"// agent_view · toon"}</p>
         <h1>hitl</h1>
         <p className="lede dim">{HITL_RELAY_HONESTY}</p>
         {err && <ViewSeam error={err} onRetry={retry} />}
         {!err && !rows && <p className="lede">loading…</p>}
-        {rows && <pre className="agent-json">{JSON.stringify(rows, null, 2)}</pre>}
+        {rows && <AgentToonBody title="hitl.toon" value={rows} />}
       </>
     );
   }

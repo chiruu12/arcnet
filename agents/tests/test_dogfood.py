@@ -137,7 +137,7 @@ class DogfoodLoopTests(unittest.TestCase):
                                         result = run_dogfood_iteration(
                                             task,
                                             server_url="http://127.0.0.1:9",
-                                            model="gpt-4o-mini",
+                                            model="legacy-baseline-v1",
                                         )
         self.assertEqual(result["agent_id"], "agent_l")
         self.assertEqual(result["kind"], "order_status")

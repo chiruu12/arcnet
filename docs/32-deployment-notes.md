@@ -11,7 +11,7 @@ Overall readiness stays **~64% / ≤65%** ([`docs/20-honest-progress.md`](20-hon
 | `ARCNET_DB_PATH` | `data/arcnet.db` | SQLite file path. Single-writer, single-file — no HA, no replication. |
 | `ARCNET_SERVER_URL` | `http://localhost:8000` | Base URL for SDK signal client, HQ, and tooling. |
 | `ARCNET_AGENTOS_URL` | `http://localhost:7777` | AgentOS replay adapter (`/internal/replay`, `/internal/runtime` probe after apply-model). |
-| `ARCNET_MODEL` | `gpt-4o-mini` | Baseline model id for agents and pricing lookups. |
+| `ARCNET_MODEL` | `gpt-5.6-luna` | Baseline model id for agents and pricing lookups. |
 | `ARCNET_CANDIDATE_MODEL` | `gpt-4o` | Time Machine candidate model id. |
 | `ARCNET_WRITE_SECRET` | *(unset)* | When set: all mutating `POST` routes require `X-Arcnet-Write-Secret` or `Authorization: Bearer …`. When unset: **localhost-trust** — writes open (demo default). |
 | `ARCNET_WEBHOOK_SECRET` | *(unset)* | When set: `POST /webhooks/signoz` requires `X-ArcNet-Webhook-Secret` or Bearer. **Separate from write secret** — configure SigNoz Alertmanager with the matching header. |

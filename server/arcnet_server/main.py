@@ -19,7 +19,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
-from arcnet_server import read_models, repository
+from arcnet_server import model_catalog, otlp_ingest, read_models, repository
+from arcnet_server.toon import envelope_to_toon, encode_toon
 from arcnet_server.bus import BUS
 from arcnet_server.db import connect, init_db, now_ms, row_to_dict
 from arcnet_server.errors import api_error, infer_hint, normalize_error_body
@@ -72,6 +73,59 @@ def _page_headers(response: Response, *, total: int, limit: int, offset: int) ->
     response.headers["X-Total-Count"] = str(total)
     response.headers["X-Limit"] = str(limit)
     response.headers["X-Offset"] = str(offset)
+
+
+def _agent_view_out(envelope: dict[str, Any], *, format: str) -> Any:
+    """JSON envelope (default) or TOON text for agent-view twins."""
+    # handlers are also called directly (tests); format is then the Query default object
+    fmt = ((format if isinstance(format, str) else "") or "json").strip().lower()
+    if fmt == "toon":
+        return Response(
+            content=envelope_to_toon(envelope),
+            media_type="text/toon; charset=utf-8",
+        )
+    if fmt != "json":
+        raise api_error(
+            400,
+            f"unknown format '{format}'",
+            hint="use format=json or format=toon",
+        )
+    return envelope
+
+
+def _list_out(rows: list[Any], *, format: str) -> Any:
+    """JSON array (default) or TOON text for tabular agent list endpoints."""
+    # handlers are also called directly (tests); format is then the Query default object
+    fmt = ((format if isinstance(format, str) else "") or "json").strip().lower()
+    if fmt == "toon":
+        return Response(
+            content=encode_toon(rows),
+            media_type="text/toon; charset=utf-8",
+        )
+    if fmt != "json":
+        raise api_error(
+            400,
+            f"unknown format '{format}'",
+            hint="use format=json or format=toon",
+        )
+    return rows
+
+
+def _payload_out(payload: dict[str, Any], *, format: str) -> Any:
+    """JSON or TOON for non-envelope agent payloads (model-intel, catalog)."""
+    fmt = (format or "json").strip().lower()
+    if fmt == "toon":
+        return Response(
+            content=encode_toon(payload),
+            media_type="text/toon; charset=utf-8",
+        )
+    if fmt != "json":
+        raise api_error(
+            400,
+            f"unknown format '{format}'",
+            hint="use format=json or format=toon",
+        )
+    return payload
 
 
 def _log_localhost_trust_once() -> None:
@@ -273,6 +327,22 @@ async def post_signal(request: Request) -> dict[str, Any]:
     return _insert_signal(body)
 
 
+@app.post("/v1/traces")
+async def otlp_traces(request: Request) -> Response:
+    """Standard OTLP/HTTP trace endpoint — any OpenInference-instrumented framework (docs/36)."""
+    require_write_auth(request)
+    body = await request.body()
+    content_type = request.headers.get("content-type", "")
+    summary = otlp_ingest.ingest(get_conn(), body, content_type)
+    if content_type.split(";")[0].strip().lower() == "application/json":
+        return JSONResponse({"partialSuccess": {}, "arcnet": summary})
+    return Response(
+        content=otlp_ingest.success_response_body(),
+        media_type="application/x-protobuf",
+        headers={"X-Arcnet-Accepted-Spans": str(summary["accepted_spans"])},
+    )
+
+
 # ---------------------------------------------------------------- human read side (dashboards)
 
 
@@ -325,7 +395,10 @@ def list_sessions(
 
 
 @app.get("/api/agents/{agent_id}/models")
-def list_agent_models(agent_id: str) -> list[dict[str, Any]]:
+def list_agent_models(
+    agent_id: str,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+) -> Any:
     """Distinct models for cascade pickers (docs/12 additive)."""
     conn = get_conn()
     if repository.get_agent(conn, agent_id) is None:
@@ -334,11 +407,15 @@ def list_agent_models(agent_id: str) -> list[dict[str, Any]]:
             f"agent {agent_id} not found",
             hint="list agents via GET /api/fleet",
         )
-    return repository.list_agent_models(conn, agent_id)
+    rows = repository.list_agent_models(conn, agent_id)
+    return _list_out(rows, format=format)
 
 
 @app.get("/api/agents/{agent_id}/model-intel")
-def agent_model_intel(agent_id: str) -> dict[str, Any]:
+def agent_model_intel(
+    agent_id: str,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+) -> Any:
     """Catalog projections + evidence-grounded recommendation (docs/27, additive endpoint)."""
     conn = get_conn()
     if repository.get_agent(conn, agent_id) is None:
@@ -348,13 +425,51 @@ def agent_model_intel(agent_id: str) -> dict[str, Any]:
             hint="list agents via GET /api/fleet",
         )
     observed = repository.list_agent_models(conn, agent_id)
-    return read_models.agent_model_intelligence(conn, agent_id, observed=observed)
+    payload = read_models.agent_model_intelligence(conn, agent_id, observed=observed)
+    return _payload_out(payload, format=format)
+
+
+@app.get("/api/models/catalog")
+def models_catalog(
+    provider: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    capability_tier: str | None = Query(default=None),
+    min_context: int | None = Query(default=None, ge=0),
+    reasoning: bool | None = Query(default=None),
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+) -> Any:
+    """Static model catalog with optional filters (docs/27, additive)."""
+    models = model_catalog.list_models(
+        provider=provider,
+        status=status,
+        capability_tier=capability_tier,
+        min_context=min_context,
+        reasoning=reasoning,
+    )
+    payload = {
+        "catalog_version": model_catalog.catalog_version(),
+        "price_label": model_catalog.price_label(),
+        "count": len(models),
+        "models": models,
+        "filters": {
+            "provider": provider,
+            "status": status,
+            "capability_tier": capability_tier,
+            "min_context": min_context,
+            "reasoning": reasoning,
+        },
+    }
+    return _payload_out(payload, format=format)
 
 
 @app.get("/api/agents/{agent_id}/versions/timeline")
-def agent_versions_timeline(agent_id: str) -> dict[str, Any]:
+def agent_versions_timeline(
+    agent_id: str,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+) -> Any:
     """HQ Agent version timeline (docs/18)."""
-    return repository.agent_version_timeline(get_conn(), agent_id)
+    payload = repository.agent_version_timeline(get_conn(), agent_id)
+    return _payload_out(payload, format=format)
 
 
 @app.get("/api/agents/{agent_id}/versions")
@@ -363,11 +478,13 @@ def list_agent_versions(
     response: Response,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-) -> list[dict[str, Any]]:
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+) -> Any:
     conn = get_conn()
     total = repository.count_agent_versions(conn, agent_id)
     _page_headers(response, total=total, limit=limit, offset=offset)
-    return repository.list_agent_versions(conn, agent_id, limit=limit, offset=offset)
+    rows = repository.list_agent_versions(conn, agent_id, limit=limit, offset=offset)
+    return _list_out(rows, format=format)
 
 
 def _require_session_for_agent(conn: Any, session_id: str, agent_id: str) -> dict[str, Any]:
@@ -694,7 +811,7 @@ async def post_replay_corpus(request: Request) -> dict[str, Any]:
 
 
 @app.get("/api/agent-view/replay/{replay_id}")
-def replay_agent_view(replay_id: str) -> dict[str, Any]:
+def replay_agent_view(replay_id: str, format: str = Query(default="json", pattern="^(json|toon)$")) -> Any:
     replay = repository.get_replay(get_conn(), replay_id)
     if replay is None:
         raise api_error(
@@ -705,7 +822,7 @@ def replay_agent_view(replay_id: str) -> dict[str, Any]:
     session_id = replay.get("session_id")
     session = repository.get_session(get_conn(), str(session_id)) if session_id else None
     agent_id = (session or {}).get("agent_id")
-    return read_models.envelope(
+    return _agent_view_out(read_models.envelope(
         "replay",
         replay_id,
         replay["verdict"],
@@ -716,11 +833,220 @@ def replay_agent_view(replay_id: str) -> dict[str, Any]:
             session_id=str(session_id) if session_id else None,
             replay_id=replay_id,
         ),
+    ), format=format)
+
+
+@app.get("/api/agent-view/sources")
+def agent_view_sources_query(
+    response: Response,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+    agent_id: str | None = Query(default=None),
+    session_id: str | None = Query(default=None),
+    limit: int = Query(default=40, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> Any:
+    """Canonical paginated sources view (additive; path route remains deprecated alias)."""
+    ref_id = (session_id or agent_id or "").strip()
+    if not ref_id:
+        raise api_error(
+            400,
+            "agent_id or session_id required",
+            hint="GET /api/agent-view/sources?agent_id=agent_j",
+        )
+    conn = get_conn()
+    if not repository.session_or_agent_exists(conn, ref_id):
+        raise api_error(
+            404,
+            f"no agent or session '{ref_id}'",
+            hint="list sessions via GET /api/sessions or agents via GET /api/fleet",
+        )
+    data = read_models.agent_sources_data(conn, ref_id=ref_id, limit=limit, offset=offset)
+    _page_headers(response, total=int(data["total"]), limit=limit, offset=offset)
+    session = repository.get_session(conn, ref_id)
+    agent = repository.get_agent(conn, ref_id)
+    return _agent_view_out(read_models.envelope(
+        "sources",
+        ref_id,
+        data,
+        trace_id=session.get("trace_id") if session else None,
+        human_view="/sources_trust",
+        extra_links=read_models.graph_links(
+            agent_id=str(agent["agent_id"]) if agent else None,
+            session_id=str(session["session_id"]) if session else None,
+        ),
+    ), format=format)
+
+
+@app.get("/api/agent-view/threats")
+def agent_view_threats_query(
+    response: Response,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+    agent_id: str | None = Query(default=None),
+    session_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> Any:
+    ref_id = (session_id or agent_id or "all").strip() or "all"
+    conn = get_conn()
+    try:
+        data = read_models.agent_threats_data(
+            conn, ref_id=ref_id, limit=limit, offset=offset
+        )
+    except LookupError:
+        raise api_error(
+            404,
+            f"no agent or session '{ref_id}'",
+            hint="use agent_id=, session_id=, or omit both for fleet",
+        )
+    _page_headers(response, total=int(data["total"]), limit=limit, offset=offset)
+    session = repository.get_session(conn, ref_id) if ref_id != "all" else None
+    agent = (
+        repository.get_agent(conn, ref_id)
+        if ref_id != "all" and session is None
+        else None
     )
+    return _agent_view_out(read_models.envelope(
+        "threats",
+        ref_id,
+        data,
+        trace_id=session.get("trace_id") if session else None,
+        human_view="/fleet_health",
+        extra_links=read_models.graph_links(
+            agent_id=str(agent["agent_id"]) if agent else (ref_id if data["scope"] == "agent" else None),
+            session_id=str(session["session_id"]) if session else (ref_id if data["scope"] == "session" else None),
+        ),
+    ), format=format)
+
+
+@app.get("/api/agent-view/signals")
+def agent_view_signals_query(
+    response: Response,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+    agent_id: str | None = Query(default=None),
+    session_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> Any:
+    conn = get_conn()
+    if not agent_id and not session_id:
+        data = read_models.agent_signals_fleet_data(conn, limit=limit, offset=offset)
+        _page_headers(response, total=int(data["total"]), limit=limit, offset=offset)
+        return _agent_view_out(read_models.envelope(
+            "signals",
+            "all",
+            data,
+            trace_id=None,
+            human_view="/signals",
+        ), format=format)
+    ref_id = (session_id or agent_id or "").strip()
+    session = repository.get_session(conn, ref_id)
+    agent = repository.get_agent(conn, ref_id)
+    if session is None and agent is None:
+        raise api_error(404, f"no agent or session '{ref_id}'")
+    is_session = session is not None
+    data = read_models.agent_signals_data(
+        conn, ref_id=ref_id, is_session=is_session, limit=limit, offset=offset
+    )
+    _page_headers(response, total=int(data["total"]), limit=limit, offset=offset)
+    return _agent_view_out(read_models.envelope(
+        "signals",
+        ref_id,
+        data,
+        trace_id=session.get("trace_id") if session else None,
+        human_view="/signals" if not is_session else f"/signals?session={ref_id}",
+        extra_links=read_models.graph_links(
+            agent_id=str(agent["agent_id"]) if agent else None,
+            session_id=str(session["session_id"]) if session else None,
+        ),
+    ), format=format)
+
+
+@app.get("/api/agent-view/hitl")
+def agent_view_hitl_query(
+    response: Response,
+    format: str = Query(default="json", pattern="^(json|toon)$"),
+    session_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> Any:
+    ref_id = (session_id or "all").strip() or "all"
+    conn = get_conn()
+    if ref_id != "all" and repository.get_session(conn, ref_id) is None:
+        raise api_error(404, f"session {ref_id} not found")
+    try:
+        data = read_models.agent_hitl_data(conn, ref_id=ref_id, limit=limit, offset=offset)
+    except LookupError:
+        raise api_error(404, f"unknown hitl scope '{ref_id}'")
+    _page_headers(response, total=int(data["total"]), limit=limit, offset=offset)
+    session = repository.get_session(conn, ref_id) if ref_id != "all" else None
+    return _agent_view_out(read_models.envelope(
+        "hitl",
+        ref_id,
+        data,
+        trace_id=session.get("trace_id") if session else None,
+        human_view="/hitl",
+        extra_links=read_models.graph_links(
+            session_id=str(session["session_id"]) if session else None,
+        ),
+    ), format=format)
+
+
+@app.get("/api/agent-view/home")
+def agent_view_home_parameterless(format: str = Query(default="json", pattern="^(json|toon)$")) -> Any:
+    """Parameterless home alias (additive; /home/all path route deprecated)."""
+    conn = get_conn()
+    data = read_models.agent_home_data(conn)
+    return _agent_view_out(read_models.envelope(
+        "home",
+        "all",
+        data,
+        trace_id=None,
+        human_view="/",
+        extra_links={
+            "fleet_health": "/api/agent-view/fleet_health/all",
+            "griffin_status": "/api/griffin/status",
+        },
+    ), format=format)
+
+
+@app.get("/api/agent-view/dashboards")
+def agent_view_dashboards_parameterless(format: str = Query(default="json", pattern="^(json|toon)$")) -> Any:
+    """Parameterless dashboards alias (additive; /dashboards/all deprecated)."""
+    status = _signoz_status_payload()
+    ui_ok = bool(status.get("ui_reachable"))
+    data = {
+        "signoz": status,
+        "note": (
+            "HQ dashboards are a launcher + status probe. "
+            "Use SigNoz UI deep-links or SigNoz MCP for query depth."
+        ),
+        "status_api": "/api/signoz/status",
+        "links": {
+            "signoz_ui": status.get("signoz_url"),
+            "status_api": "/api/signoz/status",
+        },
+        "degraded": not ui_ok,
+        "degraded_reason": (
+            None
+            if ui_ok
+            else "SigNoz UI unreachable — dashboards deep-links may fail; SQLite-primary views still work"
+        ),
+    }
+    return _agent_view_out(read_models.envelope(
+        "dashboards",
+        "status",
+        data,
+        trace_id=None,
+        human_view="/dashboards",
+        extra_links={
+            "signoz_ui": status.get("signoz_url"),
+            "signoz_status": "/api/signoz/status",
+        },
+    ), format=format)
 
 
 @app.get("/api/agent-view/{view}/{id}")
-def agent_view(view: str, id: str) -> dict[str, Any]:
+def agent_view(view: str, id: str, format: str = Query(default="json", pattern="^(json|toon)$")) -> Any:
     """Machine-optimal twin of any HQ view (docs/12). replay has its own route."""
     conn = get_conn()
 
@@ -739,7 +1065,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 hint="use id=all",
             )
         data = read_models.agent_home_data(conn)
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "home",
             id,
             data,
@@ -749,19 +1075,19 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 "fleet_health": "/api/agent-view/fleet_health/all",
                 "griffin_status": "/api/griffin/status",
             },
-        )
+        ), format=format)
 
     if view in ("fleet", "fleet_health"):
         view_name = "fleet_health" if view == "fleet_health" else "fleet"
         data = read_models.agent_fleet_health_data(conn)
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             view_name,
             id,
             data,
             trace_id=None,
             human_view="/fleet_health",
             extra_links={"threats": "/api/agent-view/threats/all"},
-        )
+        ), format=format)
 
     if view in ("sources", "sources_trust"):
         view_name = "sources_trust" if view == "sources_trust" else "sources"
@@ -770,7 +1096,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
         session = repository.get_session(conn, id)
         agent = repository.get_agent(conn, id)
         data = read_models.agent_sources_data(conn, ref_id=id)
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             view_name,
             id,
             data,
@@ -780,7 +1106,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 agent_id=str(agent["agent_id"]) if agent else None,
                 session_id=str(session["session_id"]) if session else None,
             ),
-        )
+        ), format=format)
 
     if view == "threats":
         try:
@@ -789,7 +1115,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
             _no_ref()
         session = repository.get_session(conn, id) if id != "all" else None
         agent = repository.get_agent(conn, id) if id != "all" and session is None else None
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "threats",
             id,
             data,
@@ -799,7 +1125,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 agent_id=str(agent["agent_id"]) if agent else (id if data["scope"] == "agent" else None),
                 session_id=str(session["session_id"]) if session else (id if data["scope"] == "session" else None),
             ),
-        )
+        ), format=format)
 
     if view == "hitl":
         if id != "all" and repository.get_session(conn, id) is None:
@@ -810,7 +1136,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
             )
         data = read_models.agent_hitl_data(conn, ref_id=id)
         session = repository.get_session(conn, id) if id != "all" else None
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "hitl",
             id,
             data,
@@ -819,7 +1145,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
             extra_links=read_models.graph_links(
                 session_id=str(session["session_id"]) if session else None,
             ),
-        )
+        ), format=format)
 
     if view == "hq_agent":
         try:
@@ -830,21 +1156,21 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 f"agent {id} not found",
                 hint="list agents via GET /api/fleet",
             )
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "hq_agent",
             id,
             data,
             trace_id=None,
             human_view="/hq_agent",
             extra_links=read_models.graph_links(agent_id=id),
-        )
+        ), format=format)
 
     if view == "case_files":
         session = _require_session(id)
         agent_id = session.get("agent_id")
         replay = repository.latest_replay_for_session(conn, id)
         data = read_models.agent_case_files_data(conn, session)
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "case_files",
             id,
             data,
@@ -855,7 +1181,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 session_id=id,
                 replay_id=replay.get("replay_id") if replay else None,
             ),
-        )
+        ), format=format)
 
     if view == "time_machine":
         try:
@@ -871,7 +1197,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
         sid = data.get("session_id") or (session or {}).get("session_id") or id
         sess_row = repository.get_session(conn, str(sid)) if sid else None
         agent_id = (sess_row or {}).get("agent_id")
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "time_machine",
             id,
             data,
@@ -882,15 +1208,18 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 session_id=str(sid) if sid else None,
                 replay_id=id if replay else data.get("latest_replay_id"),
             ),
-        )
+        ), format=format)
 
     if view == "incident":
-        return read_models.incident_envelope(conn, _require_session(id))
+        return _agent_view_out(
+            read_models.incident_envelope(conn, _require_session(id)),
+            format=format,
+        )
 
     if view == "session":
         session = _require_session(id)
         agent_id = session.get("agent_id")
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "session",
             id,
             read_models.agent_session_context(session),
@@ -900,12 +1229,12 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 agent_id=str(agent_id) if agent_id else None,
                 session_id=id,
             ),
-        )
+        ), format=format)
 
     if view == "check":
         session = _require_session(id)
         agent_id = session.get("agent_id")
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "check",
             id,
             read_models.session_check_data(conn, session),
@@ -915,25 +1244,25 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 agent_id=str(agent_id) if agent_id else None,
                 session_id=id,
             ),
-        )
+        ), format=format)
 
     if view == "signals":
         if id == "all":
             data = read_models.agent_signals_fleet_data(conn)
-            return read_models.envelope(
+            return _agent_view_out(read_models.envelope(
                 "signals",
                 id,
                 data,
                 trace_id=None,
                 human_view="/signals",
-            )
+            ), format=format)
         session = repository.get_session(conn, id)
         agent = repository.get_agent(conn, id)
         if session is None and agent is None:
             _no_ref()
         is_session = session is not None
         data = read_models.agent_signals_data(conn, ref_id=id, is_session=is_session)
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "signals",
             id,
             data,
@@ -943,7 +1272,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 agent_id=str(agent["agent_id"]) if agent else None,
                 session_id=str(session["session_id"]) if session else None,
             ),
-        )
+        ), format=format)
 
     if view == "dashboards":
         if id not in ("all", "status"):
@@ -953,6 +1282,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 hint="use id=all or id=status",
             )
         status = _signoz_status_payload()
+        ui_ok = bool(status.get("ui_reachable"))
         data = {
             "signoz": status,
             "note": (
@@ -964,8 +1294,14 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 "signoz_ui": status.get("signoz_url"),
                 "status_api": "/api/signoz/status",
             },
+            "degraded": not ui_ok,
+            "degraded_reason": (
+                None
+                if ui_ok
+                else "SigNoz UI unreachable — dashboards deep-links may fail; SQLite-primary views still work"
+            ),
         }
-        return read_models.envelope(
+        return _agent_view_out(read_models.envelope(
             "dashboards",
             id,
             data,
@@ -975,7 +1311,7 @@ def agent_view(view: str, id: str) -> dict[str, Any]:
                 "signoz_ui": status.get("signoz_url"),
                 "signoz_status": "/api/signoz/status",
             },
-        )
+        ), format=format)
 
     raise api_error(
         404,

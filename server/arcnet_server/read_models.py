@@ -93,6 +93,46 @@ def graph_links(
     return out
 
 
+def _envelope_hints(
+    view: str,
+    id_: str,
+    *,
+    trace_id: str | None,
+) -> dict[str, str]:
+    """View-aware evidence hints — dashboards/home must not emit session trace_id noise."""
+    if view == "dashboards":
+        return {
+            "raw_evidence": (
+                "Dashboards view is a SigNoz launcher + status probe. "
+                "Prefer GET /api/signoz/status for ui_reachable and query_range health; "
+                "deep-link via links.signoz_ui. Do not block on SigNoz MCP stdio."
+            ),
+            "signoz_status": "/api/signoz/status",
+        }
+    if view in ("home", "fleet", "fleet_health"):
+        return {
+            "raw_evidence": (
+                "Fleet/home views are SQLite-primary. "
+                "Use GET /api/signoz/status before assuming trace depth; "
+                "session-scoped evidence via GET /api/signoz/evidence?session_id=<id>."
+            ),
+        }
+    if trace_id:
+        return {
+            "raw_evidence": (
+                f"Prefer HTTP: GET /api/signoz/evidence?session_id={id_} + links.signoz_trace "
+                f"+ Query Range curl (docs/04). Optional MCP: signoz_get_trace_details"
+                f"(trace_id='{trace_id}') — do not block if MCP stdio hangs."
+            ),
+        }
+    return {
+        "raw_evidence": (
+            "Evidence is SQLite-primary; no trace_id was recorded for this record. "
+            "Prefer HTTP: Case File + GET /api/signoz/status / evidence — not MCP."
+        ),
+    }
+
+
 def envelope(
     view: str,
     id_: str,
@@ -118,17 +158,7 @@ def envelope(
         "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "data": data,
         "links": links,
-        "hints": {
-            "raw_evidence": (
-                # Prefer HTTP / Query Range before SigNoz MCP (stdio may hang — Phase 3).
-                f"Prefer HTTP: GET /api/signoz/evidence?session_id={id_} + links.signoz_trace "
-                f"+ Query Range curl (docs/04). Optional MCP: signoz_get_trace_details"
-                f"(trace_id='{trace_id}') — do not block if MCP stdio hangs."
-                if trace_id
-                else "Evidence is SQLite-primary; no trace_id was recorded for this record. "
-                "Prefer HTTP: Case File + GET /api/signoz/status / evidence — not MCP."
-            )
-        },
+        "hints": _envelope_hints(view, id_, trace_id=trace_id),
     }
 
 
@@ -379,31 +409,50 @@ def agent_signals_data(
     *,
     ref_id: str,
     is_session: bool,
+    limit: int = SIGNAL_LIST_CAP,
+    offset: int = 0,
 ) -> dict[str, Any]:
     if is_session:
-        rows = repository.list_signals(conn, session_id=ref_id, limit=SIGNAL_LIST_CAP)
         total = repository.count_signals(conn, session_id=ref_id)
+        rows = repository.list_signals(
+            conn, session_id=ref_id, limit=limit, offset=offset
+        )
     else:
-        rows = repository.list_signals(conn, agent_id=ref_id, limit=SIGNAL_LIST_CAP)
         total = repository.count_signals(conn, agent_id=ref_id)
+        rows = repository.list_signals(
+            conn, agent_id=ref_id, limit=limit, offset=offset
+        )
+    has_more = offset + len(rows) < total
     return {
         "ref": ref_id,
         "scope": "session" if is_session else "agent",
         "signals": [_signal_agent_row(r) for r in rows],
         "total": total,
-        "truncated": total > len(rows),
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "truncated": has_more or total > len(rows),
     }
 
 
-def agent_signals_fleet_data(conn: sqlite3.Connection) -> dict[str, Any]:
-    rows = repository.list_signals(conn, limit=SIGNAL_LIST_CAP)
+def agent_signals_fleet_data(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = SIGNAL_LIST_CAP,
+    offset: int = 0,
+) -> dict[str, Any]:
     total = repository.count_signals(conn)
+    rows = repository.list_signals(conn, limit=limit, offset=offset)
+    has_more = offset + len(rows) < total
     return {
         "ref": "all",
         "scope": "fleet",
         "signals": [_signal_agent_row(r) for r in rows],
         "total": total,
-        "truncated": total > len(rows),
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "truncated": has_more or total > len(rows),
     }
 
 
@@ -592,13 +641,41 @@ def _source_agent_row(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def agent_sources_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
-    rows = repository.sources_for_ref(conn, ref_id, limit=SOURCE_LIST_CAP)
+def agent_sources_data(
+    conn: sqlite3.Connection,
+    *,
+    ref_id: str,
+    limit: int = SOURCE_LIST_CAP,
+    offset: int = 0,
+) -> dict[str, Any]:
+    session = repository.get_session(conn, ref_id)
+    agent = repository.get_agent(conn, ref_id)
+    if session is not None:
+        total = repository.count_sources(conn, session_id=ref_id)
+        rows = repository.list_sources(
+            conn, session_id=ref_id, limit=limit, offset=offset
+        )
+        scope = "session"
+    elif agent is not None:
+        total = repository.count_sources(conn, agent_id=ref_id)
+        rows = repository.list_sources(
+            conn, agent_id=ref_id, limit=limit, offset=offset
+        )
+        scope = "agent"
+    else:
+        rows = repository.sources_for_ref(conn, ref_id, limit=limit)
+        total = len(rows)
+        scope = "ref"
+    has_more = offset + len(rows) < total
     return {
         "ref": ref_id,
+        "scope": scope,
         "sources": [_source_agent_row(r) for r in rows],
-        "total": len(rows),
-        "truncated": len(rows) >= SOURCE_LIST_CAP,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "truncated": has_more or len(rows) >= limit,
         "note": "bounded excerpts only — use human /api/sources for full ledger",
     }
 
@@ -628,28 +705,40 @@ def _threat_agent_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def agent_threats_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
+def agent_threats_data(
+    conn: sqlite3.Connection,
+    *,
+    ref_id: str,
+    limit: int = THREAT_LIST_CAP,
+    offset: int = 0,
+) -> dict[str, Any]:
     if ref_id == "all":
-        rows = repository.list_threats(conn, limit=THREAT_LIST_CAP)
         total = repository.count_threats(conn)
+        rows = repository.list_threats(conn, limit=limit, offset=offset)
         scope = "fleet"
     elif repository.get_session(conn, ref_id) is not None:
         all_rows = repository.threats_for_session(conn, ref_id)
-        rows = all_rows[:THREAT_LIST_CAP]
         total = len(all_rows)
+        rows = all_rows[offset : offset + limit]
         scope = "session"
     elif repository.get_agent(conn, ref_id) is not None:
-        rows = repository.list_threats(conn, agent_id=ref_id, limit=THREAT_LIST_CAP)
         total = repository.count_threats(conn, agent_id=ref_id)
+        rows = repository.list_threats(
+            conn, agent_id=ref_id, limit=limit, offset=offset
+        )
         scope = "agent"
     else:
         raise LookupError(ref_id)
+    has_more = offset + len(rows) < total
     return {
         "ref": ref_id,
         "scope": scope,
         "threats": [_threat_agent_row(r) for r in rows],
         "total": total,
-        "truncated": total > len(rows),
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "truncated": has_more or total > len(rows),
     }
 
 
@@ -671,23 +760,35 @@ def _hitl_agent_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def agent_hitl_data(conn: sqlite3.Connection, *, ref_id: str) -> dict[str, Any]:
+def agent_hitl_data(
+    conn: sqlite3.Connection,
+    *,
+    ref_id: str,
+    limit: int = HITL_LIST_CAP,
+    offset: int = 0,
+) -> dict[str, Any]:
     if ref_id == "all":
-        rows = repository.list_hitl(conn, limit=HITL_LIST_CAP)
         total = repository.count_hitl(conn)
+        rows = repository.list_hitl(conn, limit=limit, offset=offset)
         scope = "fleet"
     elif repository.get_session(conn, ref_id) is not None:
-        rows = repository.list_hitl(conn, session_id=ref_id, limit=HITL_LIST_CAP)
         total = repository.count_hitl(conn, session_id=ref_id)
+        rows = repository.list_hitl(
+            conn, session_id=ref_id, limit=limit, offset=offset
+        )
         scope = "session"
     else:
         raise LookupError(ref_id)
+    has_more = offset + len(rows) < total
     return {
         "ref": ref_id,
         "scope": scope,
         "requests": [_hitl_agent_row(r) for r in rows],
         "total": total,
-        "truncated": total > len(rows),
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "truncated": has_more or total > len(rows),
         "relay_honesty": (
             "Reject posts kill on the signal bus and relays to AgentOS when "
             "ARCNET_AGENTOS_URL is set; approve is acknowledgement-only — no live "
@@ -919,57 +1020,318 @@ def reasoning_recommendation_from_evidence(
     workload: dict[str, Any],
 ) -> dict[str, Any] | None:
     """Recommend a reasoning-tier model when recorded workload looks hard/adversarial."""
-    threat_rate = float(workload.get("threat_rate") or 0.0)
     threat_count = int(workload.get("threat_count") or 0)
     session_count = int(workload.get("session_count") or 0)
     adv = int(workload.get("adversarial_replay_count") or 0)
     replay_count = int(workload.get("replay_count") or 0)
     verdict_counts = workload.get("verdict_counts") or {}
 
+    threats_per_session = (
+        round(threat_count / session_count, 4) if session_count > 0 else 0.0
+    )
+    sessions_with_threats = min(threat_count, session_count) if session_count else 0
+    threat_session_rate = (
+        round(sessions_with_threats / session_count, 4) if session_count > 0 else 0.0
+    )
+
     hard = False
-    bits: list[str] = []
-    # Thresholds grounded only in recorded counts (docs/27).
-    if session_count > 0 and threat_rate >= 0.25 and threat_count >= 1:
+    evidence_entries: list[dict[str, Any]] = []
+    if session_count > 0 and threats_per_session >= 0.25 and threat_count >= 1:
         hard = True
-        bits.append(
-            f"recorded threat_rate={threat_rate:.2f} "
-            f"({threat_count} threats / {session_count} sessions)"
+        evidence_entries.append(
+            {
+                "kind": "threat_density",
+                "threats_per_session": threats_per_session,
+                "threat_count": threat_count,
+                "session_count": session_count,
+            }
+        )
+    if session_count > 0 and threat_session_rate >= 0.25 and threat_count >= 1:
+        evidence_entries.append(
+            {
+                "kind": "threat_session_rate",
+                "rate": threat_session_rate,
+                "sessions_with_threats": sessions_with_threats,
+                "session_count": session_count,
+            }
         )
     if replay_count > 0 and adv >= 1:
         hard = True
-        vc = ", ".join(f"{k}={v}" for k, v in sorted(verdict_counts.items()))
-        bits.append(
-            f"recorded replay verdicts indicate contested workload "
-            f"({adv}/{replay_count} non-clean; {vc})"
+        evidence_entries.append(
+            {
+                "kind": "contested_replays",
+                "adversarial_replay_count": adv,
+                "replay_count": replay_count,
+                "verdict_counts": verdict_counts,
+            }
         )
     if not hard:
         return None
 
-    # Prefer mid reasoning tier first; fall back to any reasoning catalog row.
-    pick = model_catalog.get_model("o4-mini") or next(
-        (m for m in model_catalog.list_models() if m.get("reasoning")),
-        None,
+    current_models = [
+        m
+        for m in model_catalog.list_models(status="current")
+        if m.get("reasoning") and m.get("capability_tier") in ("high", "frontier")
+    ]
+    pick = model_catalog.get_model("gpt-5.6-terra") or (
+        current_models[0] if current_models else None
     )
     if pick is None:
         return None
     return {
         "recommend": True,
         "model_id": pick["id"],
+        "capability_tier": pick["capability_tier"],
         "tier": pick["tier"],
-        "rationale": (
-            "recorded workload looks hard/adversarial — prefer reasoning tier: "
-            + "; ".join(bits)
+        "evidence": evidence_entries,
+        "summary": (
+            f"recorded workload looks hard/adversarial — prefer {pick['id']} "
+            f"({pick['capability_tier']} reasoning tier)"
         ),
-        "evidence": {
+        "workload": {
             "session_count": session_count,
             "threat_count": threat_count,
-            "threat_rate": threat_rate,
+            "threats_per_session": threats_per_session,
+            "threat_session_rate": threat_session_rate,
             "replay_count": replay_count,
-            "verdict_counts": verdict_counts,
             "adversarial_replay_count": adv,
+            "verdict_counts": verdict_counts,
         },
         "price_label": model_catalog.price_label(),
     }
+
+
+def _candidate_fit(
+    row: dict[str, Any],
+    *,
+    current_row: dict[str, Any] | None,
+    workload: dict[str, Any],
+    usage: dict[str, Any],
+    baseline_cost: float | None,
+    proj: float | None,
+    proj_cached: float | None,
+    delta: float | None,
+) -> dict[str, Any]:
+    """Score and explain fit for one catalog candidate."""
+    reasons: list[str] = []
+    blockers: list[str] = []
+    status = str(row.get("status") or "current")
+    cap = str(row.get("capability_tier") or "")
+    cur_cap = str((current_row or {}).get("capability_tier") or "")
+    cap_rank = model_catalog.capability_rank(cap)
+    cur_rank = model_catalog.capability_rank(cur_cap)
+
+    threat_count = int(workload.get("threat_count") or 0)
+    session_count = int(workload.get("session_count") or 0)
+    adv = int(workload.get("adversarial_replay_count") or 0)
+    total_tokens = int(usage.get("total_tokens") or 0)
+
+    if status in ("legacy", "deprecated"):
+        blockers.append(f"status:{status} — excluded from active recommendations")
+    if (
+        float(row.get("input_usd_per_mtok") or 0) == 0
+        and float(row.get("output_usd_per_mtok") or 0) == 0
+    ):
+        blockers.append("official token pricing unavailable — cannot project cost")
+    if row.get("caveats"):
+        for c in row["caveats"][:3]:
+            if "prefer over" in str(c).lower() or "decline" in str(c).lower():
+                blockers.append(str(c))
+
+    ctx = int(row.get("context_window") or 0)
+    if total_tokens > 0 and ctx > 0 and total_tokens > ctx * 0.8:
+        blockers.append(
+            f"context_window {ctx:,} may be tight vs recorded {total_tokens:,} tokens"
+        )
+
+    score = 50.0
+    if status == "current":
+        score += 20
+    elif status == "preview":
+        score += 5
+    else:
+        score -= 40
+
+    if cap_rank > cur_rank:
+        score += 15 * (cap_rank - cur_rank)
+        reasons.append(
+            f"higher capability tier ({cap} vs current {cur_cap or 'unknown'})"
+        )
+    elif cap_rank == cur_rank:
+        reasons.append(f"peer capability tier ({cap})")
+    elif cap_rank < cur_rank:
+        score -= 10 * (cur_rank - cap_rank)
+        if threat_count >= 2 or adv >= 1:
+            blockers.append(
+                f"recorded workload ({threat_count} threats, {adv} contested replays) "
+                f"may need {cur_cap} tier or higher"
+            )
+
+    if delta is not None:
+        if delta < -0.0001:
+            score += 8
+            reasons.append(f"projected savings ${abs(delta):.6f} on recorded token totals")
+        elif delta == 0:
+            reasons.append("zero projected cost delta vs current model")
+            if cap_rank > cur_rank:
+                score += 12
+        elif delta > 0:
+            score -= min(20, delta * 1000)
+            if cap_rank > cur_rank and (threat_count >= 1 or adv >= 1):
+                reasons.append(
+                    f"cost increase ${delta:.6f} may be justified by "
+                    f"{threat_count} threats / {adv} contested replays"
+                )
+
+    if row.get("reasoning") and (threat_count >= 1 or adv >= 1):
+        score += 10
+        reasons.append(
+            f"reasoning model aligned with recorded threats ({threat_count}) "
+            f"and contested replays ({adv})"
+        )
+
+    if session_count >= 5 and row.get("cost_class") == "economy" and cap_rank >= cur_rank:
+        reasons.append(f"economy class suits {session_count} recorded sessions")
+
+    for c in row.get("caveats") or []:
+        cstr = str(c)
+        if "tokenizer" in cstr.lower() or "effective cost" in cstr.lower():
+            blockers.append(cstr)
+            score -= 15
+
+    score = max(0.0, min(100.0, score))
+    return {
+        "score": round(score, 2),
+        "reasons": reasons[:6],
+        "blockers": blockers[:6],
+    }
+
+
+def _assign_bucket(
+    row: dict[str, Any],
+    fit: dict[str, Any],
+    *,
+    current_row: dict[str, Any] | None,
+    delta: float | None,
+) -> str:
+    status = str(row.get("status") or "current")
+    if status in ("legacy", "deprecated") or fit.get("blockers"):
+        return "not_advised"
+    cap_rank = model_catalog.capability_rank(str(row.get("capability_tier") or ""))
+    cur_rank = model_catalog.capability_rank(
+        str((current_row or {}).get("capability_tier") or "")
+    )
+    if cap_rank > cur_rank:
+        return "recommended_upgrade"
+    if cap_rank == cur_rank:
+        if delta is not None and delta < -0.00001:
+            return "cost_saver"
+        return "peer"
+    if delta is not None and delta <= 0:
+        return "cost_saver"
+    return "not_advised"
+
+
+def _build_candidate_row(
+    row: dict[str, Any],
+    *,
+    current_model: str | None,
+    current_row: dict[str, Any] | None,
+    inp: int,
+    out: int,
+    baseline_cost: float | None,
+    workload: dict[str, Any],
+    usage: dict[str, Any],
+) -> dict[str, Any]:
+    proj = model_catalog.project_cost_usd(row["id"], input_tokens=inp, output_tokens=out)
+    proj_cached = model_catalog.project_cost_usd(
+        row["id"], input_tokens=inp, output_tokens=out, use_cached_input=True
+    )
+    delta = None
+    if proj is not None and baseline_cost is not None:
+        delta = round(proj - baseline_cost, 8)
+    fit = _candidate_fit(
+        row,
+        current_row=current_row,
+        workload=workload,
+        usage=usage,
+        baseline_cost=baseline_cost,
+        proj=proj,
+        proj_cached=proj_cached,
+        delta=delta,
+    )
+    bucket = _assign_bucket(row, fit, current_row=current_row, delta=delta)
+    return {
+        "id": row["id"],
+        "provider": row["provider"],
+        "display_name": row.get("display_name", row["id"]),
+        "capability_tier": row["capability_tier"],
+        "cost_class": row["cost_class"],
+        "tier": row["tier"],
+        "status": row["status"],
+        "input_usd_per_mtok": row["input_usd_per_mtok"],
+        "cached_input_usd_per_mtok": row["cached_input_usd_per_mtok"],
+        "output_usd_per_mtok": row["output_usd_per_mtok"],
+        "context_window": row["context_window"],
+        "max_output_tokens": row.get("max_output_tokens"),
+        "reasoning": row["reasoning"],
+        "reasoning_control": row.get("reasoning_control", "none"),
+        "strengths": row["strengths"],
+        "caveats": row.get("caveats") or [],
+        "price_verified": row.get("price_verified"),
+        "projected_cost_usd": proj,
+        "projected_cost_usd_cached": proj_cached,
+        "projected_cost_delta": delta,
+        "price_label": model_catalog.price_label(),
+        "is_current": row["id"] == current_model,
+        "bucket": bucket,
+        "fit": fit,
+    }
+
+
+def _sort_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    bucket_order = {
+        "recommended_upgrade": 0,
+        "cost_saver": 1,
+        "peer": 2,
+        "not_advised": 3,
+    }
+    highlight_ids = model_catalog.catalog_highlight_ids()
+
+    def _key(c: dict[str, Any]) -> tuple[Any, ...]:
+        if c.get("is_current"):
+            return (-1, 0, 0, 0, c["id"])
+        fit = c.get("fit") or {}
+        status_rank = model_catalog.status_rank(str(c.get("status")))
+        return (
+            bucket_order.get(str(c.get("bucket")), 9),
+            -float(fit.get("score") or 0),
+            0 if c["id"] in highlight_ids else 1,
+            -status_rank,
+            c["id"],
+        )
+
+    candidates.sort(key=_key)
+    return candidates
+
+
+def _catalog_highlights(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Non-current rows from CATALOG_HIGHLIGHT_IDS for HQ "new in catalog" surfacing.
+
+    Preview models outside the highlight set still appear in recommendation buckets;
+    they are not auto-promoted into version additions.
+    """
+    highlight_ids = model_catalog.catalog_highlight_ids()
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for c in candidates:
+        cid = str(c.get("id") or "")
+        if not cid or c.get("is_current") or cid in seen:
+            continue
+        if cid in highlight_ids:
+            out.append(c)
+            seen.add(cid)
+    return out
 
 
 def agent_model_intelligence(
@@ -985,6 +1347,7 @@ def agent_model_intelligence(
     """
     agent = repository.get_agent(conn, agent_id) or {}
     current_model = agent.get("model")
+    current_row = model_catalog.get_model(current_model)
     observed = observed if observed is not None else repository.list_agent_models(conn, agent_id)
     usage = agent_usage_evidence(conn, agent_id)
     workload = agent_workload_evidence(conn, agent_id)
@@ -994,50 +1357,57 @@ def agent_model_intelligence(
     baseline_cost = model_catalog.project_cost_usd(
         current_model, input_tokens=inp, output_tokens=out
     )
+    baseline_cost_cached = model_catalog.project_cost_usd(
+        current_model, input_tokens=inp, output_tokens=out, use_cached_input=True
+    )
+
+    recommendation_rows = [
+        m for m in model_catalog.list_models() if m.get("status") in ("current", "preview")
+    ]
+    if current_row and all(row["id"] != current_model for row in recommendation_rows):
+        recommendation_rows.append(current_row)
+
     candidates: list[dict[str, Any]] = []
-    for row in model_catalog.list_models():
-        proj = model_catalog.project_cost_usd(
-            row["id"], input_tokens=inp, output_tokens=out
-        )
-        delta = None
-        if proj is not None and baseline_cost is not None:
-            delta = round(proj - baseline_cost, 8)
+    for row in recommendation_rows:
         candidates.append(
-            {
-                "id": row["id"],
-                "provider": row["provider"],
-                "tier": row["tier"],
-                "input_usd_per_mtok": row["input_usd_per_mtok"],
-                "output_usd_per_mtok": row["output_usd_per_mtok"],
-                "context_window": row["context_window"],
-                "reasoning": row["reasoning"],
-                "strengths": row["strengths"],
-                "projected_cost_usd": proj,
-                "projected_cost_delta": delta,
-                "price_label": model_catalog.price_label(),
-                "is_current": row["id"] == current_model,
-            }
+            _build_candidate_row(
+                row,
+                current_model=current_model,
+                current_row=current_row,
+                inp=inp,
+                out=out,
+                baseline_cost=baseline_cost,
+                workload=workload,
+                usage=usage,
+            )
         )
+    candidates = _sort_candidates(candidates)
 
-    # Sort: current first, then cheapest projected, then id.
-    def _sort_key(c: dict[str, Any]) -> tuple[Any, ...]:
-        delta = c.get("projected_cost_delta")
-        # None deltas sort last among non-current
-        dkey = float("inf") if delta is None else float(delta)
-        return (0 if c.get("is_current") else 1, dkey, c["id"])
-
-    candidates.sort(key=_sort_key)
+    buckets: dict[str, list[dict[str, Any]]] = {
+        "recommended_upgrade": [],
+        "cost_saver": [],
+        "peer": [],
+        "not_advised": [],
+    }
+    for c in candidates:
+        if c.get("is_current"):
+            continue
+        b = str(c.get("bucket") or "not_advised")
+        buckets.setdefault(b, []).append(c)
 
     return {
         "agent_id": agent_id,
         "current_model": current_model,
         "catalog_version": model_catalog.catalog_version(),
         "price_label": model_catalog.price_label(),
-        "models": observed,  # legacy cascade shape preserved under this key
+        "models": observed,
         "usage_evidence": usage,
         "workload_evidence": workload,
         "baseline_projected_cost_usd": baseline_cost,
+        "baseline_projected_cost_usd_cached": baseline_cost_cached,
         "candidates": candidates,
+        "catalog_highlights": _catalog_highlights(candidates),
+        "recommendation_buckets": buckets,
         "reasoning_recommendation": reasoning_recommendation_from_evidence(workload),
         "honesty": (
             "projected_cost_* use catalog list-price estimates applied to this agent's "

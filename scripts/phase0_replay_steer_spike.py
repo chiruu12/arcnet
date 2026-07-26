@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-MODEL = os.getenv("ARCNET_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("ARCNET_MODEL", "legacy-baseline-v1")
 
 
 def main() -> int:

@@ -249,6 +249,7 @@ export function App() {
             {view === "dashboards" && <Dashboards mode={mode} />}
             {view === "hq_agent" && (
               <HqAgent
+                mode={mode}
                 deepLink={{
                   agent: hash.agent,
                   version: hash.version,

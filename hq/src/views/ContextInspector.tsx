@@ -15,7 +15,7 @@ import {
   preferVersion,
   type CascadeState,
 } from "../cascade";
-import { Empty, ViewSeam, ts } from "../components";
+import { AgentToonBody, Empty, ViewSeam, ts } from "../components";
 import { showingOfTotal } from "../pageLabel";
 import { useRetryToken } from "../viewRetry";
 import type { AgentModelRow, CascadeLink, FleetRow, Mode, SessionRow, SourceRow } from "../types";
@@ -59,7 +59,7 @@ function ContextInspectorTwin({ sessionId }: { sessionId: string }) {
 
   return (
     <>
-      <p className="eyebrow">{"// agent_view"}</p>
+      <p className="eyebrow">{"// agent_view · toon"}</p>
       <h1>
         GET /api/agent-view/context_inspector/{sessionId}
       </h1>
@@ -68,7 +68,7 @@ function ContextInspectorTwin({ sessionId }: { sessionId: string }) {
       </p>
       {err && <ViewSeam error={err} onRetry={retry} />}
       {!err && !twin && <p className="lede">loading…</p>}
-      {twin && <pre className="agent-json">{JSON.stringify(twin, null, 2)}</pre>}
+      {twin && <AgentToonBody title="context_inspector.toon" value={twin} />}
     </>
   );
 }

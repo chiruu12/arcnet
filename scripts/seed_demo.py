@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 import time
@@ -23,16 +24,36 @@ sys.path.insert(0, str(ROOT / "server"))
 
 from arcnet_server.db import connect, default_db_path, init_db  # noqa: E402
 
+FLEET_MODEL = os.getenv("ARCNET_MODEL", "gpt-5.6-luna")
+BASELINE_MODEL = "legacy-baseline-v1"  # historical hero recordings + demo.baseline label
+
 BACKGROUND_AGENTS = [
     ("agent_l", "Agent L", "fleet background — kb sync", "internal"),
     ("agent_o", "Agent O", "fleet background — digest", "internal"),
+    ("agent_opus", "Agent Opus", "fleet — high-stakes analysis", "forward_facing"),
 ]
 
 # Deterministic baseline versions for cascade pickers (Wave A / WS4).
 BASELINE_VERSIONS = [
-    ("agent_l", "av_demo_agent_l", "demo.baseline", "gpt-4o-mini", "agents/prompts/agent_l.md"),
-    ("agent_o", "av_demo_agent_o", "demo.baseline", "gpt-4o-mini", "agents/prompts/agent_o.md"),
-    ("agent_j", "av_demo_agent_j", "demo.baseline", "gpt-4o-mini", "agents/prompts/agent_j.md"),
+    ("agent_l", "av_demo_agent_l", "demo.baseline", FLEET_MODEL, "agents/prompts/agent_l.md"),
+    ("agent_o", "av_demo_agent_o", "demo.baseline", FLEET_MODEL, "agents/prompts/agent_o.md"),
+    (
+        "agent_j",
+        "av_demo_agent_j",
+        "demo.baseline",
+        BASELINE_MODEL,
+        "agents/prompts/agent_j.md",
+    ),
+]
+
+LUNA_VERSIONS = [
+    (
+        "agent_j",
+        "av_demo_luna_j",
+        "demo.luna",
+        FLEET_MODEL,
+        "agents/prompts/agent_j.md",
+    ),
 ]
 
 
@@ -54,9 +75,16 @@ def _ensure_baseline_version(
     existing = conn.execute(
         "SELECT version_id FROM agent_versions WHERE version_id=?", (version_id,)
     ).fetchone()
-    if existing:
-        return
     fleet_model = agent[1] or model
+    if existing:
+        # Preserve historical demo.baseline model label — do not clobber on re-seed.
+        if version == "demo.baseline":
+            return
+        conn.execute(
+            "UPDATE agent_versions SET model=? WHERE version_id=?",
+            (fleet_model, version_id),
+        )
+        return
     conn.execute(
         """INSERT INTO agent_versions
            (version_id, agent_id, version, model, model_version, source_ref, notes, created_at)
@@ -93,18 +121,21 @@ def main() -> int:
     hour = 60 * 60 * 1000
 
     for agent_id, name, role, exposure in BACKGROUND_AGENTS:
+        agent_model = (
+            "claude-opus-4-8" if agent_id == "agent_opus" else FLEET_MODEL
+        )
         conn.execute(
             """INSERT OR REPLACE INTO agents
                (agent_id, name, role, exposure, model, first_seen, last_seen)
                VALUES (?,?,?,?,?,?,?)""",
-            (agent_id, name, role, exposure, "gpt-4o-mini", now - 7 * 24 * hour, now),
+            (agent_id, name, role, exposure, agent_model, now - 7 * 24 * hour, now),
         )
         for i in range(args.sessions):
             session_id = f"s_demo_{agent_id}_{i:02d}"
             started = now - rng.randint(1, 23) * hour - rng.randint(0, 3000_000)
             tokens_in = rng.randint(400, 1400)
             tokens_out = rng.randint(80, 400)
-            cost = round((tokens_in * 0.15 + tokens_out * 0.60) / 1_000_000, 6)
+            cost = round((tokens_in * 1.0 + tokens_out * 6.0) / 1_000_000, 6)
             usage = {
                 "input_tokens": tokens_in,
                 "output_tokens": tokens_out,
@@ -129,7 +160,7 @@ def main() -> int:
                     agent_id,
                     None,
                     "background task (demo seed)",
-                    "gpt-4o-mini",
+                    FLEET_MODEL,
                     0.0,
                     "completed",
                     json.dumps(outcome),
@@ -152,6 +183,28 @@ def main() -> int:
             source_ref=source_ref,
             created_at=now - 24 * hour,
         )
+
+    for agent_id, version_id, version, model, source_ref in LUNA_VERSIONS:
+        _ensure_baseline_version(
+            conn,
+            agent_id=agent_id,
+            version_id=version_id,
+            version=version,
+            model=model,
+            source_ref=source_ref,
+            created_at=now - 6 * hour,
+        )
+
+    # Pin unversioned Agent J baseline recordings to demo.baseline so versioned
+    # cascade filters (time_machine / case_files) match hero history.
+    conn.execute(
+        """UPDATE sessions
+           SET agent_version=?
+           WHERE agent_id='agent_j'
+             AND model=?
+             AND (agent_version IS NULL OR TRIM(agent_version)='')""",
+        ("av_demo_agent_j", BASELINE_MODEL),
+    )
 
     conn.commit()
     counts = {

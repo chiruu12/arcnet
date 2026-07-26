@@ -33,7 +33,7 @@ def _seed_usage_sessions(conn, *, n: int = 40) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO agents(agent_id, name, role, exposure, model, first_seen, last_seen) "
         "VALUES (?,?,?,?,?,?,?)",
-        ("agent_j", "J", "ops", "forward_facing", "gpt-4o-mini", t, t),
+        ("agent_j", "J", "ops", "forward_facing", "legacy-baseline-v1", t, t),
     )
     for i in range(n):
         usage = json.dumps(
@@ -52,7 +52,7 @@ def _seed_usage_sessions(conn, *, n: int = 40) -> None:
                 "agent_j",
                 "S1",
                 "soak",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "completed",
                 "{}",

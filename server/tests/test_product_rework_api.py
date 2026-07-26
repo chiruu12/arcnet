@@ -46,7 +46,7 @@ class ProductReworkApiTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "support/ops", "forward_facing", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "support/ops", "forward_facing", "legacy-baseline-v1", ts, ts),
         )
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
@@ -55,8 +55,8 @@ class ProductReworkApiTests(unittest.TestCase):
         )
         for i, (sid, model, agent) in enumerate(
             [
-                ("s_page_a", "gpt-4o-mini", "agent_j"),
-                ("s_page_b", "gpt-4o-mini", "agent_j"),
+                ("s_page_a", "legacy-baseline-v1", "agent_j"),
+                ("s_page_b", "legacy-baseline-v1", "agent_j"),
                 ("s_page_c", "gpt-4o", "agent_j"),
                 ("s_page_d", "gpt-4o", "agent_l"),
             ]
@@ -171,7 +171,7 @@ class ProductReworkApiTests(unittest.TestCase):
         r = self.client.get("/api/agents/agent_j/models")
         self.assertEqual(r.status_code, 200)
         models = {row["model"]: row["session_count"] for row in r.json()}
-        self.assertEqual(models["gpt-4o-mini"], 2)
+        self.assertEqual(models["legacy-baseline-v1"], 2)
         self.assertEqual(models["gpt-4o"], 1)
         missing = self.client.get("/api/agents/nope/models")
         self.assertEqual(missing.status_code, 404)

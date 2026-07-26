@@ -82,7 +82,7 @@ class GuardScenarioStubs(unittest.TestCase):
             session_id="s_test",
             agent_id="agent_j",
             goal="test",
-            model="gpt-4o-mini",
+            model="legacy-baseline-v1",
         )
 
         def _send(**_: object) -> str:

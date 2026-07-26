@@ -75,8 +75,8 @@ describe("replay history labels", () => {
 
   it("tags model vs prompt axis in history rows", () => {
     assert.equal(
-      replayHistoryLabel({ ...base, candidate_model: "gpt-4o-mini" }),
-      "model=gpt-4o-mini",
+      replayHistoryLabel({ ...base, candidate_model: "legacy-baseline-v1" }),
+      "model=legacy-baseline-v1",
     );
     assert.equal(
       replayHistoryLabel({ ...base, candidate_prompt_ref: "agents/prompts/j.md@abc" }),

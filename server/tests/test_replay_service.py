@@ -69,7 +69,7 @@ class VerdictTests(unittest.TestCase):
         threat_session = {
             "session_id": "s_edgar",
             "scenario": "S1",
-            "model": "gpt-4o-mini",
+            "model": "legacy-baseline-v1",
             "outcome": {"goal_reached": "failed", "steps": 4, "tool_errors": 1, "exfil_attempts": 1},
             "usage": {"input_tokens": 2000, "output_tokens": 600, "cost_usd": 0.0005, "latency_ms": 7000},
             "transcript": {

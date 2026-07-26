@@ -17,7 +17,7 @@ def _seed(conn) -> None:
     conn.execute(
         "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
         "VALUES (?,?,?,?,?,?,?)",
-        ("agent_j", "Agent J", "support", "forward_facing", "gpt-4o-mini", ts, ts),
+        ("agent_j", "Agent J", "support", "forward_facing", "legacy-baseline-v1", ts, ts),
     )
     conn.execute(
         """INSERT INTO sessions (session_id, agent_id, scenario, goal, model, status,
@@ -27,7 +27,7 @@ def _seed(conn) -> None:
             "agent_j",
             "S1",
             "ship order",
-            "gpt-4o-mini",
+            "legacy-baseline-v1",
             "failed",
             "trace_p8b",
             json.dumps({"steps": [], "final_output": "blocked"}),
@@ -65,7 +65,7 @@ def _seed(conn) -> None:
     conn.execute(
         """INSERT INTO agent_versions (version_id, agent_id, version, model, created_at)
            VALUES (?,?,?,?,?)""",
-        ("av_p8b", "agent_j", "v1", "gpt-4o-mini", ts),
+        ("av_p8b", "agent_j", "v1", "legacy-baseline-v1", ts),
     )
     conn.commit()
 
@@ -182,7 +182,7 @@ class AgentTwinP8BTests(unittest.TestCase):
     def test_structured_409_duplicate_version(self) -> None:
         first = self.client.post(
             "/api/agents/agent_j/apply-model",
-            json={"confirm": True, "model": "gpt-4o-mini", "version": "p8b-v1"},
+            json={"confirm": True, "model": "legacy-baseline-v1", "version": "p8b-v1"},
         )
         self.assertEqual(first.status_code, 200)
         vid = first.json()["version"]["version_id"]

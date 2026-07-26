@@ -19,7 +19,7 @@ def _seed(conn) -> None:
     conn.execute(
         "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
         "VALUES (?,?,?,?,?,?,?)",
-        ("agent_j", "Agent J", "support", "forward_facing", "gpt-4o-mini", ts, ts),
+        ("agent_j", "Agent J", "support", "forward_facing", "legacy-baseline-v1", ts, ts),
     )
     conn.execute(
         """INSERT INTO sessions (session_id, agent_id, scenario, goal, model, status,
@@ -29,7 +29,7 @@ def _seed(conn) -> None:
             "agent_j",
             "S1",
             "ship order",
-            "gpt-4o-mini",
+            "legacy-baseline-v1",
             "failed",
             "trace_coherence",
             json.dumps({"steps": [], "final_output": "blocked"}),

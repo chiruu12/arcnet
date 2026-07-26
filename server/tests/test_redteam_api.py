@@ -20,7 +20,7 @@ POST_JSON_ROUTES: list[tuple[str, dict | None]] = [
     ("/api/threats", {"agent_id": "agent_j", "action": "block"}),
     ("/api/sources", {"agent_id": "agent_j", "origin": "user"}),
     ("/api/signal", {"agent_id": "agent_j", "kind": "note", "severity": "info", "reason": "x"}),
-    ("/api/replay", {"session_id": "s_rt", "candidate_model": "gpt-4o-mini"}),
+    ("/api/replay", {"session_id": "s_rt", "candidate_model": "legacy-baseline-v1"}),
     ("/api/agents/agent_j/versions", {"version": "v1"}),
     (
         "/api/agents/agent_j/apply-model",
@@ -98,7 +98,7 @@ class RedTeamApiTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "support/ops", "internal", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "support/ops", "internal", "legacy-baseline-v1", ts, ts),
         )
         conn.execute(
             """INSERT INTO sessions (session_id, agent_id, scenario, goal, model, temperature,
@@ -109,7 +109,7 @@ class RedTeamApiTests(unittest.TestCase):
                 "agent_j",
                 "S1",
                 "red-team goal",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "completed",
                 json.dumps({"goal_reached": "clean"}),

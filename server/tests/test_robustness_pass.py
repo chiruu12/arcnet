@@ -28,7 +28,7 @@ class RobustnessPassTests(unittest.TestCase):
         conn.execute(
             "INSERT INTO agents (agent_id, name, role, exposure, model, first_seen, last_seen) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("agent_j", "Agent J", "support/ops", "forward_facing", "gpt-4o-mini", ts, ts),
+            ("agent_j", "Agent J", "support/ops", "forward_facing", "legacy-baseline-v1", ts, ts),
         )
         conn.execute(
             """INSERT INTO sessions (session_id, agent_id, scenario, goal, model, temperature,
@@ -39,7 +39,7 @@ class RobustnessPassTests(unittest.TestCase):
                 "agent_j",
                 "S1",
                 "goal",
-                "gpt-4o-mini",
+                "legacy-baseline-v1",
                 0.0,
                 "completed",
                 json.dumps({"goal_reached": "exploited"}),

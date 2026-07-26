@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, toUserError } from "./api";
+import { envelopeToToon, encodeToon } from "./toon";
 import type { AgentEnvelope } from "./types";
 import { useRetryToken } from "./viewRetry";
 
@@ -28,6 +29,33 @@ export function Empty({ hint }: { hint: string }) {
   );
 }
 
+/** Terminal chrome for TOON agent_view panels. */
+export function ToonPanel({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="toon-panel">
+      <div className="toon-chrome">
+        <span className="toon-dot red" />
+        <span className="toon-dot amber" />
+        <span className="toon-dot green" />
+        <span className="toon-title">{title}</span>
+      </div>
+      <pre className="agent-json toon-body">{body}</pre>
+    </div>
+  );
+}
+
+/** Renders arbitrary JSON-ish data as TOON (agent_view helper). */
+export function AgentToonBody({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
+  const body = typeof value === "string" ? value : encodeToon(value);
+  return <ToonPanel title={title} body={body} />;
+}
+
 /** Renders the machine-optimal twin of a view: GET /api/agent-view/{view}/{id}. */
 export function AgentJson({ view, id }: { view: string; id: string }) {
   const [env, setEnv] = useState<AgentEnvelope | null>(null);
@@ -53,13 +81,13 @@ export function AgentJson({ view, id }: { view: string; id: string }) {
 
   return (
     <>
-      <p className="eyebrow">{"// agent_view"}</p>
+      <p className="eyebrow">{"// agent_view · toon"}</p>
       <h1>
         GET /api/agent-view/{view}/{id}
       </h1>
       {err && <ViewSeam error={err} onRetry={retry} />}
       {!err && !env && <p className="lede">loading…</p>}
-      {env && <pre className="agent-json">{JSON.stringify(env, null, 2)}</pre>}
+      {env && <ToonPanel title={`${view}.toon`} body={envelopeToToon(env)} />}
     </>
   );
 }

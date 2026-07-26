@@ -15,14 +15,14 @@
 ### Traces (OTLP)
 Span hierarchy **as the pinned instrumentor actually emits it** — OpenInference semconv, NOT `gen_ai.*`. **Phase 0 live trace (2026-07-21) recorded below — author all dashboards/alerts against these keys only:**
 
-**Live span names (hello agent `name="hello_arcnet"`, model `OpenAIChat(gpt-4o-mini)`, tool `add`):**
+**Live span names (hello agent `name="hello_arcnet"`, model `OpenAIChat(legacy-baseline-v1)`, tool `add`):**
 - `hello_arcnet.run` — root, `openinference.span.kind=AGENT`
 - `OpenAIChat.invoke` — LLM calls, `openinference.span.kind=LLM` (pattern = `{ModelClass}.invoke`, not the model id)
 - `add` — tool call, `openinference.span.kind=TOOL` (pattern = tool function name)
 
 **Live attribute keys on LLM spans (ClickHouse `attributes_string` / `attributes_number`):**
 - `openinference.span.kind` ∈ `AGENT` | `LLM` | `TOOL`
-- `llm.model_name` (e.g. `gpt-4o-mini`), `llm.provider` (e.g. `OpenAI`)
+- `llm.model_name` (e.g. `legacy-baseline-v1`), `llm.provider` (e.g. `OpenAI`)
 - `llm.token_count.prompt`, `llm.token_count.completion` — stored as **numbers** in ClickHouse (`attributes_number`)
 - `llm.input_messages.{i}.message.role` / `.content` / `.tool_call_id` / nested `.tool_calls…`
 - `llm.output_messages.{i}.message.role` / `.content` / `.tool_calls…`

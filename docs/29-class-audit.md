@@ -24,7 +24,7 @@ Checks: dead code, error handling, cross-module duplication, docstring accuracy 
 | `read_models` | Human vs agent projections | `except JSONDecodeError: findings = findings` no-op branch | **Fixed** |
 | `replay_service` | 3-run Time Machine + verdict | Clean; threat-session signature logic documented | — |
 | `griffin` | MAD anomaly worker + cache | `BUS.publish` failure was silent `pass` | **Fixed** |
-| `model_catalog` | Static list-price catalog (docs/27) | `gpt-4o` / `gpt-4o-mini` rates match `sdk/pricing` | Verified + test |
+| `model_catalog` | Static list-price catalog (docs/27) | `gpt-4o` / `legacy-baseline-v1` rates match `sdk/pricing` | Verified + test |
 | `tabfm_worker` | TabFM contract stub (P7-A) | `forecast()` delegates to `mad_judge`; mirrors Griffin when `observed=hist[-1]` | Verified |
 | `errors` | Structured 404/409 hints | Clean | — |
 | `db` | Schema + additive `_ensure_column` | P8 columns (`guard_verdict`, `findings_detail`) present | — |

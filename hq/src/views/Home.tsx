@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, toUserError } from "../api";
 import { buildHomeStats, formatStatValue, type HomeStatKey } from "../homeStats";
 import { navigate } from "../hash";
-import { ViewSeam } from "../components";
+import { AgentToonBody, ViewSeam } from "../components";
 import { useRetryToken } from "../viewRetry";
 import type { Mode, View } from "../types";
 
@@ -110,9 +110,9 @@ export function Home({ mode }: { mode: Mode }) {
   if (mode === "agent") {
     return (
       <>
-        <p className="eyebrow">{"// agent_view"}</p>
+        <p className="eyebrow">{"// agent_view · toon"}</p>
         <h1>home</h1>
-        <pre className="agent-json">{JSON.stringify({ view: "home", stats }, null, 2)}</pre>
+        <AgentToonBody title="home.toon" value={{ view: "home", stats }} />
       </>
     );
   }
@@ -122,10 +122,10 @@ export function Home({ mode }: { mode: Mode }) {
       <section className="home-hero">
         <p className="wordmark home-wordmark">{"> arcnet"}</p>
         <h1 className="home-tagline">
-          make your agents work properly — and enhance them
+          watch your agents. fix them. prove the fix.
         </h1>
         <p className="lede home-subtitle">
-          observability + active defense for AI-native systems, built on SigNoz.
+          maintenance layer for agent fleets · observability + active defense · built on SigNoz.
         </p>
       </section>
 
