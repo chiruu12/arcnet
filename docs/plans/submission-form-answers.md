@@ -35,6 +35,11 @@ honesty doc (~64% readiness, hard-capped) instead of feature theater.
 
 ## How we used SigNoz (paste + edit)
 
+Self-hosted SigNoz is deployed with **Foundry** — `deploy/casting.yaml` is a 7-line declarative
+install, and the generated `deploy/casting.yaml.lock` is committed to the repo, so
+`foundryctl forge -f deploy/casting.yaml` reproduces our exact stack byte-for-byte (verified:
+regenerating the lock produces no diff). Foundry brings up SigNoz and its MCP server together.
+
 Self-hosted SigNoz is the observability backbone. Agno agents are instrumented with
 openinference-instrumentation-agno, so traces land in SigNoz as {agent}.run → {model}.invoke →
 {tool} waterfalls with token and cost attributes, plus custom arcnet.* span attributes for
@@ -61,8 +66,15 @@ after the event — my own agents run under it now.
 
 ## Pre-submit checklist
 
+- [x] **`casting.yaml` + `casting.yaml.lock` committed and pushed** — form hard requirement
+      ("judges may re-run Foundry against them"). The lock was gitignored until 2026-07-26;
+      verified reproducible (`foundryctl forge` → byte-identical) and scanned for credentials
+      before tracking.
+- [x] Repo public, `origin/main` matches local, 479 tests green
+      (server 260 · sdk 88 · agents 25 · hq 106)
 - [ ] Blog published, URL works logged-out
-- [ ] Video uploaded (unlisted), plays logged-out, < 3 min
+- [ ] Video uploaded (unlisted), plays logged-out, < 3 min — **must cover tech stack +
+      architecture explicitly** (Shot 1); the form grades it
 - [ ] README screenshots in place (5 slots incl. model-intel)
-- [ ] `git log -1` on GitHub matches local main; repo public
+- [ ] Rotate the SigNoz admin password (`.signoz-local-admin`)
 - [ ] Form submitted; screenshot the confirmation page

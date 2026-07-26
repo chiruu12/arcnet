@@ -9,6 +9,10 @@ clips, assemble after.
 software. The video walks the loop once, in order — observe → defend → hand off → prove →
 improve — one shot per stage.
 
+> **The form grades four things:** about the project · **tech stack and architecture** ·
+> demo · learning and growth (optional). Shot 1 exists purely to satisfy the second one —
+> do not cut it for time. Cut Shot 6 instead.
+
 ## Pre-flight (do once, ~10 min before recording)
 
 ```bash
@@ -29,7 +33,7 @@ On-screen baseline label is **`legacy-baseline-v1`**; candidate is `gpt-4o`.
 
 ## Shot list
 
-### Shot 0 — Cold open (0:00–0:15) · HQ home
+### Shot 0 — Cold open (0:00–0:12) · HQ home
 - **Screen:** `http://localhost:5173/#home` — the `> arcnet` hero ("watch your agents. fix them.
   prove the fix."), live stat tiles, loop strip.
 - **Action:** slow cursor drift along the loop strip (observe → defend → replay → case_file →
@@ -39,14 +43,32 @@ On-screen baseline label is **`legacy-baseline-v1`**; candidate is `gpt-4o`.
   loop: watch the fleet, defend it, and prove every fix on your own recorded history. Built on
   SigNoz."
 
-### Shot 1 — Observe (0:15–0:35) · fleet + SigNoz trace
+### Shot 1 — Stack & architecture (0:12–0:35) · the diagram
+- **Screen:** GitHub, [`docs/02-architecture.md`](../02-architecture.md) — the mermaid system
+  diagram renders natively; let it fill the frame. Trace the arrows with the cursor as you
+  narrate: SDK → OTLP → SigNoz → alert webhook → server → SSE → back into the agent.
+- **Then flip briefly:** `deploy/casting.yaml` in the repo (7 lines, on screen for ~2s).
+- **Say:** "The stack: agents on **Agno**, wrapped by an in-process SDK that does two jobs —
+  OpenTelemetry instrumentation via **openinference-instrumentation-agno**, and guardrails via
+  **unplug-ai**. Traces go to **self-hosted SigNoz** over OTLP, ClickHouse underneath.
+  A **FastAPI** server reads back through the Query Range API, runs Griffin and the Time
+  Machine, and pushes signals over SSE. The UI is **React**. And the whole SigNoz deployment is
+  one declarative file — installed with **Foundry**, so `casting.yaml` plus its lock file
+  reproduce this exact stack from scratch."
+- **Why this shot:** the form grades "tech stack and architecture" explicitly, and it's the one
+  thing a demo-only video can't show. Say the component names out loud — judges are listening
+  for them.
+
+### Shot 2 — Observe (0:35–0:58) · fleet + SigNoz trace + Griffin
 - **Screen A:** `#fleet_health` — fleet cards, the **[FORWARD]** tag on Agent J, Griffin **MAD** strip.
 - **Screen B (flip):** SigNoz `:8080` → Traces → open a recent `agent_j.run` waterfall
   (`{agent}.run → {model}.invoke → {tool}` spans, token + cost attrs visible).
-- **Say:** "Full OpenTelemetry tracing into self-hosted SigNoz. Every model call, tool call,
-  token, and dollar — plus a trust level on every source the agent ingests."
+- **Screen C (quick):** SigNoz → Alerts → the seasonal anomaly rule, beside the HQ MAD card.
+- **Say:** "Every model call, tool call, token and dollar lands in SigNoz — plus a trust level
+  on every source the agent ingests. And Griffin, a MAD statistical baseline per metric, flags a
+  runaway agent from minute one: SigNoz's seasonal anomaly rule needs history, Griffin doesn't."
 
-### Shot 2 — Defend (0:35–1:05) · Edgar, live
+### Shot 3 — Defend (0:58–1:28) · Edgar, live
 - **Screen:** split terminal + HQ `#signals`. Terminal:
   `PYTHONPATH=sdk:agents uv run python agents/scenarios/runner.py --scenario S1`.
 - **Watch for:** threats row `taint` / **`retrieved_source_in_side_effect`** @ 0.85 with
@@ -66,13 +88,7 @@ On-screen baseline label is **`legacy-baseline-v1`**; candidate is `gpt-4o`.
 > the stronger story anyway — taint tracking is the load-bearing defense
 > (measured: [`../33-guard-coverage.md`](../33-guard-coverage.md)).
 
-### Shot 3 — Griffin (1:05–1:20) · MAD outlier
-- **Screen:** HQ `#fleet_health` MAD card next to SigNoz → Alerts → the seasonal anomaly rule.
-- **Say:** "Griffin — a MAD statistical baseline on each metric — flags runaway agents before
-  any static threshold trips. SigNoz's seasonal anomaly rule needs history; Griffin covers a
-  brand-new agent from minute one. Outlier, report; normal, silence."
-
-### Shot 4 — Hand off (1:20–1:50) · the machine twin
+### Shot 4 — Hand off (1:28–1:52) · the machine twin
 - **Screen:** Case Files on Edgar
   (`#case_files?agent=agent_j&version=av_demo_agent_j&session=s_ecfdb55d`), click
   **`export_case_file()`** so the zip download is visible, then flip the
@@ -84,7 +100,7 @@ On-screen baseline label is **`legacy-baseline-v1`**; candidate is `gpt-4o`.
   whole incident graph without guessing URLs, JSON or token-efficient TOON. The case file
   exports with a fix prompt and the trace evidence attached."
 
-### Shot 5 — Prove (1:50–2:25) · Time Machine
+### Shot 5 — Prove (1:52–2:27) · Time Machine
 - **Screen:** `#time_machine?agent=agent_j&version=av_demo_agent_j&session=s_ecfdb55d` (Edgar).
   Click **replay** against the candidate — live if the key is funded, stored verdict otherwise.
 - **Read off the actual verdict:** baseline followed the injection (`exfil 1`,
@@ -99,7 +115,7 @@ On-screen baseline label is **`legacy-baseline-v1`**; candidate is `gpt-4o`.
   The candidate stops itself. Prove the upgrade on incidents your fleet actually recorded. Not
   vibes. Your own history."
 
-### Shot 6 — Improve (2:25–2:45) · HQ Agent + catalog
+### Shot 6 — Improve (2:27–2:42) · CUT THIS FIRST if over time · HQ Agent + catalog
 - **Screen:** `#hq_agent?agent=agent_j` — status line `catalog=2026-07e · list-price estimate`,
   the `// new in catalog` ids, recommendation buckets. If proposal cards exist, hover the apply
   form's **confirm** checkbox without submitting.
@@ -107,7 +123,7 @@ On-screen baseline label is **`legacy-baseline-v1`**; candidate is `gpt-4o`.
   from this agent's own recorded tokens — labeled list-price estimates, not an invoice. The
   agent proposes. A human confirms. Nothing hot-swaps production silently."
 
-### Shot 7 — Close (2:45–2:58)
+### Shot 7 — Close (2:42–2:58)
 - **Screen:** SigNoz Threats & Trust full-screen (ClickHouse SQL panel visible) → cut to HQ
   `#home` wordmark.
 - **Say:** "Observe, defend, hand off, prove, improve. ArcNet — your agents, watching
